@@ -1,0 +1,826 @@
+import { emptyTitlebarLayout } from '../plugins/titlebar';
+import {
+  DEFAULT_WINDOW_BACKGROUND,
+  normalizeWindowBackground,
+  resolveWindowBackground,
+  type WindowBackground,
+} from '../../shared/windowBackground';
+import { applyWindowBackground } from '@/utils/windowBackground';
+import { defineStore } from 'pinia';
+import type { CloseBehavior, ThemeMode } from '../../shared/app';
+import type { RecognizeAudioSource } from '../../shared/recognize';
+import { normalizeLogSettings, type AppLogLevel, type LogSettings } from '../../shared/logging';
+import type { AudioQualityValue, OutputDeviceOption, OutputDeviceStatus } from '../types';
+import { buildFontFamily } from '../../shared/font';
+import {
+  normalizeAudioEffectName,
+  type DspProviderRecord,
+  type SpatialAudioEffectEntry,
+} from '../../shared/audio';
+import { normalizeConvolutionMix } from '../../shared/audioEffectSupport';
+import {
+  DEFAULT_NETWORK_SETTINGS,
+  normalizeNetworkSettings,
+  type NetworkSettings,
+} from '../../shared/network';
+import type {
+  WindowBackgroundFrostBackend,
+  WindowBackgroundStrategyId,
+  WindowBackgroundTransparentMode,
+} from '../../shared/windowBackgroundStrategy';
+import { configureRendererLogger } from '@/utils/logger';
+import {
+  clampFadeCrossSecs,
+  DEFAULT_FADE_CROSS_SECS,
+  DEFAULT_TRACK_TRANSITION_MODE,
+  isTrackTransitionMode,
+  type TrackTransitionMode,
+} from '../../shared/trackTransition';
+
+import {
+  dspPresetBankKey,
+  dspPresetSettingsPatch,
+  parseDspPreset,
+  type DspPresetBank,
+} from '../../shared/dspProviderSettings';
+
+export const DEFAULT_SHORTCUT_LABELS: Record<string, string> = {
+  togglePlayback: '⌘Space',
+  previousTrack: '⌘←',
+  nextTrack: '⌘→',
+  seekBackward: '⌥⌘←',
+  seekForward: '⌥⌘→',
+  toggleMainLyric: '⌘K',
+  toggleDesktopLyric: '⌘D',
+  volumeUp: '⌘↑',
+  volumeDown: '⌘↓',
+  toggleMute: '⌘M',
+  toggleFavorite: '⌘L',
+  togglePlayMode: '⌘P',
+  toggleMiniPlayer: '⌘I',
+  toggleWindow: '⌘W',
+  toggleSidebar: '⌘B',
+};
+
+export const DEFAULT_GLOBAL_SHORTCUT_LABELS: Record<string, string> = {
+  togglePlayback: '⌘⇧Space',
+  previousTrack: '⌘⇧←',
+  nextTrack: '⌘⇧→',
+  seekBackward: '⌥⌘⇧←',
+  seekForward: '⌥⌘⇧→',
+  toggleMainLyric: '⌘⇧K',
+  toggleDesktopLyric: '⌘⇧D',
+  volumeUp: '⌘⇧↑',
+  volumeDown: '⌘⇧↓',
+  toggleMute: '⌘⇧M',
+  toggleFavorite: '⌘⇧L',
+  togglePlayMode: '⌘⇧P',
+  toggleMiniPlayer: '⌘⇧I',
+  toggleWindow: '⌥⌘S',
+  toggleSidebar: '⌘⇧B',
+};
+
+const getUniqueImpulseResponseName = (name: string, existingNames: string[]): string => {
+  const baseName = normalizeAudioEffectName(name);
+  const usedNames = new Set(
+    existingNames.map((item) => normalizeAudioEffectName(item).toLocaleLowerCase()),
+  );
+  if (!usedNames.has(baseName.toLocaleLowerCase())) return baseName;
+
+  let index = 2;
+  while (true) {
+    const nextName = `${baseName} ${index}`;
+    if (!usedNames.has(nextName.toLocaleLowerCase())) return nextName;
+    index += 1;
+  }
+};
+
+const toImpulseResponseFilePayload = (file: SpatialAudioEffectEntry): SpatialAudioEffectEntry => ({
+  id: String(file.id || ''),
+  name: String(file.name || ''),
+  size: Number(file.size) || 0,
+  importedAt: Number(file.importedAt) || 0,
+  format: file.format ? String(file.format) : undefined,
+  kind: file.kind,
+  source: file.source,
+  impulseResponsePath: file.impulseResponsePath,
+  vpfPath: file.vpfPath,
+});
+
+export const useSettingStore = defineStore('setting', {
+  state: () => ({
+    theme: 'system' as ThemeMode,
+    floatingSurfaceFrosted: false,
+    titlebarLayout: emptyTitlebarLayout(),
+    windowBackground: { ...DEFAULT_WINDOW_BACKGROUND },
+    windowBackgroundActiveEnabled: false,
+    windowBackgroundLive: false,
+    windowBackgroundFrostLive: false,
+    windowBackgroundNeedsRestart: false,
+    windowBackgroundUnavailableReason: '',
+    windowBackgroundActiveFrosted: null as boolean | null,
+    windowBackgroundStrategy: 'default' as WindowBackgroundStrategyId,
+    windowBackgroundTransparentMode: 'layered' as WindowBackgroundTransparentMode,
+    supportsWindowFrost: false,
+    windowFrostBackend: 'none' as WindowBackgroundFrostBackend,
+    language: 'zh-CN',
+    shortcutEnabled: true,
+    suppressDefaultKeyBehaviors: true,
+    autoPlay: true,
+    rememberWindowSize: true,
+    showPlaylistCount: true,
+    lyricBarrageEnabled: false,
+    mvBarrageEnabled: false,
+    lyricBarrageConfig: { opacity: 100, fontSize: 17, speed: 1, area: 25, density: 2 },
+    mvBarrageConfig: { opacity: 100, fontSize: 17, speed: 1, area: 25, density: 2 },
+    searchDefaultEnabled: false,
+    closeBehavior: 'tray' as CloseBehavior,
+    playbackQueueMode: 'context' as 'context' | 'single',
+    autoPlayOnLaunch: false,
+    volumeFade: true,
+    volumeFadeTime: 1000,
+    /** 歌曲过渡设置：无缝 / 淡入淡出 / 智能混音基础 / 智能混音进阶 / 关闭。 */
+    trackTransitionMode: DEFAULT_TRACK_TRANSITION_MODE as TrackTransitionMode,
+    /** 淡入淡出播放时长，0~15 秒。 */
+    fadeCrossSecs: DEFAULT_FADE_CROSS_SECS,
+    lyricViewMode: 'cover' as 'cover' | 'portrait' | 'lyric' | 'amll',
+    lyricsPageProvider: 'host:cover',
+    /** 皮肤名 → 皮肤配置。由各皮肤的 defaults/validate 解释，宿主只负责隔离与持久化。 */
+    lyricsPageSkinConfigs: {} as Record<string, Record<string, unknown>>,
+    dynamicAlbumCover: false,
+    lyricDynamicAlbumCover: false,
+    lyricArtistBackdrop: true,
+    lyricPortraitFallbackCover: false,
+    lyricBackdropOpacity: 50,
+    lyricCarouselEnabled: true,
+    lyricCarouselInterval: 15,
+    lyricAutoCollapseDelay: 5,
+    lyricAutoCollapseEnabled: true,
+    lyricCollapseHideControls: false,
+    lyricPageBackgroundBlur: false,
+    lyricPageBackgroundRhythm: false,
+    lyricFilterEnabled: false,
+    lyricFilterPattern: '',
+    desktopLyricFilterEnabled: false,
+    desktopLyricFilterPattern: '',
+    autoNext: false,
+    autoNextDelaySeconds: 3,
+    autoNextMaxAttempts: 10,
+    preventSleep: true,
+    defaultAudioQuality: 'high' as AudioQualityValue,
+    compatibilityMode: true,
+    globalShortcutsEnabled: false,
+    shortcutBindings: {} as Record<string, string>,
+    globalShortcutBindings: {} as Record<string, string>,
+    defaultShortcutLabels: { ...DEFAULT_SHORTCUT_LABELS } as Record<string, string>,
+    defaultGlobalShortcutLabels: { ...DEFAULT_GLOBAL_SHORTCUT_LABELS } as Record<string, string>,
+    sidebarCollapsed: false,
+    sidebarCollapseEnabled: false,
+    showFullscreenButton: true,
+    outputDevice: 'default',
+    outputDevices: [{ label: '系统默认', value: 'default' }] as OutputDeviceOption[],
+    outputDeviceType: 'default' as 'default' | 'wasapi',
+    exclusiveAudioDevice: false,
+    outputDeviceStatus: 'idle' as OutputDeviceStatus,
+    outputDeviceStatusMessage: '',
+    pauseOnOutputDeviceDisconnect: false,
+    showAudioQualityBadge: true,
+    showDesktopLyricStatus: true,
+    taskbarCoverPreview: false,
+    taskbarProgress: true,
+    volumeNormalization: true,
+    volumeNormalizationLufs: -14,
+    impulseResponseEnabled: false,
+    selectedImpulseResponseId: '',
+    impulseResponseFiles: [] as SpatialAudioEffectEntry[],
+    impulseResponseMixById: {} as Record<string, number>,
+    dspProviderEnabled: true,
+    dspProviderId: '',
+    // Runtime-resolved path. Kept in state for legacy hydration, but no longer persisted.
+    dspProviderPath: '',
+    dspProviderMode: 'speaker' as 'headphone' | 'speaker',
+    dspProviderPresetJson: '',
+    // Persisted by the existing SQLite store, independently per engine/device/preset.
+    dspProviderPresetBank: {} as DspPresetBank,
+    keepAliveEnabled: true,
+    keepAliveMax: 20,
+    playResumeTimeout: 5,
+    silentUpdate: true,
+    autoCheckUpdate: true,
+    enableStartupSound: true,
+    // 自定义背景图
+    customBackgroundImage: '',
+    customBackgroundOverlay: 40,
+    customBackgroundTextColor: 'auto' as 'auto' | 'dark' | 'light',
+    importBackgroundConfirmDismissed: false,
+    cloudUploadBackgroundConfirmDismissed: false,
+    checkPrerelease: false,
+    githubProxyUrl: '',
+    appVersion: '',
+    isPrerelease: false,
+    appIsPackaged: false,
+    searchHistory: [] as string[],
+    userAgreementAccepted: false,
+    disableGpuAcceleration: false,
+    highDpiEnabled: false,
+    dpiScale: 1,
+    autoLaunch: false,
+    startMinimized: false,
+    logLevel: 'info' as AppLogLevel,
+    logApiResponseBody: false,
+    logDiagnosticUntil: 0,
+    // 字体设置
+    globalFont: 'system-ui',
+    lyricFont: 'follow',
+    // 输入设备（麦克风）
+    inputDevice: 'default',
+    recognizeAudioSource: 'system' as RecognizeAudioSource,
+    // 歌手详情页的歌曲、专辑分别记住上次选择，跨歌手复用。
+    artistSongSort: 'new' as 'new' | 'hot',
+    artistAlbumSort: 'new' as 'new' | 'hot',
+    // 侧边栏板块折叠状态
+    sidebarSectionCollapsed: { discover: false, library: false } as Record<string, boolean>,
+    // mpv-style audio buffering settings
+    demuxerReadaheadSecs: 1,
+    cache: 'auto' as 'auto' | 'yes' | 'no',
+    cacheSecs: 3_600_000,
+    cachePause: true,
+    cachePauseWaitSecs: 1,
+    demuxerMaxBytes: 150 * 1024 * 1024,
+    demuxerMaxBackBytes: 50 * 1024 * 1024,
+    audioBufferSecs: 0.2,
+    audioSamplerate: 'auto',
+    audioChannels: 'auto-safe',
+    audioFormat: 'auto',
+    gaplessAudio: 'weak',
+    proxyMode: DEFAULT_NETWORK_SETTINGS.proxyMode,
+    proxyPacScript: DEFAULT_NETWORK_SETTINGS.proxyPacScript,
+    proxyRules: DEFAULT_NETWORK_SETTINGS.proxyRules,
+    proxyUsername: DEFAULT_NETWORK_SETTINGS.proxyUsername,
+    proxyBypassRules: DEFAULT_NETWORK_SETTINGS.proxyBypassRules,
+    kugouApiTimeoutSecs: DEFAULT_NETWORK_SETTINGS.kugouApiTimeoutSecs,
+    playerNetworkTimeoutSecs: DEFAULT_NETWORK_SETTINGS.playerNetworkTimeoutSecs,
+    // 播放卡死检测：播放中进度超过该秒数无推进则判定卡死并自动恢复（0=禁用）
+    playbackStallTimeout: 8,
+    // 同一首歌连续卡死的最大自动恢复次数，超过则回退到失败提示/自动下一首
+    playbackStallMaxAttempts: 3,
+    // 快进 / 快退步长（秒）
+    seekForwardOffset: 5,
+    seekBackwardOffset: 5,
+    // 歌词对齐微调步长（秒）
+    lyricOffsetStep: 0.1,
+    // DevTools 开关
+    devToolsEnabled: false,
+  }),
+  getters: {
+    effectiveWindowBackground: (state) =>
+      resolveWindowBackground(
+        state.windowBackground,
+        state.windowBackgroundActiveEnabled,
+        state.windowBackgroundActiveFrosted,
+      ),
+    windowBackgroundRestartRequired: (state) => state.windowBackgroundNeedsRestart,
+    /** Transition mode guarded against unknown persisted values. */
+    effectiveTrackTransitionMode: (state): TrackTransitionMode =>
+      isTrackTransitionMode(state.trackTransitionMode)
+        ? state.trackTransitionMode
+        : DEFAULT_TRACK_TRANSITION_MODE,
+  },
+
+  actions: {
+    configureDspProvider(
+      provider: Pick<DspProviderRecord, 'providerId' | 'path'>,
+      mode: 'headphone' | 'speaker' = 'speaker',
+    ) {
+      this.dspProviderEnabled = true;
+      this.dspProviderId = provider.providerId.trim();
+      this.dspProviderPath = provider.path.trim();
+      this.dspProviderMode = mode;
+      this.dspProviderPresetJson = '';
+    },
+    disableDspProvider() {
+      this.dspProviderEnabled = false;
+      this.dspProviderId = '';
+      this.dspProviderPath = '';
+      this.dspProviderPresetJson = '';
+    },
+    setDspProviderMode(mode: 'headphone' | 'speaker') {
+      this.dspProviderMode = mode;
+    },
+    setDspProviderPreset(presetJson: string, engineId?: string) {
+      const json = presetJson.trim();
+      const { presetId } = parseDspPreset(json);
+      this.$patch({
+        dspProviderPresetJson: json,
+        ...(engineId && presetId
+          ? {
+              dspProviderPresetBank: {
+                ...this.dspProviderPresetBank,
+                [dspPresetBankKey(engineId, this.dspProviderMode, presetId)]: json,
+              },
+            }
+          : {}),
+      });
+    },
+    selectDspProviderPreset(presetJson: string, engineId?: string) {
+      this.$patch(() => {
+        this.setDspProviderPreset(presetJson, engineId);
+        this.impulseResponseEnabled = false;
+      });
+    },
+    saveDspProviderPresetSettings(presetJson: string, engineId: string) {
+      this.$patch(dspPresetSettingsPatch(this, engineId, presetJson));
+    },
+    getDspProviderPreset(engineId: string, presetId: string) {
+      const saved =
+        this.dspProviderPresetBank?.[dspPresetBankKey(engineId, this.dspProviderMode, presetId)];
+      return typeof saved === 'string' ? saved : '';
+    },
+    rememberDspProviderPreset(engineId: string) {
+      const { presetId } = parseDspPreset(this.dspProviderPresetJson);
+      if (engineId && presetId)
+        this.dspProviderPresetBank = {
+          ...this.dspProviderPresetBank,
+          [dspPresetBankKey(engineId, this.dspProviderMode, presetId)]: this.dspProviderPresetJson,
+        };
+    },
+    selectOriginalSpatialAudio() {
+      this.$patch({
+        dspProviderPresetJson: '',
+        impulseResponseEnabled: false,
+      });
+    },
+    async initWindowBackground() {
+      const result = await window.electron?.ipcRenderer.invoke('window-background:get');
+      if (!result) return;
+      this.windowBackground = normalizeWindowBackground(result.background);
+      this.windowBackgroundActiveEnabled = result.activeEnabled === true;
+      this.windowBackgroundActiveFrosted =
+        typeof result.activeFrosted === 'boolean' ? result.activeFrosted : null;
+      this.windowBackgroundStrategy = result.strategy ?? 'default';
+      this.windowBackgroundTransparentMode = result.transparentMode ?? 'layered';
+      this.supportsWindowFrost = result.supportsFrost;
+      this.windowFrostBackend = result.frostBackend ?? 'none';
+      this.windowBackgroundLive = result.live === true;
+      this.windowBackgroundFrostLive = result.frostLive === true;
+      this.windowBackgroundNeedsRestart = result.restartRequired === true;
+      this.windowBackgroundUnavailableReason = result.unavailableReason || '';
+      applyWindowBackground(this.effectiveWindowBackground, {
+        transparentMode: this.windowBackgroundTransparentMode,
+      });
+    },
+    async setWindowBackground(patch: Partial<WindowBackground>) {
+      this.windowBackground = normalizeWindowBackground({ ...this.windowBackground, ...patch });
+      applyWindowBackground(this.effectiveWindowBackground, {
+        transparentMode: this.windowBackgroundTransparentMode,
+      });
+      await window.electron?.ipcRenderer.invoke('window-background:set', {
+        ...this.windowBackground,
+      });
+      await this.initWindowBackground();
+    },
+    setFloatingSurfaceFrosted(enabled: boolean) {
+      this.floatingSurfaceFrosted = enabled === true;
+    },
+    setTheme(theme: ThemeMode) {
+      this.theme = theme;
+      this.syncTheme();
+    },
+    toggleShortcuts(enabled: boolean) {
+      this.shortcutEnabled = enabled;
+    },
+    resetShortcutDefaults() {
+      this.defaultShortcutLabels = { ...DEFAULT_SHORTCUT_LABELS };
+      this.defaultGlobalShortcutLabels = { ...DEFAULT_GLOBAL_SHORTCUT_LABELS };
+    },
+    setTrackTransitionMode(mode: TrackTransitionMode) {
+      this.trackTransitionMode = isTrackTransitionMode(mode) ? mode : DEFAULT_TRACK_TRANSITION_MODE;
+    },
+    setFadeCrossSecs(secs: number) {
+      this.fadeCrossSecs = clampFadeCrossSecs(secs);
+    },
+    ensureShortcutDefaults() {
+      this.defaultShortcutLabels = {
+        ...(this.defaultShortcutLabels ?? {}),
+        ...DEFAULT_SHORTCUT_LABELS,
+      };
+      this.defaultGlobalShortcutLabels = {
+        ...(this.defaultGlobalShortcutLabels ?? {}),
+        ...DEFAULT_GLOBAL_SHORTCUT_LABELS,
+      };
+    },
+    openLogDirectory() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('open-log-directory', null);
+      }
+    },
+    clearAppData() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('clear-app-data', null);
+      }
+      void window.electron?.storage?.resetAll?.();
+      localStorage.clear();
+      sessionStorage.clear();
+      this.$reset();
+      window.setTimeout(() => {
+        window.location.reload();
+      }, 80);
+    },
+    checkForUpdates(silent = false) {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('check-for-updates', {
+          prerelease: this.checkPrerelease,
+          silent,
+          githubProxyUrl: this.githubProxyUrl,
+        });
+      }
+    },
+    async hydrateAppInfo() {
+      if (!window.electron?.appInfo) return;
+      try {
+        const appInfo = await window.electron.appInfo.get();
+        this.appVersion = String(appInfo.version || '').trim();
+        this.isPrerelease = Boolean(appInfo.isPrerelease);
+        this.appIsPackaged = Boolean(appInfo.isPackaged);
+      } catch {
+        // ignore hydration failure and keep current value
+      }
+    },
+    openRepo() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('open-external', 'https://github.com/DAKEZZ52/DakeMusic');
+      }
+    },
+    openDisclaimer() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('open-disclaimer', null);
+      }
+    },
+    syncCloseBehavior() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-close-behavior', this.closeBehavior);
+      }
+    },
+    syncTheme() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-theme', this.theme);
+      }
+    },
+    syncRememberWindowSize() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-remember-window-size', this.rememberWindowSize);
+      }
+    },
+    syncPreventSleep(isPlaying = false) {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-power-save-blocker', {
+          enabled: this.preventSleep,
+          isPlaying,
+        });
+      }
+    },
+    syncDisableGpuAcceleration() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send(
+          'update-disable-gpu-acceleration',
+          this.disableGpuAcceleration,
+        );
+      }
+    },
+    syncHighDpiSettings() {
+      this.dpiScale = Math.min(2, Math.max(0.5, Number(this.dpiScale) || 1));
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-high-dpi-settings', {
+          enabled: this.highDpiEnabled,
+          dpiScale: this.dpiScale,
+        });
+      }
+    },
+    syncAutoLaunch() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-auto-launch', this.autoLaunch);
+      }
+    },
+    syncStartMinimized() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-start-minimized', this.startMinimized);
+      }
+    },
+    syncTaskbarCoverPreview() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-taskbar-cover-preview', this.taskbarCoverPreview);
+      }
+    },
+    syncTaskbarProgress() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-taskbar-progress', this.taskbarProgress);
+      }
+    },
+    syncDevToolsEnabled() {
+      if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('update-devtools-enabled', this.devToolsEnabled);
+      }
+    },
+    getLogSettings(): LogSettings {
+      return {
+        level: this.logLevel,
+        apiResponseBody: this.logApiResponseBody,
+        diagnosticUntil: this.logDiagnosticUntil,
+      };
+    },
+    applyLogSettings(settings?: Partial<LogSettings> | null) {
+      const next = normalizeLogSettings(settings);
+      this.logLevel = next.level;
+      this.logApiResponseBody = next.apiResponseBody;
+      this.logDiagnosticUntil = next.diagnosticUntil;
+      configureRendererLogger(next);
+      return next;
+    },
+    async hydrateLogSettings() {
+      if (!window.electron?.logging) {
+        configureRendererLogger(this.getLogSettings());
+        return;
+      }
+      try {
+        this.applyLogSettings(await window.electron.logging.get());
+      } catch {
+        configureRendererLogger(this.getLogSettings());
+      }
+    },
+    syncLogSettings() {
+      const settings = this.getLogSettings();
+      configureRendererLogger(settings);
+      if (window.electron?.logging) {
+        void window.electron.logging.update(settings);
+      } else if (window.electron?.ipcRenderer) {
+        window.electron.ipcRenderer.send('logging:update-settings', settings);
+      }
+    },
+    setLogLevel(level: AppLogLevel) {
+      this.logLevel = level;
+      this.syncLogSettings();
+    },
+    setLogApiResponseBody(enabled: boolean) {
+      this.logApiResponseBody = enabled;
+      this.syncLogSettings();
+    },
+    getNetworkSettings(): NetworkSettings {
+      return normalizeNetworkSettings({
+        proxyMode: this.proxyMode,
+        proxyPacScript: this.proxyPacScript,
+        proxyRules: this.proxyRules,
+        proxyUsername: this.proxyUsername,
+        proxyBypassRules: this.proxyBypassRules,
+        kugouApiTimeoutSecs: this.kugouApiTimeoutSecs,
+        playerNetworkTimeoutSecs: this.playerNetworkTimeoutSecs,
+      });
+    },
+    applyNetworkSettings(settings: NetworkSettings) {
+      this.proxyMode = settings.proxyMode;
+      this.proxyPacScript = settings.proxyPacScript;
+      this.proxyRules = settings.proxyRules;
+      this.proxyUsername = settings.proxyUsername;
+      this.proxyBypassRules = settings.proxyBypassRules;
+      this.kugouApiTimeoutSecs = settings.kugouApiTimeoutSecs;
+      this.playerNetworkTimeoutSecs = settings.playerNetworkTimeoutSecs;
+    },
+    enableTemporaryDiagnosticLogging(minutes = 10) {
+      this.logDiagnosticUntil = Date.now() + Math.max(1, minutes) * 60 * 1000;
+      this.syncLogSettings();
+    },
+    disableTemporaryDiagnosticLogging() {
+      this.logDiagnosticUntil = 0;
+      this.syncLogSettings();
+    },
+    setOutputDeviceStatus(status: OutputDeviceStatus, message = '') {
+      this.outputDeviceStatus = status;
+      this.outputDeviceStatusMessage = message;
+    },
+    addImpulseResponseFile(file: SpatialAudioEffectEntry, options?: { select?: boolean }) {
+      this.addImpulseResponseFiles([file], options);
+    },
+    addImpulseResponseFiles(files: SpatialAudioEffectEntry[], options?: { select?: boolean }) {
+      const normalizedFiles: SpatialAudioEffectEntry[] = [];
+      const incomingIds = new Set(files.map((item) => item.id));
+      let names = this.impulseResponseFiles
+        .filter((item) => !incomingIds.has(item.id))
+        .map((item) => item.name);
+      for (const file of files) {
+        const normalizedFile = {
+          ...file,
+          name: getUniqueImpulseResponseName(file.name, names),
+        };
+        normalizedFiles.push(normalizedFile);
+        names = [normalizedFile.name, ...names];
+      }
+      if (normalizedFiles.length === 0) return;
+      const normalizedFile = {
+        ...normalizedFiles[0],
+      };
+      this.impulseResponseFiles = [
+        ...normalizedFiles,
+        ...this.impulseResponseFiles.filter(
+          (item) => !normalizedFiles.some((file) => file.id === item.id),
+        ),
+      ];
+      if (options?.select !== false) this.selectedImpulseResponseId = normalizedFile.id;
+    },
+    async reconcileSpatialAudioEffects() {
+      if (!window.electron?.audioEffects?.reconcileAudioEffects) return;
+      const previousFiles = this.impulseResponseFiles;
+      const previousSelected = previousFiles.find(
+        (item) => item.id === this.selectedImpulseResponseId,
+      );
+      const nextFiles = await window.electron.audioEffects.reconcileAudioEffects(
+        previousFiles.map(toImpulseResponseFilePayload),
+      );
+      const nextIds = new Set(nextFiles.map((item) => item.id));
+      const previousByResource = new Map(
+        previousFiles.map((item) => [
+          `${item.kind}\0${item.impulseResponsePath ?? ''}\0${item.vpfPath ?? ''}`,
+          item,
+        ]),
+      );
+      const nextMixById: Record<string, number> = {};
+      for (const file of nextFiles) {
+        const previous = previousByResource.get(
+          `${file.kind}\0${file.impulseResponsePath ?? ''}\0${file.vpfPath ?? ''}`,
+        );
+        const saved =
+          this.impulseResponseMixById?.[file.id] ??
+          (previous ? this.impulseResponseMixById?.[previous.id] : undefined);
+        if (Number.isFinite(saved)) nextMixById[file.id] = normalizeConvolutionMix(saved);
+      }
+      this.impulseResponseFiles = nextFiles;
+      this.impulseResponseMixById = nextMixById;
+      if (this.selectedImpulseResponseId && !nextIds.has(this.selectedImpulseResponseId)) {
+        const migratedSelection = previousSelected
+          ? nextFiles.find(
+              (item) =>
+                item.kind === previousSelected.kind &&
+                item.impulseResponsePath === previousSelected.impulseResponsePath &&
+                item.vpfPath === previousSelected.vpfPath,
+            )
+          : undefined;
+        if (migratedSelection) {
+          this.selectedImpulseResponseId = migratedSelection.id;
+        } else {
+          // The selected resource no longer exists. Clear the selection instead of silently
+          // switching to another effect so playback and UI both return to the original sound.
+          this.selectedImpulseResponseId = '';
+          this.impulseResponseEnabled = false;
+        }
+      }
+      if (nextFiles.length === 0) {
+        this.selectedImpulseResponseId = '';
+        this.impulseResponseEnabled = false;
+      }
+    },
+    removeImpulseResponseFile(id: string) {
+      const target = this.impulseResponseFiles.find((item) => item.id === id);
+      this.impulseResponseFiles = this.impulseResponseFiles.filter((item) => item.id !== id);
+      if (Object.prototype.hasOwnProperty.call(this.impulseResponseMixById, id)) {
+        const remaining = { ...this.impulseResponseMixById };
+        delete remaining[id];
+        this.impulseResponseMixById = remaining;
+      }
+      if (this.selectedImpulseResponseId === id) {
+        // Deleting the selected effect means returning to the original sound. Do not select
+        // the next list item implicitly; the player subscription will unload the active DSP.
+        this.selectedImpulseResponseId = '';
+        this.impulseResponseEnabled = false;
+      }
+      const resourcePath = target?.impulseResponsePath ?? target?.vpfPath;
+      if (resourcePath && window.electron?.audioEffects) {
+        void window.electron.audioEffects.deleteAudioEffect(resourcePath);
+      }
+    },
+    setSelectedImpulseResponse(id: string) {
+      if (!this.impulseResponseFiles.some((item) => item.id === id)) return;
+      this.$patch({
+        dspProviderPresetJson: '',
+        selectedImpulseResponseId: id,
+        impulseResponseEnabled: true,
+      });
+    },
+    renameImpulseResponseFile(id: string, name: string) {
+      const normalizedName = getUniqueImpulseResponseName(
+        name,
+        this.impulseResponseFiles.filter((item) => item.id !== id).map((item) => item.name),
+      );
+      this.impulseResponseFiles = this.impulseResponseFiles.map((item) =>
+        item.id === id ? { ...item, name: normalizedName } : item,
+      );
+    },
+    getSelectedImpulseResponse(): SpatialAudioEffectEntry | null {
+      if (!this.selectedImpulseResponseId) return null;
+      return (
+        this.impulseResponseFiles.find((item) => item.id === this.selectedImpulseResponseId) ?? null
+      );
+    },
+    getImpulseResponseMix(id: string): number {
+      const saved = this.impulseResponseMixById?.[id];
+      if (Number.isFinite(saved)) return normalizeConvolutionMix(saved);
+      return normalizeConvolutionMix(undefined);
+    },
+    setImpulseResponseMix(id: string, value: number) {
+      if (!this.impulseResponseFiles.some((item) => item.id === id)) return;
+      this.impulseResponseMixById = {
+        ...this.impulseResponseMixById,
+        [id]: normalizeConvolutionMix(value),
+      };
+    },
+    addToSearchHistory(keyword: string) {
+      const normalized = keyword.trim();
+      if (!normalized) return;
+      this.searchHistory = [
+        normalized,
+        ...this.searchHistory.filter((item) => item !== normalized),
+      ].slice(0, 20);
+    },
+    removeFromSearchHistory(keyword: string) {
+      this.searchHistory = this.searchHistory.filter((item) => item !== keyword);
+    },
+    clearSearchHistory() {
+      this.searchHistory = [];
+    },
+    acceptUserAgreement() {
+      this.userAgreementAccepted = true;
+    },
+    // 获取系统字体列表
+    async fetchSystemFonts(): Promise<string[]> {
+      if (!window.electron?.fonts) return [];
+      try {
+        const fonts = await window.electron.fonts.getAll();
+        return (fonts ?? []).map((f: string) => f.replace(/^['"]+|['"]+$/g, ''));
+      } catch {
+        return [];
+      }
+    },
+    // 构建全局 font-family 字符串
+    buildGlobalFontFamily(): string {
+      return buildFontFamily(this.globalFont);
+    },
+    // 构建歌词区域 font-family 字符串
+    buildLyricFontFamily(): string {
+      if (!this.lyricFont || this.lyricFont === 'follow') return this.buildGlobalFontFamily();
+      return buildFontFamily(this.lyricFont);
+    },
+    // 歌词页皮肤配置：宿主只负责隔离与持久化，解释权归皮肤 defaults/validate。
+    getLyricSkinConfig(skinKey: string): Record<string, unknown> | undefined {
+      return this.lyricsPageSkinConfigs[skinKey];
+    },
+    patchLyricSkinConfig(skinKey: string, config: Record<string, unknown>) {
+      this.lyricsPageSkinConfigs = {
+        ...this.lyricsPageSkinConfigs,
+        [skinKey]: { ...config },
+      };
+    },
+    resetLyricSkinConfig(skinKey: string) {
+      if (!(skinKey in this.lyricsPageSkinConfigs)) return;
+      const next = { ...this.lyricsPageSkinConfigs };
+      delete next[skinKey];
+      this.lyricsPageSkinConfigs = next;
+    },
+    /** 按 key 谓词批量清理皮肤配置（如卸载插件时移除其孤儿配置），键格式知识归 lyricsPage 模块。 */
+    removeLyricSkinConfigsWhere(predicate: (skinKey: string) => boolean) {
+      const entries = Object.entries(this.lyricsPageSkinConfigs);
+      const kept = entries.filter(([skinKey]) => !predicate(skinKey));
+      if (kept.length === entries.length) return;
+      this.lyricsPageSkinConfigs = Object.fromEntries(kept);
+    },
+
+    async setEnableStartupSound(val: boolean) {
+      this.enableStartupSound = val;
+      await window.electron?.ipcRenderer.invoke('settings:setStartupSound', val);
+    },
+    setCustomBackgroundImage(base64: string) {
+      this.customBackgroundImage = base64;
+    },
+    setCustomBackgroundOverlay(val: number) {
+      this.customBackgroundOverlay = val;
+    },
+    setCustomBackgroundTextColor(val: 'auto' | 'dark' | 'light') {
+      this.customBackgroundTextColor = val;
+    },
+    clearCustomBackground() {
+      this.customBackgroundImage = '';
+    },
+  },
+  persist: {
+    omit: [
+      'dspProviderPath',
+      'windowBackground',
+      'windowBackgroundActiveEnabled',
+      'windowBackgroundActiveFrosted',
+      'windowBackgroundStrategy',
+      'windowBackgroundTransparentMode',
+      'supportsWindowFrost',
+      'windowBackgroundLive',
+      'windowBackgroundFrostLive',
+      'windowFrostBackend',
+      'windowBackgroundNeedsRestart',
+      'windowBackgroundUnavailableReason',
+    ],
+  },
+});

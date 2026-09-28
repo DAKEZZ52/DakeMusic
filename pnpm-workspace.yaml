@@ -1,0 +1,9 @@
+packages:
+  - .
+  - server
+
+ignoredBuiltDependencies:
+  - electron
+  - electron-winstaller
+  - esbuild
+  - vue-demi

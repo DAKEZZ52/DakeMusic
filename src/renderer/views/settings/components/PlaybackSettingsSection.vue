@@ -1,0 +1,700 @@
+<script setup lang="ts">
+import Tooltip from '@/components/ui/Tooltip.vue';
+
+import { computed, ref } from 'vue';
+import { useSettingStore } from '@/stores/setting';
+import { usePlayerStore } from '@/stores/player';
+import { useToastStore } from '@/stores/toast';
+import type { AudioQualityValue } from '@/types';
+import Switch from '@/components/ui/Switch.vue';
+import Slider from '@/components/ui/Slider.vue';
+import InputNumber from '@/components/ui/InputNumber.vue';
+import Select from '@/components/ui/Select.vue';
+import Button from '@/components/ui/Button.vue';
+import Dialog from '@/components/ui/Dialog.vue';
+import { Icon } from '@iconify/vue';
+import { iconCheckMark, iconPencil, iconPlayerPlay, iconPlus, iconTrash, iconX } from '@/icons';
+import SettingsSectionShell from './SettingsSectionShell.vue';
+import { audioQualityOptions, sectionTitles } from '../constants';
+import { normalizeAudioEffectName, type SpatialAudioEffectEntry } from '../../../../shared/audio';
+import { calculateNormalizationGainDb } from '../../../../shared/loudness';
+import {
+  MAX_FADE_CROSS_SECS,
+  TRACK_TRANSITION_OPTIONS,
+  type TrackTransitionMode,
+} from '../../../../shared/trackTransition';
+
+const settingStore = useSettingStore();
+const playerStore = usePlayerStore();
+const toastStore = useToastStore();
+const isImportingImpulseResponse = ref(false);
+const showImpulseResponseDialog = ref(false);
+const editingImpulseResponseId = ref('');
+const impulseResponseNameDraft = ref('');
+type ImpulseResponseSourceTab = 'local' | 'community';
+const activeImpulseResponseSourceTab = ref<ImpulseResponseSourceTab>('local');
+
+const playbackQueueModeOptions = [
+  { label: '当前歌曲所在列表', value: 'context' },
+  { label: '仅当前歌曲', value: 'single' },
+];
+
+const selectedImpulseResponse = computed(() => settingStore.getSelectedImpulseResponse());
+const isCommunityAudioEffect = (file: SpatialAudioEffectEntry) =>
+  file.kind === 'community-ir' ||
+  file.kind === 'community-vpf' ||
+  file.kind === 'community-combined';
+const communityAudioEffects = computed(() =>
+  settingStore.impulseResponseFiles.filter(isCommunityAudioEffect),
+);
+const localImpulseResponseFiles = computed(() =>
+  settingStore.impulseResponseFiles.filter((file) => file.kind === 'imported-ir'),
+);
+const activeImpulseResponseFiles = computed(() =>
+  activeImpulseResponseSourceTab.value === 'community'
+    ? communityAudioEffects.value
+    : localImpulseResponseFiles.value,
+);
+
+const autoNextDelayInput = computed({
+  get: () => String(settingStore.autoNextDelaySeconds ?? 0),
+  set: (value: string | number) => {
+    const parsed = Number.parseInt(String(value).trim(), 10);
+    settingStore.autoNextDelaySeconds = Number.isNaN(parsed)
+      ? 0
+      : Math.max(0, Math.min(parsed, 600));
+  },
+});
+
+const autoNextMaxAttemptsInput = computed({
+  get: () => String(settingStore.autoNextMaxAttempts ?? 0),
+  set: (value: string | number) => {
+    const parsed = Number.parseInt(String(value).trim(), 10);
+    settingStore.autoNextMaxAttempts = Number.isNaN(parsed)
+      ? 1
+      : Math.max(1, Math.min(parsed, 999));
+  },
+});
+
+const handleVolumeNormalizationChange = (enabled: boolean) => {
+  settingStore.volumeNormalization = enabled;
+};
+
+const trackTransitionOptions = TRACK_TRANSITION_OPTIONS;
+const trackTransitionMode = computed(() => settingStore.effectiveTrackTransitionMode);
+const transitionSelectOptions = computed(() =>
+  trackTransitionOptions.map((option) => ({
+    label: option.label,
+    value: option.value,
+  })),
+);
+const selectedTrackTransitionOption = computed(
+  () =>
+    trackTransitionOptions.find((option) => option.value === trackTransitionMode.value) ??
+    trackTransitionOptions[0],
+);
+const selectTrackTransitionMode = (mode: TrackTransitionMode) => {
+  if (trackTransitionMode.value === mode) return;
+  settingStore.setTrackTransitionMode(mode);
+};
+const handleFadeCrossChange = (value: string) => {
+  settingStore.setFadeCrossSecs(Number(value));
+};
+
+const handleReferenceLufsSlider = (value: number) => {
+  settingStore.volumeNormalizationLufs = value;
+};
+
+const volumeNormalizationStatus = computed(() => {
+  const loudness = playerStore.currentResolvedAudioLoudness;
+  if (!loudness) return '当前歌曲暂无响度信息，不会自动调整';
+  const gainDb = calculateNormalizationGainDb(loudness, settingStore.volumeNormalizationLufs);
+  if (Math.abs(gainDb) < 0.05) {
+    return `当前歌曲 ${loudness.lufs.toFixed(1)} LUFS，无需调整`;
+  }
+  return `当前歌曲 ${loudness.lufs.toFixed(1)} LUFS，将${gainDb > 0 ? '提高' : '降低'} ${Math.abs(gainDb).toFixed(1)} dB`;
+});
+
+const getImpulseResponseDisplayName = (name: string) => normalizeAudioEffectName(name);
+
+const openImpulseResponseDialog = () => {
+  if (
+    activeImpulseResponseSourceTab.value === 'local' &&
+    localImpulseResponseFiles.value.length === 0 &&
+    communityAudioEffects.value.length > 0
+  ) {
+    activeImpulseResponseSourceTab.value = 'community';
+  } else if (
+    activeImpulseResponseSourceTab.value === 'community' &&
+    communityAudioEffects.value.length === 0 &&
+    localImpulseResponseFiles.value.length > 0
+  ) {
+    activeImpulseResponseSourceTab.value = 'local';
+  }
+  showImpulseResponseDialog.value = true;
+};
+
+const beginRenameImpulseResponse = (file: SpatialAudioEffectEntry) => {
+  editingImpulseResponseId.value = file.id;
+  impulseResponseNameDraft.value = getImpulseResponseDisplayName(file.name);
+};
+
+const cancelRenameImpulseResponse = () => {
+  editingImpulseResponseId.value = '';
+  impulseResponseNameDraft.value = '';
+};
+
+const commitRenameImpulseResponse = (id: string) => {
+  settingStore.renameImpulseResponseFile(id, impulseResponseNameDraft.value);
+  cancelRenameImpulseResponse();
+};
+
+const handleImpulseResponseEnabledChange = (enabled: boolean) => {
+  if (enabled && !selectedImpulseResponse.value) {
+    toastStore.warning('请先导入音效文件');
+    return;
+  }
+  if (enabled && selectedImpulseResponse.value) {
+    playerStore.selectSpatialAudioEffect(selectedImpulseResponse.value.id);
+    return;
+  }
+  settingStore.impulseResponseEnabled = enabled;
+};
+
+const handleImportImpulseResponse = async () => {
+  if (!window.electron?.audioEffects || isImportingImpulseResponse.value) return;
+  isImportingImpulseResponse.value = true;
+  try {
+    const result = await window.electron.audioEffects.importImpulseResponse();
+    if (result.canceled) return;
+    const files = result.files?.length ? result.files : result.file ? [result.file] : [];
+    if (files.length === 0) {
+      toastStore.warning(result.error || '音效文件导入失败');
+      return;
+    }
+    settingStore.addImpulseResponseFiles(files);
+    if (result.errors?.length) {
+      toastStore.warning(`已导入 ${files.length} 个音效文件，${result.errors.length} 个失败`, 4200);
+    } else {
+      toastStore.success(
+        files.length === 1 ? '音效文件已导入' : `已导入 ${files.length} 个音效文件`,
+      );
+    }
+  } catch {
+    toastStore.actionFailed('导入音效文件');
+  } finally {
+    isImportingImpulseResponse.value = false;
+  }
+};
+
+const handleRemoveImpulseResponse = (id: string) => {
+  settingStore.removeImpulseResponseFile(id);
+  toastStore.actionCompleted('已移除音效文件');
+};
+</script>
+
+<template>
+  <SettingsSectionShell id="playback" :title="sectionTitles.playback.label">
+    <template #icon>
+      <Icon :icon="iconPlayerPlay" width="20" height="20" class="text-primary-text" />
+    </template>
+
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">播放时载入队列</h3>
+        <p class="text-sm text-text-secondary">单击或双击播放歌曲时，选择要载入的歌曲范围</p>
+      </div>
+      <Select
+        class="w-45 shrink-0"
+        :model-value="settingStore.playbackQueueMode"
+        :options="playbackQueueModeOptions"
+        @update:model-value="settingStore.playbackQueueMode = $event as 'context' | 'single'"
+      />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">启动时自动播放</h3>
+        <p class="text-sm text-text-secondary">打开应用时如果有恢复的播放会话则自动开始播放</p>
+      </div>
+      <Switch v-model="settingStore.autoPlayOnLaunch" />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">默认音质</h3>
+        <p class="text-sm text-text-secondary">
+          新歌曲默认按此音质解析，播放器中可临时覆盖当前歌曲
+        </p>
+      </div>
+      <Select
+        class="w-45 shrink-0"
+        :model-value="settingStore.defaultAudioQuality"
+        :options="audioQualityOptions"
+        @update:model-value="settingStore.defaultAudioQuality = $event as AudioQualityValue"
+      />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">智能兼容模式</h3>
+        <p class="text-sm text-text-secondary">首选音质不可用时自动尝试备选</p>
+      </div>
+      <Switch v-model="settingStore.compatibilityMode" />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">歌曲过渡</h3>
+        <p class="text-sm text-text-secondary">{{ selectedTrackTransitionOption.description }}</p>
+      </div>
+      <Select
+        class="w-45 shrink-0"
+        :model-value="trackTransitionMode"
+        :options="transitionSelectOptions"
+        aria-label="歌曲过渡"
+        @update:model-value="selectTrackTransitionMode($event as TrackTransitionMode)"
+      />
+    </div>
+    <template v-if="trackTransitionMode === 'fade'">
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">过渡时长</h3>
+          <p class="text-sm text-text-secondary">调整两首歌交叠淡入淡出的时间</p>
+        </div>
+        <InputNumber
+          class="w-45 shrink-0"
+          :model-value="settingStore.fadeCrossSecs"
+          :min="0"
+          :max="MAX_FADE_CROSS_SECS"
+          :step="1"
+          suffix="秒"
+          @update:model-value="handleFadeCrossChange"
+        />
+      </div>
+    </template>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">开始播放时淡入</h3>
+        <p class="text-sm text-text-secondary">点击播放一首新歌时音量从静音渐起</p>
+      </div>
+      <Switch v-model="settingStore.volumeFade" />
+    </div>
+    <template v-if="settingStore.volumeFade">
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">淡入时长</h3>
+          <p class="text-sm text-text-secondary">调整开始播放时的音量渐起时长</p>
+        </div>
+        <Slider
+          class="w-48"
+          :model-value="settingStore.volumeFadeTime"
+          :min="500"
+          :max="3000"
+          :step="100"
+          show-value
+          :value-suffix="'ms'"
+          @update:model-value="settingStore.volumeFadeTime = $event"
+          @value-commit="settingStore.volumeFadeTime = $event"
+        />
+      </div>
+    </template>
+
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">音量均衡</h3>
+        <p class="text-sm text-text-secondary">自动调整不同歌曲的音量，使播放响度保持一致</p>
+      </div>
+      <Switch
+        :model-value="settingStore.volumeNormalization"
+        @update:model-value="handleVolumeNormalizationChange"
+      />
+    </div>
+    <template v-if="settingStore.volumeNormalization">
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">参考响度</h3>
+          <p class="text-sm text-text-secondary">设定歌曲的目标响度；仅对带有响度信息的音源生效</p>
+          <p class="text-xs text-text-secondary/70">{{ volumeNormalizationStatus }}</p>
+        </div>
+        <Slider
+          class="w-48"
+          :model-value="settingStore.volumeNormalizationLufs"
+          :min="-20"
+          :max="-8"
+          :step="1"
+          show-value
+          :value-suffix="' LUFS'"
+          @update:model-value="handleReferenceLufsSlider($event)"
+          @value-commit="handleReferenceLufsSlider($event)"
+        />
+      </div>
+    </template>
+
+    <template v-if="false">
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">音效管理</h3>
+          <p class="text-sm text-text-secondary">管理本地导入和在线下载的音效文件</p>
+        </div>
+        <div class="irs-actions">
+          <Button
+            variant="unstyled"
+            size="none"
+            class="settings-action"
+            type="button"
+            @click="openImpulseResponseDialog"
+          >
+            <Icon :icon="iconPlus" width="14" height="14" class="mr-1" />
+            添加
+          </Button>
+          <Switch
+            :model-value="settingStore.impulseResponseEnabled"
+            :disabled="settingStore.impulseResponseFiles.length === 0"
+            @update:model-value="handleImpulseResponseEnabledChange"
+          />
+        </div>
+      </div>
+
+      <Dialog
+        v-model:open="showImpulseResponseDialog"
+        title="音效管理"
+        showClose
+        :content-style="{ width: '420px' }"
+      >
+        <div class="irs-source-tabs" role="tablist" aria-label="音效文件来源">
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="activeImpulseResponseSourceTab === 'local'"
+            :class="{ 'is-active': activeImpulseResponseSourceTab === 'local' }"
+            @click="activeImpulseResponseSourceTab = 'local'"
+          >
+            <span>用户导入</span>
+            <span class="irs-source-count">{{ localImpulseResponseFiles.length }}</span>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :aria-selected="activeImpulseResponseSourceTab === 'community'"
+            :class="{ 'is-active': activeImpulseResponseSourceTab === 'community' }"
+            @click="activeImpulseResponseSourceTab = 'community'"
+          >
+            <span>在线下载</span>
+            <span class="irs-source-count">{{ communityAudioEffects.length }}</span>
+          </button>
+        </div>
+
+        <div v-if="activeImpulseResponseFiles.length > 0" class="irs-list">
+          <div
+            v-for="file in activeImpulseResponseFiles"
+            :key="file.id"
+            class="irs-file-row"
+            :class="{ 'is-active': file.id === settingStore.selectedImpulseResponseId }"
+          >
+            <span class="irs-file-main">
+              <input
+                v-if="editingImpulseResponseId === file.id"
+                v-model="impulseResponseNameDraft"
+                class="irs-rename-input"
+                type="text"
+                maxlength="40"
+                @keydown.enter.prevent="commitRenameImpulseResponse(file.id)"
+                @keydown.esc.prevent="cancelRenameImpulseResponse"
+              />
+              <span v-else class="irs-file-name">{{
+                getImpulseResponseDisplayName(file.name)
+              }}</span>
+            </span>
+            <Tooltip v-if="editingImpulseResponseId === file.id" content="保存名称">
+              <template #trigger>
+                <button
+                  type="button"
+                  class="irs-row-btn"
+                  aria-label="保存名称"
+                  @click.stop="commitRenameImpulseResponse(file.id)"
+                >
+                  <Icon :icon="iconCheckMark" width="14" height="14" />
+                </button>
+              </template>
+            </Tooltip>
+            <Tooltip v-if="editingImpulseResponseId === file.id" content="取消重命名">
+              <template #trigger>
+                <button
+                  type="button"
+                  class="irs-row-btn"
+                  aria-label="取消重命名"
+                  @click.stop="cancelRenameImpulseResponse"
+                >
+                  <Icon :icon="iconX" width="14" height="14" />
+                </button>
+              </template>
+            </Tooltip>
+            <Tooltip v-else content="重命名">
+              <template #trigger>
+                <button
+                  type="button"
+                  class="irs-row-btn"
+                  aria-label="重命名"
+                  @click.stop="beginRenameImpulseResponse(file)"
+                >
+                  <Icon :icon="iconPencil" width="14" height="14" />
+                </button>
+              </template>
+            </Tooltip>
+            <Tooltip content="移除音效文件">
+              <template #trigger>
+                <button
+                  type="button"
+                  class="irs-row-btn is-danger"
+                  aria-label="移除音效文件"
+                  @click.stop="handleRemoveImpulseResponse(file.id)"
+                >
+                  <Icon :icon="iconTrash" width="14" height="14" />
+                </button>
+              </template>
+            </Tooltip>
+          </div>
+        </div>
+        <div v-else class="irs-empty">
+          {{ activeImpulseResponseSourceTab === 'local' ? '暂无本地导入音效' : '暂无在线下载音效' }}
+        </div>
+
+        <template #footer>
+          <Button
+            v-if="activeImpulseResponseSourceTab === 'local'"
+            variant="outline"
+            size="sm"
+            type="button"
+            :loading="isImportingImpulseResponse"
+            @click="handleImportImpulseResponse"
+          >
+            <Icon :icon="iconPlus" width="14" height="14" class="mr-1" />
+            导入音效文件
+          </Button>
+          <span v-else class="irs-community-hint"
+            >请在播放器的「音效广场 → 音效市场」中下载新音效</span
+          >
+        </template>
+      </Dialog>
+    </template>
+
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">自动跳过错误</h3>
+        <p class="text-sm text-text-secondary">
+          播放失败时停留在当前歌曲，并按设定延迟自动尝试下一首
+        </p>
+      </div>
+      <Switch v-model="settingStore.autoNext" />
+    </div>
+    <template v-if="settingStore.autoNext">
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">失败后切换延迟</h3>
+          <p class="text-sm text-text-secondary">给用户留出确认失败状态的时间，再自动切换</p>
+        </div>
+        <InputNumber
+          class="w-45"
+          :model-value="autoNextDelayInput"
+          :min="0"
+          :max="600"
+          :step="1"
+          placeholder="0"
+          suffix="秒"
+          @update:model-value="autoNextDelayInput = $event"
+        />
+      </div>
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">最大自动切换次数</h3>
+          <p class="text-sm text-text-secondary">连续失败时最多自动尝试的次数，避免无限跳歌</p>
+        </div>
+        <InputNumber
+          class="w-45"
+          :model-value="autoNextMaxAttemptsInput"
+          :min="1"
+          :max="999"
+          :step="1"
+          placeholder="10"
+          suffix="次"
+          @update:model-value="autoNextMaxAttemptsInput = $event"
+        />
+      </div>
+    </template>
+
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">防止系统休眠</h3>
+        <p class="text-sm text-text-secondary">播放音乐时阻止系统进入睡眠</p>
+      </div>
+      <Switch v-model="settingStore.preventSleep" />
+    </div>
+  </SettingsSectionShell>
+</template>
+
+<style scoped src="../settingsSection.css"></style>
+<style scoped>
+.irs-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.irs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.irs-source-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 3px;
+  margin-bottom: 14px;
+  padding: 3px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--color-text-main) 6%, transparent);
+}
+
+.irs-source-tabs button {
+  display: flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.irs-source-tabs button:hover {
+  color: var(--color-text-main);
+}
+
+.irs-source-tabs button.is-active {
+  background: var(--content-selected-bg);
+  color: var(--color-primary-text);
+  box-shadow: var(--shadow-control);
+}
+
+.irs-source-count {
+  display: inline-flex;
+  min-width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: color-mix(in srgb, currentColor 10%, transparent);
+  font-size: 10px;
+}
+
+.irs-community-hint {
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.irs-file-row {
+  min-width: 0;
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid color-mix(in srgb, var(--color-text-main) 10%, transparent);
+  background: color-mix(in srgb, var(--color-text-main) 3%, transparent);
+  border-radius: 8px;
+  padding: 0 10px 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--color-text-main);
+  transition: all 0.2s;
+}
+
+.irs-file-row.is-active {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.irs-file-main {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+
+.irs-file-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.irs-rename-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 45%, transparent);
+  background: color-mix(in srgb, var(--color-text-main) 4%, transparent);
+  padding: 0 8px;
+  color: var(--color-text-main);
+  font-size: 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.irs-row-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.irs-row-btn:hover {
+  color: var(--color-primary-text);
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.irs-row-btn.is-danger:hover {
+  color: var(--state-danger);
+  background: color-mix(in srgb, var(--state-danger) 10%, transparent);
+}
+
+.irs-empty {
+  height: 96px;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--color-text-main) 16%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+</style>

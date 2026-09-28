@@ -1,0 +1,427 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { app } from 'electron';
+import log from './logger';
+import { applyKugouApiNetworkSettings, refreshNetworkSettingsFromStorage } from './networkSettings';
+import { getPersistedDeviceInfo, mergePersistedDeviceInfo } from './storage/persistedStores';
+import { mergeApiRequestBody } from '../shared/apiRequestMerge';
+import { prepareAvatarUploadQuery } from './avatarUpload';
+
+// --- 类型定义 ---
+
+interface ModuleDefinition {
+  identifier: string;
+  route: string;
+  module: (params: any, useAxios: any) => Promise<any>;
+}
+
+export interface ApiRequest {
+  method: string;
+  url: string;
+  params?: Record<string, any>;
+  data?: any;
+  headers?: Record<string, string>;
+}
+
+export interface ApiResponse {
+  status: number;
+  body: any;
+  cookie?: string[];
+  headers?: Record<string, string>;
+}
+
+// --- 状态 ---
+
+const isDev = !app.isPackaged;
+let moduleMap: Map<string, string> = new Map(); // 改为存储 route -> modulePath
+const moduleCache: Map<string, ModuleDefinition> = new Map(); // 缓存已加载的模块
+let serverReady = false;
+let createRequestFn: ((config: any) => Promise<any>) | null = null;
+
+// server 内部使用的全局标识
+const SERVER_DEV = 'DakeMusic';
+let guid = '';
+let mid = '';
+let webglHash = '';
+
+export const getDeviceIdentity = () => ({
+  guid,
+  mac: process.env.KUGOU_API_MAC || '',
+  serverDev: SERVER_DEV,
+  mid,
+});
+
+/**
+ * 解析 server 目录路径
+ */
+const resolveServerPath = (): string => {
+  if (isDev) {
+    return path.join(process.cwd(), 'server');
+  }
+  return path.join(process.resourcesPath, 'server');
+};
+
+/**
+ * 扫描 server module 路径映射（不立即加载）
+ * 复现 server/server.js 中 getModulesDefinitions 的逻辑，但延迟实际 require
+ */
+const scanModules = (serverPath: string): Map<string, string> => {
+  const modulesPath = path.join(serverPath, 'module');
+  const files = fs.readdirSync(modulesPath);
+  const routeMap = new Map<string, string>();
+
+  files
+    .reverse()
+    .filter((fileName) => fileName.endsWith('.js') && !fileName.startsWith('_'))
+    .forEach((fileName) => {
+      const route = '/' + fileName.replace(/\.js$/i, '').replace(/_/g, '/');
+      const modulePath = path.resolve(modulesPath, fileName);
+      routeMap.set(route, modulePath);
+    });
+
+  return routeMap;
+};
+
+/**
+ * 按需加载单个模块并缓存
+ */
+const loadModule = (modulePath: string, route: string): ModuleDefinition => {
+  // 检查缓存
+  const cached = moduleCache.get(route);
+  if (cached) return cached;
+
+  // 首次加载
+  const identifier = path.basename(modulePath, '.js');
+  const mod = require(modulePath);
+  const definition: ModuleDefinition = { identifier, route, module: mod };
+
+  // 缓存
+  moduleCache.set(route, definition);
+  log.debug(`[IPC-Server] Module loaded on-demand: ${route}`);
+
+  return definition;
+};
+
+/**
+ * 获取真实 MAC 地址（优先非内部网卡）
+ */
+const getRealMacAddress = (): string => {
+  const interfaces = os.networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    if (!entries) continue;
+    for (const entry of entries) {
+      if (!entry.internal && entry.mac && entry.mac !== '00:00:00:00:00:00') {
+        return entry.mac.toUpperCase();
+      }
+    }
+  }
+  return '02:00:00:00:00:00';
+};
+
+/**
+ * 初始化 server 环境
+ * 复现 server/server.js 中的全局变量初始化和环境变量设置
+ */
+export async function initApiServer(): Promise<void> {
+  if (serverReady) return;
+
+  const serverPath = resolveServerPath();
+  const networkSettings = refreshNetworkSettingsFromStorage();
+  applyKugouApiNetworkSettings(networkSettings, serverPath);
+
+  // 设置环境变量，与 spawn 方式保持一致
+  process.env.platform = 'lite';
+
+  // 加载 .env（如果存在）
+  const envPath = path.join(serverPath, '.env');
+  if (fs.existsSync(envPath)) {
+    try {
+      const dotenv = require(path.join(serverPath, 'node_modules', 'dotenv'));
+      dotenv.config({ path: envPath, quiet: true });
+    } catch {
+      // dotenv 不是必须的
+    }
+  }
+
+  // 尝试从持久化存储读取设备标识（来自 deviceStore）
+  try {
+    const deviceInfo = getPersistedDeviceInfo();
+    if (deviceInfo) {
+      if (deviceInfo.guid) process.env.KUGOU_API_GUID = deviceInfo.guid;
+      if (deviceInfo.mac) process.env.KUGOU_API_MAC = deviceInfo.mac;
+      log.info('[IPC-Server] Loaded persisted device identity from deviceStore');
+    }
+  } catch {
+    // 持久化读取失败不影响启动
+  }
+
+  // 没有持久化或 .env 提供 MAC 时，使用真实网卡地址
+  if (!process.env.KUGOU_API_MAC) {
+    process.env.KUGOU_API_MAC = getRealMacAddress();
+  }
+
+  // 初始化 server 内部工具
+  const utilPath = path.join(serverPath, 'util');
+  const { cryptoMd5 } = require(path.join(utilPath, 'crypto'));
+  const { getGuid, calculateMid, generateWebGLHash } = require(path.join(utilPath, 'util'));
+  const { createRequest } = require(path.join(utilPath, 'request'));
+  const { applyCliOverrides } = require(path.join(utilPath, 'runtime'));
+
+  // 应用 CLI 覆盖（设置 platform 等）
+  applyCliOverrides(['--platform=lite']);
+
+  // 锁定 KUGOU_API_DEV 为固定值，防止 .env 或 --dev 参数覆盖
+  process.env.KUGOU_API_DEV = SERVER_DEV;
+
+  // 生成全局标识（与 server/server.js 一致）
+  guid = process.env.KUGOU_API_GUID || cryptoMd5(getGuid());
+  mid = calculateMid(guid);
+  webglHash = process.env.KUGOU_API_WEBGL || generateWebGLHash();
+
+  // 将生成的设备标识回写到 KV，确保后续启动能复用同一身份
+  try {
+    mergePersistedDeviceInfo({
+      guid,
+      mid,
+      serverDev: SERVER_DEV,
+      mac: (process.env.KUGOU_API_MAC || '02:00:00:00:00:00').toUpperCase(),
+    });
+  } catch {
+    // 写入失败不影响运行
+  }
+
+  createRequestFn = createRequest;
+
+  // 扫描所有 module 路径（不立即加载）
+  moduleMap = scanModules(serverPath);
+  log.info(`[IPC-Server] Initialized, ${moduleMap.size} modules registered (lazy-load)`);
+
+  serverReady = true;
+}
+
+/**
+ * 根据请求 URL 匹配并按需加载 module
+ * URL 格式如 /song/url → 匹配 route "/song/url"
+ */
+const matchModule = (url: string): ModuleDefinition | null => {
+  // 去掉查询参数
+  const pathname = url.split('?')[0];
+
+  // 尝试精确匹配
+  let route = pathname;
+  let modulePath = moduleMap.get(pathname);
+
+  // 尝试去掉尾部斜杠
+  if (!modulePath) {
+    route = pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+    modulePath = moduleMap.get(route);
+  }
+
+  if (!modulePath) {
+    return null;
+  }
+
+  // 按需加载模块
+  return loadModule(modulePath, route);
+};
+
+/**
+ * 从 Authorization header 解析 cookie 对象
+ * 复现 server/server.js 中 authHeader → cookieToJson 的逻辑
+ */
+const parseAuthCookie = (authHeader?: string): Record<string, string> => {
+  if (!authHeader) return {};
+  const result: Record<string, string> = {};
+  authHeader.split(';').forEach((pair) => {
+    const eqIndex = pair.indexOf('=');
+    if (eqIndex < 1) return;
+    const key = pair.slice(0, eqIndex).trim();
+    const value = pair.slice(eqIndex + 1).trim();
+    if (key && value) result[key] = value;
+  });
+  return result;
+};
+
+/**
+ * 构建默认 cookie（复现 Express 中间件的 ensureCookie 逻辑）
+ */
+const buildDefaultCookies = (): Record<string, string> => {
+  return {
+    KUGOU_API_PLATFORM: process.env.platform || 'lite',
+    KUGOU_API_MID: mid,
+    KUGOU_API_GUID: guid,
+    KUGOU_API_DEV: SERVER_DEV,
+    KUGOU_API_MAC: (process.env.KUGOU_API_MAC || '02:00:00:00:00:00').toUpperCase(),
+    KUGOU_API_WEBGL: webglHash,
+  };
+};
+
+/**
+ * 将经 IPC 传输的二进制数据统一转换为 Buffer
+ * （ArrayBuffer / TypedArray → Buffer，其它类型原样返回）
+ */
+const toBufferIfBinary = (data: any): any => {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  return data;
+};
+
+const serializeModuleErrorBody = (body: any): any => {
+  if (!body || typeof body !== 'object' || Array.isArray(body) || Buffer.isBuffer(body))
+    return body;
+
+  const record = body as Record<string, unknown>;
+  let serialized: Record<string, unknown> | null = null;
+  let networkErrorCode: unknown;
+  for (const key of ['msg', 'error'] as const) {
+    const value = record[key];
+    if (!value || typeof value !== 'object') continue;
+
+    const error = value as {
+      name?: unknown;
+      message?: unknown;
+      code?: unknown;
+      cause?: { message?: unknown; code?: unknown };
+    };
+    const messageParts = [error.message, error.cause?.message]
+      .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+      .filter((item, index, items) => items.indexOf(item) === index);
+    if (messageParts.length === 0) continue;
+
+    serialized ??= { ...record };
+    serialized[key] = messageParts.join(': ');
+    networkErrorCode ??= error.code ?? error.cause?.code;
+  }
+
+  if (!serialized) return body;
+  if (networkErrorCode != null && !('network_error_code' in record)) {
+    serialized.network_error_code = String(networkErrorCode);
+  }
+  return serialized;
+};
+
+/**
+ * 处理 API 请求（核心路由分发逻辑）
+ * 复现 server/server.js 中 Express 路由处理器的逻辑
+ */
+export const handleApiRequest = async (request: ApiRequest): Promise<ApiResponse> => {
+  if (!serverReady || !createRequestFn) {
+    return { status: 503, body: { code: 503, msg: 'Service not ready' } };
+  }
+
+  const mod = matchModule(request.url);
+  if (!mod) {
+    return { status: 404, body: { code: 404, data: null, msg: 'Not Found' } };
+  }
+
+  // 构建 cookie：默认值 + Authorization header 中的值
+  const defaultCookies = buildDefaultCookies();
+  const authCookies = parseAuthCookie(
+    request.headers?.['Authorization'] || request.headers?.['authorization'],
+  );
+  // 构建 query 参数（复现 Express 路由处理器的逻辑）
+  // Express 中 query params 全部是 string 类型，IPC 传输保留了原始类型（number 等），
+  // 部分 server module 依赖 .split() 等字符串方法，需要统一转为 string 以保持兼容
+  const rawParams = request.params || {};
+  const stringifiedParams: Record<string, any> = {};
+  for (const [key, value] of Object.entries(rawParams)) {
+    stringifiedParams[key] =
+      value === null || value === undefined
+        ? value
+        : typeof value === 'object'
+          ? value
+          : String(value);
+  }
+  const { cookie: paramCookie, ...restParams } = stringifiedParams;
+
+  // 合并 cookie：默认 cookie → param 中的 cookie → auth header 中的 cookie
+  const cookieFromParams =
+    typeof paramCookie === 'string' ? parseAuthCookie(paramCookie) : paramCookie || {};
+  const finalCookie = { ...defaultCookies, ...cookieFromParams, ...authCookies };
+
+  const query: any = {
+    cookie: finalCookie,
+    ...restParams,
+  };
+
+  // 合并请求体：
+  // - 二进制 body（Buffer，如听歌识曲 PCM）需放入 query.data，
+  //   复现 server/server.js 中 `Buffer.isBuffer(req.body) ? { data: req.body }` 的逻辑，
+  //   module（如 audio_match）通过 params.data 读取并作为 octet-stream 上传。
+  // - JSON 对象既合并到顶层（与 Express 的 Object.assign 行为一致），也保留
+  //   query.body，兼容当前依赖 params.body 的一起听等模块。
+  if (request.data !== undefined && request.data !== null) {
+    const normalizedBody = toBufferIfBinary(request.data);
+    if (Buffer.isBuffer(normalizedBody)) {
+      query.data = normalizedBody;
+    } else {
+      query.body = normalizedBody;
+      if (
+        typeof normalizedBody === 'object' &&
+        normalizedBody !== null &&
+        !Array.isArray(normalizedBody)
+      ) {
+        mergeApiRequestBody(query, normalizedBody);
+      }
+    }
+  }
+
+  // Authorization 始终拥有最高优先级，保持与 Express 路径一致。
+  query.cookie = { ...query.cookie, ...authCookies };
+
+  if (mod.route === '/user/update/avatar') {
+    try {
+      prepareAvatarUploadQuery(query);
+    } catch (error) {
+      return {
+        status: 400,
+        body: {
+          status: 0,
+          msg: error instanceof Error ? error.message : '图片数据无效',
+        },
+      };
+    }
+  }
+
+  try {
+    const moduleResponse = await mod.module(query, (config: any) => {
+      // IPC 模式下没有真实 IP，传空即可
+      config.ip = '';
+      return createRequestFn!(config);
+    });
+
+    const response: ApiResponse = {
+      status: moduleResponse.status || 200,
+      body: moduleResponse.body,
+      cookie: moduleResponse.cookie,
+      headers: moduleResponse.headers,
+    };
+
+    return response;
+  } catch (e: any) {
+    const moduleResponse = e;
+
+    if (!moduleResponse?.body) {
+      return { status: 404, body: { code: 404, data: null, msg: 'Not Found' } };
+    }
+
+    return {
+      status: moduleResponse.status || 502,
+      body: serializeModuleErrorBody(moduleResponse.body),
+      cookie: moduleResponse.cookie,
+      headers: moduleResponse.headers,
+    };
+  }
+};
+
+/**
+ * 获取 server 就绪状态
+ */
+export function isApiServerReady(): boolean {
+  return serverReady;
+}

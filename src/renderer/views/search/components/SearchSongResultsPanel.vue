@@ -1,0 +1,145 @@
+<script setup lang="ts">
+import PageStickyHeader from '@/components/ui/PageStickyHeader.vue';
+import { ref } from 'vue';
+import { Icon } from '@iconify/vue';
+import type { Song } from '@/models/song';
+import Button from '@/components/ui/Button.vue';
+import Badge from '@/components/ui/Badge.vue';
+import SongList from '@/components/music/SongList.vue';
+import SongListHeader, {
+  type SortField,
+  type SortOrder,
+} from '@/components/music/SongListHeader.vue';
+import ActionRow from '@/components/music/DetailPageActionRow.vue';
+import BatchActionDrawer from '@/components/music/BatchActionDrawer.vue';
+import { iconCurrentLocation, iconSearch, iconSparkles } from '@/icons';
+
+const props = defineProps<{
+  activeSongId?: string;
+  enableLocate?: boolean;
+  enableSearchQuery?: boolean;
+  queueIdPrefix: string;
+  searchQuery?: string;
+  showLyricColumn?: boolean;
+  songs: Song[];
+  sortField: SortField | null;
+  sortOrder: SortOrder;
+  sortedSongs: Song[];
+  stickyTop: number;
+  subtitleLabel?: string;
+}>();
+
+const emit = defineEmits<{
+  locate: [];
+  play: [];
+  'song-search-change': [value: string];
+  sort: [field: SortField];
+}>();
+
+const drawerOpen = ref(false);
+const songListRef = ref<{ scrollToActive?: () => void } | null>(null);
+
+const openBatchDrawer = () => {
+  if (props.songs.length === 0) return;
+  drawerOpen.value = true;
+};
+
+const scrollToActive = () => {
+  songListRef.value?.scrollToActive?.();
+};
+
+defineExpose({ scrollToActive });
+</script>
+
+<template>
+  <div>
+    <PageStickyHeader
+      class="search-song-toolbar sticky z-120 bg-bg-main"
+      :style="{ top: `${stickyTop}px` }"
+    >
+      <div class="search-song-playback-actions">
+        <div class="search-song-title-wrap">
+          <div class="search-song-badge-icon">
+            <Icon :icon="iconSparkles" width="16" height="16" />
+          </div>
+          <span class="text-[15px] font-semibold text-text-main">{{
+            showLyricColumn ? '搜索歌词' : '搜索单曲'
+          }}</span>
+        </div>
+        <ActionRow
+          :play-disabled="sortedSongs.length === 0"
+          :batch-disabled="songs.length === 0"
+          @play="emit('play')"
+          @batch="openBatchDrawer"
+        />
+      </div>
+      <div class="search-song-toolbar-inner">
+        <div v-if="enableSearchQuery" class="rank-song-tab">
+          <span class="rank-song-label relative"
+            >歌曲 <Badge :count="subtitleLabel ?? songs.length"
+          /></span>
+        </div>
+        <span v-else class="search-song-count">{{ subtitleLabel ?? songs.length }} 首</span>
+
+        <div v-if="enableSearchQuery || enableLocate" class="search-song-toolbar-actions">
+          <div v-if="enableSearchQuery" class="search-result-filter relative">
+            <input
+              :value="searchQuery"
+              type="text"
+              placeholder="筛选当前结果"
+              aria-label="筛选当前搜索结果"
+              class="song-search-input w-full h-9 pl-8 pr-3 rounded-lg text-text-main placeholder:text-text-main/50 outline-none text-[12px] transition-all"
+              @input="emit('song-search-change', ($event.target as HTMLInputElement).value)"
+            />
+            <Icon
+              class="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-main/60"
+              :icon="iconSearch"
+              width="14"
+              height="14"
+            />
+          </div>
+          <Button
+            v-if="enableLocate"
+            variant="unstyled"
+            size="none"
+            class="song-locate-btn p-2 rounded-lg"
+            tooltip="定位当前播放"
+            @click="emit('locate')"
+          >
+            <Icon :icon="iconCurrentLocation" width="16" height="16" />
+          </Button>
+        </div>
+      </div>
+
+      <SongListHeader
+        :sortField="sortField"
+        :sortOrder="sortOrder"
+        :showCover="true"
+        :lyricColumn="showLyricColumn"
+        albumLabel="歌词"
+        paddingClass="px-0"
+        @sort="emit('sort', $event)"
+      />
+    </PageStickyHeader>
+
+    <BatchActionDrawer v-model:open="drawerOpen" :songs="songs" :source-id="queueIdPrefix" />
+
+    <div class="pb-12">
+      <SongList
+        ref="songListRef"
+        class="search-song-list"
+        :songs="songs"
+        :contextSongs="sortedSongs"
+        :searchQuery="searchQuery"
+        :disableInternalFilter="Boolean(enableSearchQuery)"
+        :activeId="activeSongId"
+        :showCover="true"
+        :showLyricColumn="showLyricColumn"
+        :enableDefaultDoubleTapPlay="true"
+        rowPaddingClass="px-0"
+      />
+    </div>
+  </div>
+</template>
+
+<style scoped src="../searchView.css"></style>

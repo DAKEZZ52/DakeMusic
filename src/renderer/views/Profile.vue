@@ -1,0 +1,1257 @@
+<script setup lang="ts">
+import Tooltip from '@/components/ui/Tooltip.vue';
+import RollingNumber from '@/components/ui/RollingNumber.vue';
+import VipClaimCard from '@/components/profile/VipClaimCard.vue';
+defineOptions({ name: 'profile' });
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRouter } from 'vue-router';
+import { useUserStore } from '@/stores/user';
+import { useLoginDeviceStore, type LoginDeviceSession } from '@/stores/loginDevices';
+import Button from '@/components/ui/Button.vue';
+import DatePicker from '@/components/ui/DatePicker.vue';
+import Dialog from '@/components/ui/Dialog.vue';
+import Input from '@/components/ui/Input.vue';
+import Popover from '@/components/ui/Popover.vue';
+import Select from '@/components/ui/Select.vue';
+import Textarea from '@/components/ui/Textarea.vue';
+import ContentBlacklistDialog from '@/components/profile/ContentBlacklistDialog.vue';
+import ListeningPreferencesDialog from '@/components/profile/ListeningPreferencesDialog.vue';
+import Avatar from '@/components/ui/Avatar.vue';
+import logger from '@/utils/logger';
+import { useToastStore } from '@/stores/toast';
+import type { UpdateUserProfileParams } from '@/api/user';
+import {
+  iconCheck,
+  iconGift,
+  iconHeadphones,
+  iconHome,
+  iconInfo,
+  iconLogOut,
+  iconPencil,
+  iconRefreshCw,
+  iconScan,
+  iconSmartphone,
+  iconTrash,
+  iconUser,
+} from '@/icons';
+import PageScrollContainer from '@/components/ui/PageScrollContainer.vue';
+import { formatBirthdayForInput } from '../../shared/birthday';
+import {
+  formatAccountAge,
+  formatListeningDuration,
+  getGradeProgress,
+} from '../../shared/profileStats';
+
+interface VipLevelInfo {
+  product_type?: string;
+  is_vip?: number;
+  vip_begin_time?: string | number;
+  vip_end_time?: string | number;
+}
+interface VipInfoState {
+  busi_vip?: VipLevelInfo[];
+  [key: string]: unknown;
+}
+interface DetailState {
+  gender?: number;
+  [key: string]: unknown;
+}
+
+const router = useRouter();
+const userStore = useUserStore();
+const loginDeviceStore = useLoginDeviceStore();
+const toastStore = useToastStore();
+const userInfo = computed(() => userStore.info);
+const isLoading = ref(false);
+const showContentBlacklist = ref(false);
+const showListeningPreferences = ref(false);
+const showDeviceManager = ref(false);
+const showKickConfirm = ref(false);
+const pendingKickDevice = ref<LoginDeviceSession | null>(null);
+const showProfileEditor = ref(false);
+const showGradeDetail = ref(false);
+const gradeLoading = ref(false);
+const gradeProgress = computed(() => getGradeProgress(detail.value));
+const listeningDuration = computed(() =>
+  formatListeningDuration(detail.value.d_sec, detail.value.duration),
+);
+const openGradeDetail = async () => {
+  showGradeDetail.value = true;
+  gradeLoading.value = true;
+  try {
+    await userStore.fetchGradeInfo();
+  } finally {
+    gradeLoading.value = false;
+  }
+};
+const isSavingProfile = ref(false);
+const isUploadingAvatar = ref(false);
+const avatarInput = ref<HTMLInputElement | null>(null);
+type EditableGender = 0 | 1 | 2;
+const profileForm = reactive({
+  nickname: '',
+  sex: 2 as EditableGender,
+  birthday: '',
+  signature: '',
+  province: '',
+  city: '',
+});
+const genderOptions = [
+  { label: '女', value: 0 },
+  { label: '男', value: 1 },
+  { label: '保密', value: 2 },
+];
+const today = new Date();
+const birthdayMax = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(
+  today.getDate(),
+).padStart(2, '0')}`;
+
+const detail = computed<DetailState>(
+  () => (userInfo.value?.extendsInfo?.detail as DetailState | undefined) || {},
+);
+const vipInfo = computed<VipInfoState>(
+  () => (userInfo.value?.extendsInfo?.vip as VipInfoState | undefined) || {},
+);
+const busiVip = computed<VipLevelInfo[]>(() => vipInfo.value?.busi_vip || []);
+const visitorCount = computed(() => {
+  const value = detail.value.hvisitors ?? 0;
+  const count = Number(value);
+  return Number.isFinite(count) ? count : 0;
+});
+const tvip = computed(() => busiVip.value.find((v) => v.product_type === 'tvip' && v.is_vip === 1));
+const svip = computed(() => busiVip.value.find((v) => v.product_type === 'svip' && v.is_vip === 1));
+const gender = computed(() => {
+  const g = detail.value?.gender;
+  return g === 1 ? '男' : g === 0 ? '女' : '保密';
+});
+const editableGender = (): EditableGender => {
+  const value = Number(detail.value?.gender);
+  return value === 0 || value === 1 ? value : 2;
+};
+const currentSignature = () => String(detail.value?.descri ?? detail.value?.signature ?? '');
+const syncProfileForm = () => {
+  profileForm.nickname = String(userInfo.value?.nickname ?? '').trim();
+  profileForm.sex = editableGender();
+  profileForm.birthday = formatBirthdayForInput(detail.value?.birthday);
+  profileForm.signature = currentSignature();
+  profileForm.province = String(detail.value?.province ?? '').trim();
+  profileForm.city = String(detail.value?.city ?? '').trim();
+};
+const openProfileEditor = () => {
+  syncProfileForm();
+  showProfileEditor.value = true;
+};
+const getProfileErrorMessage = (error: unknown, fallback: string) => {
+  const response = (error as { response?: { body?: unknown } } | null)?.response;
+  const body =
+    response?.body && typeof response.body === 'object'
+      ? (response.body as Record<string, unknown>)
+      : undefined;
+  const message = typeof body?.msg === 'string' ? body.msg.trim() : '';
+  if (message) return message;
+  const ownMessage = error instanceof Error ? error.message.trim() : '';
+  return ownMessage && !ownMessage.startsWith('API Error:') ? ownMessage : fallback;
+};
+const saveProfile = async () => {
+  if (isSavingProfile.value) return;
+  const nickname = profileForm.nickname.trim();
+  if (!nickname) {
+    toastStore.warning('昵称不能为空');
+    return;
+  }
+  const params: UpdateUserProfileParams = {};
+  const currentNickname = String(userInfo.value?.nickname ?? '').trim();
+  const currentBirthday = formatBirthdayForInput(detail.value?.birthday);
+  const birthday = profileForm.birthday.trim();
+  if (nickname !== currentNickname) params.nickname = nickname;
+  if (profileForm.sex !== editableGender()) params.sex = profileForm.sex;
+  if (birthday !== currentBirthday) {
+    params.birthday = birthday;
+  }
+  if (profileForm.signature !== currentSignature()) params.signature = profileForm.signature;
+  const province = profileForm.province.trim();
+  const city = profileForm.city.trim();
+  const currentProvince = String(detail.value?.province ?? '').trim();
+  const currentCity = String(detail.value?.city ?? '').trim();
+  if ((!province && currentProvince) || (!city && currentCity)) {
+    toastStore.warning('当前接口暂不支持清空所在地区');
+    return;
+  }
+  if (province && province !== currentProvince) params.province = province;
+  if (city && city !== currentCity) params.city = city;
+  if (Object.keys(params).length === 0) {
+    toastStore.info('资料没有变化');
+    return;
+  }
+  isSavingProfile.value = true;
+  try {
+    await (userStore as any).updateProfile(params);
+    showProfileEditor.value = false;
+    toastStore.success('个人资料已更新');
+  } catch (error) {
+    logger.error('Profile', 'Update profile error:', error);
+    toastStore.danger(getProfileErrorMessage(error, '个人资料保存失败，请稍后重试'));
+  } finally {
+    isSavingProfile.value = false;
+  }
+};
+const triggerAvatarPicker = () => {
+  if (!isUploadingAvatar.value) avatarInput.value?.click();
+};
+const readFileAsDataUrl = (file: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('图片读取失败'));
+    reader.onerror = () => reject(reader.error || new Error('图片读取失败'));
+    reader.readAsDataURL(file);
+  });
+const handleAvatarSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file || isUploadingAvatar.value) return;
+  const mime = file.type.toLowerCase();
+  const extension = file.name.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1] ?? '';
+  const supportedTypes = new Set(['image/jpeg', 'image/png', 'image/gif']);
+  const supportedExtensions = new Set(['jpg', 'jpeg', 'png', 'gif']);
+  if ((mime && !supportedTypes.has(mime)) || (!mime && !supportedExtensions.has(extension))) {
+    toastStore.warning('请选择 JPEG、PNG 或 GIF 图片');
+    return;
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    toastStore.warning('头像图片不能超过 8 MB');
+    return;
+  }
+  isUploadingAvatar.value = true;
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const filename =
+      mime === 'image/gif' || extension === 'gif'
+        ? 'avatar.gif'
+        : mime === 'image/png' || extension === 'png'
+          ? 'avatar.png'
+          : 'avatar.jpg';
+    const result = await (userStore as any).updateAvatar(dataUrl, filename);
+    toastStore.success(
+      result.reviewPending ? '头像已上传，正在审核中' : '头像已提交，审核完成后将正式生效',
+    );
+  } catch (error) {
+    logger.error('Profile', 'Update avatar error:', error);
+    toastStore.danger(getProfileErrorMessage(error, '头像上传失败，请稍后重试'));
+  } finally {
+    isUploadingAvatar.value = false;
+  }
+};
+const location = computed(() => {
+  const p = detail?.value?.province || '';
+  const c = detail?.value?.city || '';
+  if (p && c) {
+    return `${p} - ${c}`;
+  }
+  if (p) {
+    return p;
+  }
+  if (c) {
+    return c;
+  }
+  return '-';
+});
+const getVipExpireText = (vipData: any) => {
+  if (!vipData?.vip_end_time) return null;
+  try {
+    const expireDate = new Date(vipData.vip_end_time);
+    const now = new Date();
+    const diff = expireDate.getTime() - now.getTime();
+    if (diff < 0) return '已过期';
+    const totalMinutes = Math.floor(diff / (1000 * 60));
+    const totalHours = Math.floor(diff / (1000 * 60 * 60));
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    if (days > 365) return `${Math.floor(days / 365)}年后到期`;
+    if (days > 30) return `${Math.floor(days / 30)}个月后到期`;
+    if (days > 0) return `${days}天后到期`;
+    if (totalHours > 0) return `${totalHours}小时后到期`;
+    if (totalMinutes > 0) return `${totalMinutes}分钟后到期`;
+    return '即将到期';
+  } catch {
+    return null;
+  }
+};
+const formatVipDate = (value?: string | number) => {
+  if (!value) return '--';
+  try {
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+      d.getHours(),
+    )}:${pad(d.getMinutes())}`;
+  } catch {
+    return String(value);
+  }
+};
+const joinDeviceParts = (...parts: Array<string | number | undefined | null>) =>
+  parts
+    .map((part) => String(part ?? '').trim())
+    .filter(Boolean)
+    .join(', ');
+const formatDeviceLoginType = (value?: string | number) => {
+  const text = String(value ?? '').trim();
+  if (text === '0') return '账号密码登录';
+  if (text === '1') return '手机登录';
+  if (text === '2') return '微信登录';
+  if (text === '3') return 'QQ登录';
+  if (text === '4') return '苹果登录';
+  if (text === '5') return '微博登录';
+  if (text === '6') return '扫码登录';
+  return text ? `未知(${text})` : '未知';
+};
+const formatDeviceLocation = (value?: string | number) => {
+  const parts = String(value ?? '')
+    .split(/[\s,，/]+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  return parts.at(-1) || '';
+};
+const formatDeviceTime = (value?: string | number) => {
+  const text = String(value ?? '').trim();
+  if (!text || text === '0') return '';
+  const numeric = Number(text);
+  const date =
+    Number.isFinite(numeric) && /^\d+$/.test(text)
+      ? new Date(text.length <= 10 ? numeric * 1000 : numeric)
+      : new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+};
+const formatDeviceDetailLine = (device: LoginDeviceSession) =>
+  joinDeviceParts(formatDeviceLoginType(device.loginType), device.platform);
+const formatDeviceActivityLine = (device: LoginDeviceSession) => {
+  const time = formatDeviceTime(device.activeTime || device.loginTime);
+  const location = formatDeviceLocation(device.location);
+  return joinDeviceParts(time ? `${time}` : '', location);
+};
+const loginDevices = computed(() => loginDeviceStore.devices);
+const loginDeviceSummary = computed(() => {
+  if (loginDeviceStore.loading && !loginDeviceStore.loaded) return '正在同步登录设备';
+  if (loginDeviceStore.error && loginDevices.value.length === 0) return loginDeviceStore.error;
+  if (loginDevices.value.length === 0) return '暂无登录设备记录';
+  return `当前账号已登录 ${loginDevices.value.length} 台设备`;
+});
+const loadData = async () => {
+  if (!userStore.isLoggedIn) return;
+  isLoading.value = true;
+  try {
+    await userStore.fetchUserInfo();
+    void userStore.fetchGradeInfo();
+    void loginDeviceStore.fetchDevices();
+  } catch (e) {
+    logger.error('Profile', 'Load Data Error:', e);
+  } finally {
+    isLoading.value = false;
+  }
+};
+const handleLogout = () => {
+  showLogoutConfirm.value = true;
+};
+const confirmLogout = () => {
+  showLogoutConfirm.value = false;
+  loginDeviceStore.reset();
+  userStore.logout();
+  router.push('/main/home');
+};
+const openDeviceManager = async () => {
+  showDeviceManager.value = true;
+  if (!loginDeviceStore.loaded && !loginDeviceStore.loading) {
+    await loginDeviceStore.fetchDevices();
+  }
+};
+const refreshLoginDevices = async () => {
+  await loginDeviceStore.fetchDevices();
+};
+const requestKickDevice = (device: LoginDeviceSession) => {
+  if (!device.canKick) return;
+  pendingKickDevice.value = device;
+  showKickConfirm.value = true;
+};
+const confirmKickDevice = async () => {
+  const device = pendingKickDevice.value;
+  if (!device) return;
+  const ok = await loginDeviceStore.kickDevice(device);
+  if (ok) {
+    showKickConfirm.value = false;
+    pendingKickDevice.value = null;
+  }
+};
+const showLogoutConfirm = ref(false);
+onMounted(() => loadData());
+</script>
+
+<template>
+  <PageScrollContainer class="profile-page-container">
+    <div class="profile-page select-none bg-bg-main">
+      <template v-if="userStore.isLoggedIn && userInfo">
+        <div class="px-8 py-4">
+          <div class="w-full">
+            <!-- 1. Header -->
+            <header class="flex items-center justify-between mb-6">
+              <h1 class="text-[22px] font-black tracking-tight">个人中心</h1>
+              <div class="flex items-center gap-2">
+                <Button
+                  variant="unstyled"
+                  size="none"
+                  @click="openProfileEditor"
+                  class="w-10 h-10 flex items-center justify-center rounded-full border border-[var(--control-border)] text-text-main/70 hover:bg-[var(--control-hover-bg)] hover:text-text-main transition-all active:scale-90"
+                  tooltip="编辑个人资料"
+                  aria-label="编辑个人资料"
+                >
+                  <Icon :icon="iconPencil" width="19" height="19" />
+                </Button>
+                <Button
+                  variant="unstyled"
+                  size="none"
+                  @click="showListeningPreferences = true"
+                  class="w-10 h-10 flex items-center justify-center rounded-full border border-[var(--control-border)] text-text-main/70 hover:bg-[var(--control-hover-bg)] hover:text-text-main transition-all active:scale-90"
+                  tooltip="听歌偏好"
+                  aria-label="听歌偏好"
+                >
+                  <Icon :icon="iconHeadphones" width="20" height="20" />
+                </Button>
+                <Button
+                  variant="unstyled"
+                  size="none"
+                  @click="openDeviceManager"
+                  class="w-10 h-10 flex items-center justify-center rounded-full border border-[var(--control-border)] text-text-main/70 hover:bg-[var(--control-hover-bg)] hover:text-text-main transition-all active:scale-90"
+                  tooltip="登录设备"
+                  aria-label="登录设备"
+                >
+                  <Icon :icon="iconSmartphone" width="20" height="20" />
+                </Button>
+                <Button
+                  variant="unstyled"
+                  size="none"
+                  @click="handleLogout"
+                  class="w-10 h-10 flex items-center justify-center rounded-full border border-[var(--control-border)] hover:bg-red-500/10 hover:text-red-500 transition-all active:scale-90"
+                  tooltip="退出登录"
+                  aria-label="退出登录"
+                >
+                  <Icon :icon="iconLogOut" width="20" height="20" />
+                </Button>
+              </div>
+            </header>
+
+            <!-- 2. User Profile Card -->
+            <div
+              class="user-card relative overflow-hidden p-6 rounded-3xl bg-linear-to-br from-primary/12 via-primary/6 to-transparent border border-primary/20 mb-6"
+            >
+              <div class="flex items-center gap-6 relative z-10">
+                <Tooltip content="修改头像">
+                  <template #trigger>
+                    <button
+                      type="button"
+                      class="profile-avatar-button group relative p-1 rounded-full border-2 border-primary/30 shrink-0 overflow-hidden"
+                      :disabled="isUploadingAvatar"
+                      aria-label="修改头像"
+                      @click="triggerAvatarPicker"
+                    >
+                      <Avatar :src="userInfo.pic" class="w-19 h-19 rounded-full" />
+                      <span
+                        class="absolute inset-1 rounded-full flex items-center justify-center bg-black/45 text-white opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity"
+                      >
+                        <span
+                          v-if="isUploadingAvatar"
+                          class="w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin"
+                        ></span>
+                        <Icon v-else :icon="iconPencil" width="20" height="20" />
+                      </span>
+                    </button>
+                  </template>
+                </Tooltip>
+                <input
+                  ref="avatarInput"
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif"
+                  hidden
+                  @change="handleAvatarSelected"
+                />
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-3 mb-2">
+                    <h2 class="text-[20px] font-black truncate">{{ userInfo.nickname }}</h2>
+                    <div
+                      v-if="tvip"
+                      class="px-1.5 py-0.5 rounded-md bg-linear-to-r from-[#07C160] to-[#07C160]/80 text-white text-[9px] font-black shadow-sm"
+                    >
+                      畅听
+                    </div>
+                    <div
+                      v-if="svip"
+                      class="px-1.5 py-0.5 rounded-md bg-linear-to-r from-orange-500 to-orange-500/80 text-white text-[9px] font-black shadow-sm"
+                    >
+                      概念
+                    </div>
+                  </div>
+                  <div class="flex flex-col">
+                    <p
+                      v-if="detail.descri"
+                      class="text-[12px] opacity-70 font-medium line-clamp-2 mb-3"
+                    >
+                      {{ detail.descri }}
+                    </p>
+                    <div class="profile-stats">
+                      <button
+                        type="button"
+                        class="grade-entry profile-stat text-left"
+                        aria-label="查看我的等级与升级进度"
+                        @click="openGradeDetail"
+                      >
+                        <span class="profile-stat-value"
+                          ><RollingNumber :value="`Lv.${gradeProgress.grade ?? '—'}`" />
+                          <span class="text-primary-text">›</span></span
+                        >
+                        <span class="profile-stat-label">升级进度</span>
+                      </button>
+                      <div class="profile-stat">
+                        <span class="profile-stat-value">
+                          <RollingNumber :value="String(detail.follows || 0)" />
+                        </span>
+                        <span class="profile-stat-label">关注</span>
+                      </div>
+                      <div class="profile-stat">
+                        <span class="profile-stat-value">
+                          <RollingNumber :value="String(detail.fans || 0)" />
+                        </span>
+                        <span class="profile-stat-label">粉丝</span>
+                      </div>
+                      <div class="profile-stat">
+                        <span class="profile-stat-value"
+                          ><RollingNumber :value="visitorCount"
+                        /></span>
+                        <span class="profile-stat-label">访客</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div
+                class="absolute -right-10 -bottom-10 w-40 h-40 bg-primary/5 rounded-full blur-3xl pointer-events-none"
+              ></div>
+            </div>
+
+            <div class="profile-info-grid grid gap-6">
+              <!-- 3. Account Archives -->
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 mb-4">
+                  <Icon :icon="iconUser" width="16" height="16" class="text-primary-text" />
+                  <h3 class="text-[16px] font-black">账号档案</h3>
+                </div>
+                <div
+                  class="profile-archive-card space-y-0.5 p-2 rounded-[18px] bg-[var(--content-panel-bg)] border border-[var(--content-panel-border)] shadow-sm"
+                >
+                  <div class="flex items-center justify-between px-4 py-3">
+                    <span class="text-[13px] opacity-60 font-bold">用户 ID</span>
+                    <span class="text-[13px] font-black">{{ userInfo.userid }}</span>
+                  </div>
+                  <div class="flex items-center justify-between px-4 py-3">
+                    <span class="text-[13px] opacity-60 font-bold">性别</span>
+                    <span class="text-[13px] font-black">{{ gender }}</span>
+                  </div>
+                  <div class="flex items-center justify-between px-4 py-3">
+                    <span class="text-[13px] opacity-60 font-bold">乐龄</span>
+                    <RollingNumber
+                      class="text-[13px] font-black"
+                      :value="formatAccountAge(detail.rtime)"
+                    />
+                  </div>
+                  <div class="flex items-center justify-between px-4 py-3">
+                    <span class="text-[13px] opacity-60 font-bold">累计听歌</span>
+                    <RollingNumber class="text-[13px] font-black" :value="listeningDuration" />
+                  </div>
+                  <div class="flex items-center justify-between px-4 py-3">
+                    <span class="text-[13px] opacity-60 font-bold">所在地区</span>
+                    <span class="text-[13px] font-black">{{ location }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 4. Membership Status -->
+              <div class="min-w-0">
+                <template v-if="false">
+                  <div class="flex items-center gap-2 mb-4">
+                    <Icon :icon="iconGift" width="16" height="16" class="text-primary-text" />
+                    <h3 class="text-[16px] font-black">会员状态</h3>
+                  </div>
+                  <div class="space-y-2">
+                    <!-- TVIP -->
+                    <div
+                      :class="[
+                        'flex items-center gap-3 p-3 rounded-2xl border',
+                        tvip
+                          ? 'bg-green-500/10 border-green-500/20'
+                          : 'bg-[var(--control-muted-bg)] border-transparent opacity-60',
+                      ]"
+                    >
+                      <div
+                        :class="[
+                          'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
+                          tvip
+                            ? 'bg-green-500/20 text-green-500'
+                            : 'bg-[var(--control-hover-bg)] opacity-60',
+                        ]"
+                      >
+                        <Icon :icon="iconHome" width="18" height="18" />
+                      </div>
+                      <div class="flex-1">
+                        <h4 :class="['text-[13px] font-black', tvip ? 'text-green-500' : '']">
+                          畅听会员
+                        </h4>
+                        <div v-if="tvip" @click.stop>
+                          <Popover
+                            trigger="hover"
+                            side="top"
+                            align="start"
+                            :side-offset="6"
+                            contentClass="vip-expire-popover"
+                          >
+                            <template #trigger>
+                              <span
+                                class="inline-flex items-center gap-1 text-[11px] opacity-60 font-bold uppercase cursor-pointer hover:opacity-100 transition-opacity"
+                              >
+                                {{ getVipExpireText(tvip) }}
+                                <Icon :icon="iconInfo" width="14" height="14" class="opacity-70" />
+                              </span>
+                            </template>
+                            <div class="min-w-45 space-y-1.5 text-[13px] normal-case">
+                              <div class="flex items-center justify-between gap-3">
+                                <span class="font-bold opacity-60">开始时间</span>
+                                <span class="font-black">{{
+                                  formatVipDate(tvip!.vip_begin_time)
+                                }}</span>
+                              </div>
+                              <div class="flex items-center justify-between gap-3">
+                                <span class="font-bold opacity-60">到期时间</span>
+                                <span class="font-black text-green-500">{{
+                                  formatVipDate(tvip!.vip_end_time)
+                                }}</span>
+                              </div>
+                            </div>
+                          </Popover>
+                        </div>
+                        <p v-else class="text-[11px] opacity-60 font-bold uppercase">未开通</p>
+                      </div>
+                      <div v-if="tvip" class="text-green-500">
+                        <Icon :icon="iconCheck" width="16" height="16" />
+                      </div>
+                    </div>
+
+                    <!-- SVIP -->
+                    <div
+                      :class="[
+                        'flex items-center gap-3 p-3 rounded-2xl border',
+                        svip
+                          ? 'bg-orange-500/10 border-orange-500/20'
+                          : 'bg-[var(--control-muted-bg)] border-transparent opacity-60',
+                      ]"
+                    >
+                      <div
+                        :class="[
+                          'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
+                          svip
+                            ? 'bg-orange-500/20 text-orange-500'
+                            : 'bg-[var(--control-hover-bg)] opacity-60',
+                        ]"
+                      >
+                        <Icon :icon="iconScan" width="18" height="18" />
+                      </div>
+                      <div class="flex-1">
+                        <h4 :class="['text-[13px] font-black', svip ? 'text-orange-500' : '']">
+                          概念会员
+                        </h4>
+                        <div v-if="svip" @click.stop>
+                          <Popover
+                            trigger="hover"
+                            side="top"
+                            align="start"
+                            :side-offset="6"
+                            contentClass="vip-expire-popover"
+                          >
+                            <template #trigger>
+                              <span
+                                class="inline-flex items-center gap-1 text-[11px] opacity-60 font-bold uppercase cursor-pointer hover:opacity-100 transition-opacity"
+                              >
+                                {{ getVipExpireText(svip) }}
+                                <Icon :icon="iconInfo" width="14" height="14" class="opacity-70" />
+                              </span>
+                            </template>
+                            <div class="min-w-45 space-y-1.5 text-[13px] normal-case">
+                              <div class="flex items-center justify-between gap-3">
+                                <span class="font-bold opacity-60">开始时间</span>
+                                <span class="font-black">{{
+                                  formatVipDate(svip!.vip_begin_time)
+                                }}</span>
+                              </div>
+                              <div class="flex items-center justify-between gap-3">
+                                <span class="font-bold opacity-60">到期时间</span>
+                                <span class="font-black text-orange-500">{{
+                                  formatVipDate(svip!.vip_end_time)
+                                }}</span>
+                              </div>
+                            </div>
+                          </Popover>
+                        </div>
+                        <p v-else class="text-[11px] opacity-60 font-bold uppercase">未开通</p>
+                      </div>
+                      <div v-if="svip" class="text-orange-500">
+                        <Icon :icon="iconCheck" width="16" height="16" />
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- 每日领取 VIP -->
+                <div class="mt-4">
+                  <VipClaimCard />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <div v-else class="h-full flex flex-col items-center justify-center opacity-40 italic">
+        <Icon :icon="iconUser" width="64" height="64" class="mb-4" />
+        <span class="text-[16px] font-bold">请先登录以查看个人中心</span>
+        <Button
+          variant="primary"
+          size="sm"
+          @click="router.push('/login')"
+          class="mt-6 rounded-full not-italic"
+          >立即登录</Button
+        >
+      </div>
+    </div>
+
+    <Dialog v-model:open="showLogoutConfirm" title="退出登录" description="确定要退出当前账号吗？">
+      <template #footer>
+        <Button variant="outline" size="sm" @click="showLogoutConfirm = false">取消</Button>
+        <Button variant="danger" size="sm" @click="confirmLogout">确认退出</Button>
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:open="showProfileEditor"
+      title="编辑个人资料"
+      description="修改后的资料会同步到当前酷狗账号。"
+      contentClass="profile-editor-dialog"
+      :showClose="true"
+      :closeOnEscape="!isSavingProfile"
+      :closeOnInteractOutside="!isSavingProfile"
+    >
+      <div class="profile-editor-form">
+        <label class="profile-editor-field">
+          <span>昵称</span>
+          <Input v-model="profileForm.nickname" placeholder="请输入昵称" />
+        </label>
+        <div class="profile-editor-row">
+          <label class="profile-editor-field">
+            <span>性别</span>
+            <div class="profile-editor-select">
+              <Select
+                v-model="profileForm.sex"
+                class="profile-editor-select-trigger"
+                :options="genderOptions"
+                placeholder="请选择性别"
+                aria-label="性别"
+              />
+            </div>
+          </label>
+          <label class="profile-editor-field">
+            <span>生日</span>
+            <DatePicker
+              v-model="profileForm.birthday"
+              min="1900-01-01"
+              :max="birthdayMax"
+              placeholder="请选择生日"
+              aria-label="生日"
+              clearable
+            />
+          </label>
+        </div>
+        <div class="profile-editor-row">
+          <label class="profile-editor-field">
+            <span>省份</span>
+            <Input v-model="profileForm.province" placeholder="例如：广东" />
+          </label>
+          <label class="profile-editor-field">
+            <span>城市</span>
+            <Input v-model="profileForm.city" placeholder="例如：广州" />
+          </label>
+        </div>
+        <label class="profile-editor-field">
+          <span>个性签名</span>
+          <Textarea
+            v-model="profileForm.signature"
+            :rows="3"
+            placeholder="写下一句想说的话"
+            textareaClass="profile-editor-signature"
+          />
+          <small>留空保存可清除个性签名</small>
+        </label>
+      </div>
+      <template #footer>
+        <Button
+          variant="outline"
+          size="sm"
+          :disabled="isSavingProfile"
+          @click="showProfileEditor = false"
+          >取消</Button
+        >
+        <Button variant="primary" size="sm" :loading="isSavingProfile" @click="saveProfile"
+          >保存修改</Button
+        >
+      </template>
+    </Dialog>
+
+    <ContentBlacklistDialog v-model:open="showContentBlacklist" />
+    <ListeningPreferencesDialog
+      v-model:open="showListeningPreferences"
+      @blacklist="showContentBlacklist = true"
+    />
+
+    <Dialog
+      v-model:open="showGradeDetail"
+      title="我的等级"
+      description="每一次聆听，都在积累成长。"
+      show-close
+      content-class="profile-grade-dialog"
+    >
+      <div class="grade-card" :aria-busy="gradeLoading">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <p class="text-xs text-text-secondary">当前等级</p>
+            <p class="text-5xl font-black tracking-tight mt-2">
+              <RollingNumber :value="`Lv.${gradeProgress.grade ?? '—'}`" />
+            </p>
+          </div>
+          <svg class="grade-planet" viewBox="0 0 128 112" fill="none" aria-hidden="true">
+            <ellipse class="grade-planet-halo" cx="64" cy="58" rx="48" ry="45" />
+            <path class="grade-planet-orbit" d="M 13 78 C -6 58 93 14 115 34" />
+            <circle class="grade-planet-disc" cx="64" cy="56" r="34" />
+            <g class="grade-planet-grooves">
+              <circle cx="64" cy="56" r="28" />
+              <circle cx="64" cy="56" r="23" />
+              <circle cx="64" cy="56" r="18" />
+            </g>
+            <path class="grade-planet-shine" d="M 39 49 A 26 26 0 0 1 59 31" />
+            <circle class="grade-planet-label" cx="64" cy="56" r="11" />
+            <circle class="grade-planet-hole" cx="64" cy="56" r="3" />
+            <path class="grade-planet-orbit" d="M 115 34 C 139 53 34 101 13 78" />
+            <circle class="grade-planet-moon" cx="101" cy="65" r="4" />
+            <path
+              class="grade-planet-star"
+              d="M 25 16 L 27 22 L 33 24 L 27 26 L 25 32 L 23 26 L 17 24 L 23 22 Z"
+            />
+            <path
+              class="grade-planet-note"
+              d="M 104 15 V 5 L 112 3 V 12 M 104 15 C 104 19 97 19 97 16 C 97 13 104 12 104 15 Z M 112 12 C 112 16 105 16 105 13 C 105 10 112 9 112 12 Z"
+            />
+            <circle class="grade-planet-star" cx="90" cy="97" r="2" />
+            <circle class="grade-planet-star" cx="13" cy="48" r="1.5" />
+          </svg>
+        </div>
+        <template v-if="gradeProgress.available">
+          <div class="flex flex-wrap justify-between gap-2 mt-7 mb-3 text-sm">
+            <span
+              >距 Lv.{{ gradeProgress.nextGrade }} 还差
+              <RollingNumber
+                class="font-bold"
+                :value="gradeProgress.remaining?.toLocaleString() ?? '—'"
+              />
+              经验</span
+            >
+            <span class="text-text-secondary tabular-nums"
+              ><RollingNumber :value="gradeProgress.current?.toLocaleString() ?? '—'" /> /
+              <RollingNumber :value="gradeProgress.target?.toLocaleString() ?? '—'"
+            /></span>
+          </div>
+          <div
+            class="grade-progress-track"
+            role="progressbar"
+            aria-label="等级经验进度"
+            :aria-valuenow="
+              gradeProgress.current === null
+                ? 0
+                : Math.min(gradeProgress.current, gradeProgress.target ?? 0)
+            "
+            :aria-valuemin="0"
+            :aria-valuemax="gradeProgress.target ?? 100"
+          >
+            <div class="grade-progress-fill" :style="{ width: `${gradeProgress.percent}%` }"></div>
+          </div>
+        </template>
+        <p v-else class="mt-6 text-sm text-text-secondary" role="status">
+          {{ gradeLoading ? '正在获取升级进度…' : '暂未获取到下一等级进度，请稍后刷新' }}
+        </p>
+      </div>
+      <div class="flex justify-between items-center gap-4 py-5 text-sm">
+        <span class="text-text-secondary">累计听歌</span>
+        <RollingNumber class="font-bold" :value="listeningDuration" />
+      </div>
+      <template #footer>
+        <Button
+          variant="outline"
+          size="sm"
+          :loading="gradeLoading"
+          :disabled="gradeLoading"
+          @click="openGradeDetail"
+          >刷新进度</Button
+        >
+        <Button size="sm" @click="showGradeDetail = false">继续听歌</Button>
+      </template>
+    </Dialog>
+
+    <Dialog
+      v-model:open="showDeviceManager"
+      title="登录设备管理"
+      contentClass="login-device-dialog"
+      :showClose="true"
+    >
+      <div class="space-y-4">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-[13px] font-bold text-text-main">{{ loginDeviceSummary }}</p>
+          </div>
+          <Button
+            variant="unstyled"
+            size="none"
+            class="w-8 h-8 rounded-full flex items-center justify-center text-text-main/70 hover:bg-[var(--control-hover-bg)] hover:text-text-main"
+            tooltip="刷新登录设备"
+            aria-label="刷新登录设备"
+            :disabled="loginDeviceStore.loading"
+            @click="refreshLoginDevices"
+          >
+            <Icon
+              :icon="iconRefreshCw"
+              width="15"
+              height="15"
+              :class="loginDeviceStore.loading ? 'animate-spin' : ''"
+            />
+          </Button>
+        </div>
+        <div v-if="loginDeviceStore.error" class="text-[12px] font-bold text-red-500">
+          {{ loginDeviceStore.error }}
+        </div>
+        <div
+          v-if="loginDeviceStore.loading && loginDevices.length === 0"
+          class="py-10 text-center text-[13px] opacity-50 font-bold"
+        >
+          正在获取登录设备
+        </div>
+        <div
+          v-else-if="loginDevices.length === 0"
+          class="py-10 text-center text-[13px] opacity-50 font-bold"
+        >
+          暂无登录设备记录
+        </div>
+        <div v-else class="space-y-2">
+          <div
+            v-for="device in loginDevices"
+            :key="device.id"
+            class="login-device-row flex items-center gap-3 p-3 rounded-2xl border border-[var(--border-subtle)] bg-[var(--control-muted-bg)]"
+          >
+            <div
+              :class="[
+                'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
+                device.isCurrent
+                  ? 'bg-primary/15 text-primary-text'
+                  : 'bg-[var(--control-hover-bg)]',
+              ]"
+            >
+              <Icon :icon="iconSmartphone" width="20" height="20" />
+            </div>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="text-[13px] font-black truncate">{{ device.title }}</span>
+                <span
+                  v-if="device.isCurrent"
+                  class="px-1.5 py-0.5 rounded-md bg-primary/12 text-primary-text text-[10px] font-black shrink-0"
+                  >本机</span
+                >
+                <span
+                  v-if="device.isNew && !device.isCurrent"
+                  class="px-1.5 py-0.5 rounded-md bg-green-500/12 text-green-500 text-[10px] font-black shrink-0"
+                  >新设备</span
+                >
+              </div>
+              <p class="text-[11px] opacity-60 font-bold truncate">
+                {{ formatDeviceDetailLine(device) }}
+              </p>
+              <p class="text-[11px] opacity-45 font-bold truncate">
+                {{ formatDeviceActivityLine(device) }}
+              </p>
+            </div>
+            <Button
+              v-if="!device.isCurrent"
+              variant="danger"
+              size="xs"
+              :disabled="!device.canKick"
+              :loading="loginDeviceStore.kickingId === device.id"
+              class="shrink-0"
+              @click="requestKickDevice(device)"
+            >
+              <Icon
+                v-if="loginDeviceStore.kickingId !== device.id"
+                :icon="iconTrash"
+                width="13"
+                height="13"
+              />
+              <span class="ml-1">移除</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <Dialog
+      v-model:open="showKickConfirm"
+      title="移除登录设备"
+      :description="`移除“${pendingKickDevice?.title || '该设备'}”后，该设备需要重新登录。`"
+    >
+      <template #footer>
+        <Button variant="outline" size="sm" @click="showKickConfirm = false">取消</Button>
+        <Button
+          variant="danger"
+          size="sm"
+          :loading="
+            Boolean(pendingKickDevice && loginDeviceStore.kickingId === pendingKickDevice.id)
+          "
+          @click="confirmKickDevice"
+        >
+          确认移除
+        </Button>
+      </template>
+    </Dialog>
+  </PageScrollContainer>
+</template>
+
+<style scoped>
+.profile-stats {
+  display: flex;
+  align-items: stretch;
+  gap: 24px;
+}
+.profile-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 0;
+}
+.profile-stat + .profile-stat {
+  padding-left: 24px;
+}
+.profile-stat + .profile-stat::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 16px;
+  width: 1px;
+  transform: translateY(-50%);
+  background: var(--border-subtle);
+}
+.profile-stat-value {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 22px;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.25;
+}
+.profile-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 14px;
+  letter-spacing: 0.05em;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+.grade-entry {
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 160ms;
+}
+.grade-entry:hover {
+  color: var(--color-primary-text);
+}
+.grade-entry:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 5px;
+}
+.grade-card {
+  padding: 24px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 20px;
+  background: linear-gradient(
+    135deg,
+    rgba(var(--color-primary-rgb), 0.16),
+    rgba(var(--color-primary-rgb), 0.03)
+  );
+}
+.grade-planet {
+  width: 128px;
+  height: 112px;
+  flex-shrink: 0;
+  color: var(--color-primary-text);
+}
+.grade-planet-halo {
+  fill: rgba(var(--color-primary-rgb), 0.06);
+}
+.grade-planet-disc {
+  fill: var(--color-primary-text);
+  stroke: rgba(var(--color-primary-rgb), 0.3);
+  stroke-width: 2;
+}
+.grade-planet-grooves {
+  stroke: var(--color-bg-main);
+  stroke-opacity: 0.22;
+}
+.grade-planet-shine {
+  stroke: white;
+  stroke-opacity: 0.55;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.grade-planet-label {
+  fill: var(--color-primary);
+}
+.grade-planet-hole {
+  fill: var(--color-bg-main);
+}
+.grade-planet-orbit {
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+.grade-planet-moon {
+  fill: var(--color-primary);
+  stroke: var(--color-bg-main);
+  stroke-width: 2;
+}
+.grade-planet-star {
+  fill: currentColor;
+  opacity: 0.65;
+}
+.grade-planet-note {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+@media (max-width: 420px) {
+  .grade-planet {
+    width: 96px;
+    height: 84px;
+  }
+}
+.grade-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: var(--border-subtle);
+}
+.grade-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-primary);
+}
+.user-card {
+  box-shadow: 0 20px 60px -10px rgba(var(--color-primary-rgb), 0.15);
+}
+.profile-avatar-button:disabled {
+  cursor: wait;
+}
+.profile-editor-form {
+  display: grid;
+  gap: 16px;
+}
+.profile-editor-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.profile-editor-field {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+}
+.profile-editor-field > span {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--color-text-secondary);
+}
+.profile-editor-field > small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.profile-archive-card {
+  background-color: var(--content-panel-bg) !important;
+  border-color: var(--content-panel-border) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+.login-device-row {
+  min-height: 76px;
+}
+.profile-info-grid {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 768px) {
+  .profile-info-grid {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  }
+}
+</style>
+
+<style>
+.dialog-content.profile-grade-dialog {
+  width: min(520px, 92vw);
+}
+.vip-expire-popover.echo-popover-content {
+  padding: 12px 14px;
+  border-radius: 14px;
+  border-color: var(--border-subtle);
+}
+.dialog-content.login-device-dialog {
+  width: min(480px, 92vw);
+  max-height: min(720px, calc(100vh - 140px));
+}
+.dialog-content.profile-editor-dialog {
+  width: min(520px, 92vw);
+  max-height: min(760px, calc(100vh - 100px));
+}
+.profile-editor-dialog .profile-editor-field .relative > input,
+.profile-editor-dialog .echo-select-trigger {
+  height: 44px;
+  min-height: 44px;
+  border-color: var(--control-border);
+  border-radius: 12px;
+  padding-left: 14px;
+  font-size: 13px;
+}
+.profile-editor-dialog .profile-editor-select,
+.profile-editor-dialog .profile-editor-select > span,
+.profile-editor-dialog .profile-editor-select-trigger {
+  width: 100%;
+}
+.profile-editor-dialog .profile-editor-signature {
+  min-height: 84px;
+}
+</style>

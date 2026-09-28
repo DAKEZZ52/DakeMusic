@@ -1,0 +1,1534 @@
+import { defineStore } from 'pinia';
+import { computed, onScopeDispose, reactive, toRefs, watch } from 'vue';
+import { PERSONAL_FM_QUEUE_ID, usePlaylistStore } from './playlist';
+import { useLyricStore } from './lyric';
+import { useSettingStore } from './setting';
+import { useToastStore } from './toast';
+import { useUserStore } from './user';
+import logger from '@/utils/logger';
+import { normalizePlayerErrorPayload, PlayerEngine, type PlayerEngineEvents } from '@/utils/player';
+import type { Song } from '@/models/song';
+import type { PlayerErrorPayload } from '../../shared/playerError';
+import {
+  createPlaybackClock,
+  matchesPendingSeekTarget,
+  type PlaybackProgressBusyReason,
+} from '../../shared/playback';
+import type { AudioEffectPlaybackOptions, SpatialAudioEffectEntry } from '../../shared/audio';
+import { createLatestRequestQueue } from '../../shared/latestRequestQueue';
+import { resolvePlaybackSourceQueueId } from '../../shared/playbackQueueDecision';
+import {
+  DEFAULT_BASIC_DSP_CONVOLUTION_MIX,
+  spatialAudioEffectOptions,
+} from '../../shared/audioEffectSupport';
+import { dspProviderRestorePatch } from '../../shared/dspProviderSettings';
+
+import { createPlayerState } from './player/state';
+import { createSleepTimer } from './player/sleepTimer';
+import { createPlaybackManager } from './player/playback';
+import { createAudioManager } from './player/audio';
+import { createResolver } from './player/resolver';
+import { createHistoryManager } from './player/history';
+import { createListeningTimeManager } from './player/listeningTime';
+import { createDeviceManager } from './player/device';
+import { createSpatialAudioSupport } from './player/spatialAudioSupport';
+import { shouldShowPlaybackBuffering } from './player/progressStatus';
+import {
+  createPlayerEventBus,
+  type PlayerEventName,
+  type PlayerEventPayload,
+} from './player/events';
+import type { PlaybackSource, ResolvedAudioSource } from './player/types';
+import {
+  buildMediaMeta,
+  buildMediaState,
+  findTrackById,
+  normalizeEffect,
+  resolvePlaybackNotice,
+} from './player/utils';
+import { toRawSong } from './playlist/helpers';
+import {
+  abortNativeTrackLoad,
+  beginNativeTrackLoad,
+  beginPlaybackIntent,
+  bindNativeTrackLoad,
+  clearPlaybackIntent,
+  completePlaybackIntent,
+  getPlaybackHasFailed,
+  getPlaybackDisplayState,
+  getPlaybackIsLoading,
+  getPlaybackIsPlaying,
+  getPlaybackTargetTrackId,
+  isPlaybackIntentPhase,
+  setEnginePlaybackStatus,
+  setPlaybackIntentPlayback,
+  shouldIgnoreEnginePause,
+} from './player/stateMachine';
+
+export const usePlayerStore = defineStore(
+  'player',
+  () => {
+    const engine = new PlayerEngine();
+    const state = reactive(createPlayerState());
+    const playlistStore = usePlaylistStore();
+    const settingStore = useSettingStore();
+    const lyricStore = useLyricStore();
+    const toastStore = useToastStore();
+
+    const resolver = createResolver(state, playlistStore, settingStore);
+    const historyManager = createHistoryManager(state);
+    const listeningTimeManager = createListeningTimeManager(state);
+
+    // 播放生命周期事件总线：随 store 单例创建，全程存活，供插件等订阅方感知播放事件
+    const playerEvents = createPlayerEventBus();
+    const getPlayerEventPayload = (
+      event: PlayerEventName,
+      extra?: Partial<PlayerEventPayload>,
+    ): PlayerEventPayload => ({
+      event,
+      track: state.currentTrackSnapshot ?? null,
+      trackId: state.currentTrackId != null ? String(state.currentTrackId) : null,
+      currentTime: state.currentTime,
+      duration: state.duration,
+      isPlaying: getPlaybackIsPlaying(state),
+      ...extra,
+    });
+    const emitPlayerEvent = (event: PlayerEventName, extra?: Partial<PlayerEventPayload>) => {
+      if (event === 'seek' || event === 'play' || event === 'pause')
+        listeningTimeManager.resetPosition();
+      if (event === 'trackchange' || event === 'ended' || event === 'error') {
+        void listeningTimeManager.flush(event === 'ended' ? '完整播放' : '中断播放');
+      }
+      playerEvents.emit(event, getPlayerEventPayload(event, extra));
+    };
+
+    const playbackTargetTrackId = computed(() => getPlaybackTargetTrackId(state));
+    const playbackIsLoading = computed(() => getPlaybackIsLoading(state));
+    const isLoading = computed(() => getPlaybackIsLoading(state));
+    const isPlaying = computed(() => getPlaybackIsPlaying(state));
+    const playbackDisplayState = computed(() => getPlaybackDisplayState(state));
+    const playbackProgressBusyReason = computed<PlaybackProgressBusyReason>(() => {
+      if (!state.currentTrackId) return null;
+      const core = state.playbackDiagnostics.core;
+      const ao = state.playbackDiagnostics.ao;
+      const coreState = String(core?.state ?? '').toLowerCase();
+      if (
+        state.nativeSeekActive ||
+        (coreState === 'seeking' && state.nativePlaybackProgressRevision <= (core?.revision ?? 0))
+      )
+        return 'seek';
+      return shouldShowPlaybackBuffering({
+        core,
+        ao,
+        isPlaying: getPlaybackIsPlaying(state),
+        nativePlaybackProgressRevision: state.nativePlaybackProgressRevision,
+      })
+        ? 'buffering'
+        : null;
+    });
+    const playbackProgressIsBusy = computed(() => playbackProgressBusyReason.value !== null);
+    const updatePlaybackClock = createPlaybackClock();
+    const playbackClock = computed(() =>
+      updatePlaybackClock({
+        trackId: state.currentTrackId,
+        trackSeq: state.nativeTrackSeq,
+        currentTime: state.currentTime,
+        duration: state.duration,
+        playbackRate: state.playbackRate,
+        isPlaying: isPlaying.value,
+        isAdvancing:
+          !state.awaitingTrackLoad &&
+          state.seekTargetTime === null &&
+          !state.stallRecovering &&
+          !playbackProgressIsBusy.value,
+        updatedAt: state.currentTimeUpdatedAt,
+        seekTimestamp: state.seekTimestamp,
+      }),
+    );
+
+    // The store owns the exported lyric index even when every lyric window is closed.
+    // Views compute their animated cursor locally and never write it back here.
+    watch(
+      [
+        playbackClock,
+        () => lyricStore.lines,
+        () => lyricStore.loadedHash,
+        () => lyricStore.currentTimeOffset,
+      ],
+      () => lyricStore.updateCurrentIndex(playbackClock.value.positionMs / 1000),
+      { immediate: true },
+    );
+
+    const getResolvedPlaybackSources = (resolved: ResolvedAudioSource): PlaybackSource[] => {
+      const fallbackTrackId = resolved.source?.audioTrackId ?? resolved.audioTrackId ?? null;
+      const toSource = (
+        source: PlaybackSource | string | null | undefined,
+      ): PlaybackSource | null => {
+        const candidate =
+          typeof source === 'string'
+            ? { url: source, audioTrackId: fallbackTrackId }
+            : {
+                url: String(source?.url || '').trim(),
+                audioTrackId: source?.audioTrackId ?? fallbackTrackId,
+              };
+        return candidate.url ? candidate : null;
+      };
+      const sources: PlaybackSource[] = [];
+      [
+        toSource(resolved.source) ?? toSource(resolved.url),
+        ...(resolved.sources ?? []),
+        ...(resolved.urls ?? []),
+      ].forEach((item) => {
+        const source = toSource(item);
+        if (!source) return;
+        const key = `${source.audioTrackId ? `mkv:${source.audioTrackId}:` : ''}${source.url}`;
+        if (
+          !sources.some(
+            (existing) =>
+              `${existing.audioTrackId ? `mkv:${existing.audioTrackId}:` : ''}${existing.url}` ===
+              key,
+          )
+        ) {
+          sources.push(source);
+        }
+      });
+      return sources;
+    };
+
+    // 切歌与跳转事件来自状态跃迁，覆盖所有调用路径（含快捷键、媒体控制、mini 播放器等）
+    watch(
+      () => state.currentTrackId,
+      () => emitPlayerEvent('trackchange'),
+    );
+    watch(
+      () => state.seekTimestamp,
+      (next, prev) => {
+        if (next && next !== prev) emitPlayerEvent('seek');
+      },
+    );
+    // 同步播放状态到主进程，更新 Windows 任务栏缩略图按钮图标
+    watch(
+      () => getPlaybackIsPlaying(state),
+      (isPlaying) => {
+        window.electron?.ipcRenderer?.send('thumbar:update-play-state', isPlaying);
+      },
+    );
+    const syncMediaSkipIntervals = () => {
+      engine.updateMediaSkipIntervals({
+        forwardOffset: settingStore.seekForwardOffset ?? 5,
+        backwardOffset: settingStore.seekBackwardOffset ?? 5,
+      });
+    };
+    watch(
+      () => [settingStore.seekForwardOffset, settingStore.seekBackwardOffset],
+      syncMediaSkipIntervals,
+      { immediate: true },
+    );
+
+    const refreshCurrentTrack = async (options?: { seamless?: boolean }) => {
+      if (!state.currentTrackId) return;
+      if (getPlaybackIsLoading(state) || state.nativeSeekActive || state.seekTargetTime != null) {
+        state.pendingSettingRefresh = true;
+        return;
+      }
+      const requestSeq = ++state.playbackRequestSeq;
+      const refreshTrackId = String(state.currentTrackId);
+      const isRefreshCurrent = () =>
+        requestSeq === state.playbackRequestSeq && String(state.currentTrackId) === refreshTrackId;
+      const track = findTrackById(state.currentTrackId, state.currentPlaylist, playlistStore);
+      if (!track) return;
+
+      state.audioSourceRefreshRequestSeq = requestSeq;
+      const refreshStartedAt = Date.now();
+      const requestedQuality =
+        state.currentAudioQualityOverride ?? settingStore.defaultAudioQuality;
+      state.audioSourceRefreshQuality = requestedQuality;
+      logger.info('PlayerStore', 'Audio source refresh started', { requestSeq, requestedQuality });
+      try {
+        playbackManager.clearGaplessPreparedSource();
+        state.audioEffectError = '';
+        const isEffectChange = state.audioEffect !== state.currentResolvedAudioEffect;
+        state.pendingSettingRefresh = false;
+        const wasPlaying = getPlaybackIsPlaying(state);
+        const seamless = options?.seamless === true && wasPlaying && !!state.currentAudioUrl;
+        const previousTime = state.currentTime;
+        if (!seamless) {
+          beginPlaybackIntent(state, {
+            seq: requestSeq,
+            trackId: String(state.currentTrackId),
+            sourceQueueId: state.currentSourceQueueId,
+            shouldPlay: wasPlaying,
+          });
+          beginNativeTrackLoad(state);
+        }
+
+        let resolved: ResolvedAudioSource;
+        try {
+          resolved = await resolver.resolveAudioUrl(track, {
+            forceReload: true,
+            reuseRelateGoods: true,
+          });
+        } catch (error) {
+          if (requestSeq !== state.playbackRequestSeq) return;
+          if (seamless) {
+            showPlaybackNotice(
+              isEffectChange ? 'audio-effect-apply-failed' : 'audio-url-unavailable',
+              track,
+            );
+            logger.error(
+              'PlayerStore',
+              'Seamless source resolution failed; old source kept:',
+              error,
+            );
+            return;
+          }
+          abortNativeTrackLoad(state);
+          completePlaybackIntent(state, requestSeq, { isPlaying: false });
+          setEnginePlaybackStatus(state, 'error');
+          state.lastError = 'audio-url-unavailable';
+          showPlaybackNotice(
+            isEffectChange ? 'audio-effect-apply-failed' : 'audio-url-unavailable',
+            track,
+          );
+          logger.error('PlayerStore', 'Refresh track source resolution failed:', error);
+          return;
+        }
+        if (!isRefreshCurrent()) return;
+        logger.info('PlayerStore', 'Audio source resolved', {
+          requestSeq,
+          requestedQuality,
+          resolvedQuality: resolved.quality,
+          elapsedMs: Date.now() - refreshStartedAt,
+        });
+        if (!resolved.url) {
+          if (seamless) {
+            showPlaybackNotice(
+              isEffectChange ? 'audio-effect-apply-failed' : 'audio-url-unavailable',
+              track,
+            );
+            return;
+          }
+          abortNativeTrackLoad(state);
+          completePlaybackIntent(state, requestSeq, { isPlaying: false });
+          setEnginePlaybackStatus(state, 'error');
+          state.lastError = 'audio-url-unavailable';
+          showPlaybackNotice(
+            isEffectChange ? 'audio-effect-apply-failed' : 'audio-url-unavailable',
+            track,
+          );
+          return;
+        }
+
+        audioManager.setVolume(state.volume);
+        if (requestSeq !== state.playbackRequestSeq) return;
+
+        const playbackSources = getResolvedPlaybackSources(resolved);
+        let playbackSource = playbackSources[0] ?? { url: resolved.url };
+        let playbackSourceIndex = 0;
+        const savedDuration = state.duration;
+        try {
+          if (seamless) {
+            let switched = false;
+            let lastError: unknown;
+            const candidates = playbackSources.length ? playbackSources : [playbackSource];
+            for (const [index, candidate] of candidates.entries()) {
+              try {
+                if (!isRefreshCurrent()) return;
+                const trackSeq = await engine.switchSource(candidate);
+                if (!isRefreshCurrent()) return;
+                // Bind the acknowledged timeline (older native bridges may assign a new seq).
+                if (trackSeq !== undefined && Number.isFinite(trackSeq) && trackSeq > 0) {
+                  state.nativeTrackSeq = trackSeq;
+                }
+                playbackSource = candidate;
+                playbackSourceIndex = index;
+                switched = true;
+                break;
+              } catch (error) {
+                if (!isRefreshCurrent()) return;
+                lastError = error;
+                logger.warn('PlayerStore', 'Seamless source candidate failed', {
+                  index,
+                  error: String(error),
+                });
+                // A different URL cannot repair a cancelled transport operation.
+                if (
+                  /source switch (?:cancelled|was superseded|timed out|preparation (?:timed out|unavailable))|stale source switch|active decoder stopped/i.test(
+                    String(error),
+                  )
+                )
+                  throw error;
+              }
+            }
+            if (!switched) throw lastError ?? new Error('No playable source candidate');
+          } else await engine.setSource(playbackSource, { force: true });
+        } catch (error) {
+          if (requestSeq === state.playbackRequestSeq) {
+            if (seamless) {
+              showPlaybackNotice(
+                isEffectChange ? 'audio-effect-apply-failed' : 'playback-failed',
+                track,
+              );
+            } else {
+              abortNativeTrackLoad(state);
+              completePlaybackIntent(state, requestSeq, { isPlaying: false });
+              setEnginePlaybackStatus(state, 'error');
+              state.lastError = 'playback-failed';
+              showPlaybackNotice(
+                isEffectChange ? 'audio-effect-apply-failed' : 'playback-failed',
+                track,
+              );
+            }
+          }
+          logger.error(
+            'PlayerStore',
+            seamless
+              ? 'Seamless source switch failed; old source kept:'
+              : 'Refresh track reload failed:',
+            error,
+          );
+          return;
+        }
+        if (!isRefreshCurrent()) return;
+        state.currentAudioUrl = playbackSource.url;
+        state.currentPlaybackSource = playbackSource;
+        state.currentAudioCandidateUrls = playbackSources.map((source) => source.url);
+        state.currentAudioCandidateSources = playbackSources;
+        state.currentAudioCandidateIndex = playbackSourceIndex;
+        state.currentResolvedAudioQuality = resolved.quality;
+        state.currentResolvedAudioEffect = resolved.effect;
+        if (resolved.noticeCode) {
+          showPlaybackNotice(resolved.noticeCode, track);
+        } else {
+          clearPlaybackNotice(state.currentTrackId);
+        }
+
+        state.currentResolvedAudioLoudness = resolved.loudness;
+        state.currentResolvedSourceKind = resolved.sourceKind ?? 'catalog';
+        track.audioUrl = playbackSource.url;
+        if (!state.duration && !engine.duration && savedDuration) state.duration = savedDuration;
+        engine.applyTrackLoudness(resolved.loudness);
+        engine.setPlaybackRate(state.playbackRate);
+        void resolver.fetchClimaxMarks(track);
+
+        if (!seamless && previousTime > 0) {
+          state.recentSeekIgnoreEnd = true;
+          window.setTimeout(() => {
+            state.recentSeekIgnoreEnd = false;
+          }, 1500);
+          let actualDuration = engine.duration;
+          if (actualDuration <= 0) {
+            for (let i = 0; i < 10; i++) {
+              await new Promise((r) => window.setTimeout(r, 50));
+              if (requestSeq !== state.playbackRequestSeq) return;
+              actualDuration = engine.duration;
+              if (actualDuration > 0) break;
+            }
+          }
+          if (requestSeq !== state.playbackRequestSeq) return;
+          let safeTime = previousTime;
+          if (actualDuration > 0 && previousTime >= actualDuration - 0.5) safeTime = 0;
+          engine.seek(safeTime);
+          state.currentTime = safeTime;
+          state.currentTimeUpdatedAt = Date.now();
+        }
+
+        let resumed = seamless || !wasPlaying;
+        if (!seamless && wasPlaying) {
+          try {
+            await engine.play();
+            if (requestSeq !== state.playbackRequestSeq) return;
+            resumed = true;
+          } catch (error) {
+            logger.error('PlayerStore', 'Reload track failed:', error);
+            resumed = false;
+          }
+        }
+        if (requestSeq !== state.playbackRequestSeq) return;
+        if (!state.duration && !engine.duration && track.duration) state.duration = track.duration;
+        if (wasPlaying && resumed) engine.setVolume(state.volume);
+        if (!seamless) {
+          completePlaybackIntent(state, requestSeq, { isPlaying: wasPlaying && resumed });
+          setEnginePlaybackStatus(state, wasPlaying && resumed ? 'playing' : 'paused');
+        }
+      } finally {
+        if (state.audioSourceRefreshRequestSeq === requestSeq) {
+          state.audioSourceRefreshRequestSeq = null;
+          state.audioSourceRefreshQuality = null;
+          if (
+            String(state.currentTrackId) !== refreshTrackId &&
+            state.currentTrackId &&
+            state.currentAudioQualityOverride === null &&
+            requestedQuality === settingStore.defaultAudioQuality &&
+            state.currentResolvedAudioQuality !== requestedQuality
+          ) {
+            // A boundary already queued before invalidation may have made B audible.
+            state.pendingSettingRefresh = true;
+          }
+          if (state.pendingSettingRefresh && !getPlaybackIsLoading(state)) {
+            state.pendingSettingRefresh = false;
+            void refreshCurrentTrack({ seamless: true });
+          } else {
+            void playbackManager.prepareGaplessNext();
+          }
+        }
+        logger.info('PlayerStore', 'Audio source refresh finished', {
+          requestSeq,
+          requestedQuality,
+          elapsedMs: Date.now() - refreshStartedAt,
+          superseded: requestSeq !== state.playbackRequestSeq,
+        });
+      }
+    };
+
+    const audioManager = createAudioManager(state, engine, refreshCurrentTrack, settingStore);
+    const configuredProviderPath = () =>
+      settingStore.dspProviderEnabled
+        ? settingStore.dspProviderPath.trim() || undefined
+        : undefined;
+    const configuredProviderMode = (): 'headphone' | 'speaker' =>
+      settingStore.dspProviderMode === 'headphone' ? 'headphone' : 'speaker';
+    const configuredProviderPreset = () => settingStore.dspProviderPresetJson.trim() || undefined;
+    const ensureConfiguredProviderPath = async () => {
+      if (!settingStore.dspProviderEnabled) return undefined;
+      const savedPath = configuredProviderPath();
+      const savedId = (settingStore.dspProviderId || '').trim();
+      if (savedId && savedPath) return savedPath;
+      const providers = await window.electron.player.listDspProviders();
+      if (!settingStore.dspProviderEnabled) return undefined;
+      const selected = savedId
+        ? providers.find((provider) => provider.providerId === savedId)
+        : savedPath
+          ? providers.find(
+              (provider) =>
+                provider.path === savedPath || provider.legacyPaths?.includes(savedPath),
+            )
+          : providers.length === 1
+            ? providers[0]
+            : undefined;
+      if (!selected) {
+        if (savedId || savedPath) settingStore.disableDspProvider();
+        return undefined;
+      }
+      settingStore.$patch(dspProviderRestorePatch(savedId, selected));
+      return selected.path;
+    };
+    const refreshAudioGraphSnapshot = async () => {
+      const graph = await engine.getAudioGraph();
+      state.playbackDiagnostics.graph = graph
+        ? {
+            ...graph,
+            updatedAt: Date.now(),
+          }
+        : null;
+    };
+    const spatialAudioSupport = createSpatialAudioSupport({
+      providerPath: configuredProviderPath,
+      providerMode: configuredProviderMode,
+      graph: () => state.playbackDiagnostics.graph,
+      selected: () => settingStore.getSelectedImpulseResponse(),
+      enabled: () => settingStore.impulseResponseEnabled,
+      inspect: (path) => window.electron.player.inspectDspProvider(path),
+      unsupported: (file, reason) => {
+        settingStore.selectOriginalSpatialAudio();
+        toastStore.warning(`“${file.name}”暂不可用：${reason}，已切换为原声，文件仍保留`, 5000);
+      },
+    });
+    const getSpatialAudioEffectSupport = (file: SpatialAudioEffectEntry) =>
+      spatialAudioSupport.support(file);
+    const selectSpatialAudioEffect = (id: string): boolean => {
+      const file = settingStore.impulseResponseFiles.find((item) => item.id === id);
+      if (!file) return false;
+      const support = getSpatialAudioEffectSupport(file);
+      if (support.status !== 'supported') {
+        toastStore.warning(support.reason);
+        return false;
+      }
+      if (settingStore.impulseResponseEnabled && settingStore.selectedImpulseResponseId === id)
+        return true;
+      settingStore.setSelectedImpulseResponse(id);
+      return true;
+    };
+    const getActiveSpatialAudioEffect = (): AudioEffectPlaybackOptions | null => {
+      const file = settingStore.getSelectedImpulseResponse();
+      return spatialAudioEffectOptions({
+        providerPath: configuredProviderPath(),
+        providerMode: configuredProviderMode(),
+        providerPresetJson: configuredProviderPreset(),
+        enabled: settingStore.impulseResponseEnabled,
+        file,
+        support: file ? getSpatialAudioEffectSupport(file) : undefined,
+        impulseResponseMix: file ? settingStore.getImpulseResponseMix(file.id) : undefined,
+      });
+    };
+    const showPlaybackNotice = (code: string, track?: Song | null) => {
+      const userStore = useUserStore();
+      const vipInfo = (userStore.info?.extendsInfo?.vip as any) || {};
+      const busiVip: any[] = vipInfo?.busi_vip || [];
+      const hasSvip = busiVip.some((v: any) => v.product_type === 'svip' && v.is_vip === 1);
+      const hasTvip = busiVip.some((v: any) => v.product_type === 'tvip' && v.is_vip === 1);
+      const isUserNovip = !userStore.isLoggedIn || (!hasSvip && !hasTvip);
+
+      const notice = resolvePlaybackNotice({
+        code,
+        track,
+        autoNextEnabled: settingStore.autoNext,
+        autoNextDelaySeconds: settingStore.autoNextDelaySeconds,
+        isUserNovip,
+      });
+      if (code.startsWith('audio-effect-')) {
+        // Effect feedback is not a playback error: keep the player/lyric error badge clear.
+        if (state.playbackNotice?.code.startsWith('audio-effect-')) state.playbackNotice = null;
+        state.audioEffectError = notice.reason;
+        return;
+      }
+      state.playbackNotice = notice;
+    };
+
+    const clearPlaybackNotice = (trackId?: string | number | null) => {
+      state.audioEffectError = '';
+      if (!state.playbackNotice) return;
+      if (
+        trackId !== undefined &&
+        trackId !== null &&
+        state.playbackNotice.trackId !== String(trackId)
+      )
+        return;
+      state.playbackNotice = null;
+    };
+
+    const recoverPlaybackStatusAfterOutputChange = (
+      playerState: {
+        playing?: boolean;
+        paused?: boolean;
+        duration?: number;
+        timePos?: number;
+      } | null,
+    ) => {
+      if (!playerState?.playing && !playerState?.paused) return;
+      if (
+        state.enginePlayback.status !== 'error' &&
+        state.playbackIntent.phase !== 'failed' &&
+        !state.playbackNotice
+      )
+        return;
+
+      state.lastError = null;
+      state.awaitingTrackLoad = false;
+      state.supersededNativeTrackSeq = null;
+      clearPlaybackNotice(state.currentTrackId);
+
+      if (typeof playerState.duration === 'number' && playerState.duration > 0) {
+        state.duration = playerState.duration;
+      }
+      if (typeof playerState.timePos === 'number' && playerState.timePos >= 0) {
+        state.currentTime = playerState.timePos;
+        state.currentTimeUpdatedAt = Date.now();
+      }
+
+      setPlaybackIntentPlayback(state, Boolean(playerState.playing));
+      setEnginePlaybackStatus(state, playerState.playing ? 'playing' : 'paused');
+      settingStore.syncPreventSleep(Boolean(playerState.playing));
+      engine.updateMediaPlaybackState(buildMediaState(state));
+    };
+
+    const deviceManager = createDeviceManager(state, engine, settingStore, {
+      recoverPlaybackStatusAfterOutputChange,
+    });
+
+    const playbackManager = createPlaybackManager(
+      state,
+      engine,
+      playlistStore,
+      settingStore,
+      lyricStore,
+      resolver,
+      historyManager,
+      showPlaybackNotice,
+      clearPlaybackNotice,
+      (error) => deviceManager.handleOutputDeviceError(normalizePlayerErrorPayload(error)),
+      () => {
+        void listeningTimeManager.flush('完整播放');
+      },
+    );
+    let audioDeviceListListenerRegistered = false;
+
+    const sleepTimer = createSleepTimer(
+      state.sleepTimer,
+      () => ({ trackId: state.currentTrackId, playing: getPlaybackIsPlaying(state) }),
+      (action) => {
+        playbackManager.clearAutoNextTimer();
+        playbackManager.clearGaplessPreparedSource();
+        let paused = Promise.resolve();
+        // Cancel pending source/resume work as well as currently audible playback.
+        if (getPlaybackIsLoading(state) || state.awaitingTrackLoad || state.isResuming) {
+          playbackManager.stop();
+        } else {
+          setPlaybackIntentPlayback(state, false);
+          setEnginePlaybackStatus(state, 'paused');
+          const requestSeq = state.playbackRequestSeq;
+          paused = engine.pause().catch((error) => {
+            logger.warn('PlayerStore', 'Sleep timer pause failed', error);
+            if (requestSeq === state.playbackRequestSeq) playbackManager.stop();
+          });
+          engine.updateMediaPlaybackState(buildMediaState(state));
+        }
+        settingStore.syncPreventSleep(false);
+        if (action !== 'pause') {
+          state.sleepTimer.executing = true;
+          void paused
+            .then(async () => {
+              const execute = window.electron?.power?.executeSleepTimerAction;
+              if (!execute) throw new Error('请重启 DakeMusic 后使用退出或关机动作');
+              const result = await execute(action);
+              if (!result.ok) throw new Error(result.error);
+            })
+            .catch((error) => {
+              state.sleepTimer.error = error instanceof Error ? error.message : String(error);
+              toastStore.show(state.sleepTimer.error, 'danger', 8000);
+            })
+            .finally(() => {
+              state.sleepTimer.executing = false;
+            });
+        }
+      },
+    );
+    let sleepTimerInterval: ReturnType<typeof setInterval> | undefined;
+    watch(
+      () => state.sleepTimer.deadline,
+      (deadline) => {
+        clearInterval(sleepTimerInterval);
+        sleepTimerInterval = undefined;
+        if (deadline !== null) {
+          playbackManager.clearGaplessPreparedSource();
+          sleepTimerInterval = setInterval(sleepTimer.tick, 250);
+        }
+      },
+      { flush: 'sync' },
+    );
+    onScopeDispose(() => clearInterval(sleepTimerInterval));
+
+    const toggleLyricView = (open?: boolean) => {
+      state.isLyricViewOpen = open ?? !state.isLyricViewOpen;
+    };
+
+    // 切歌重入保护：防止极短音频 / 临近结尾 seek / 异常重复 EOF 等场景下
+    // handlePlaybackEnded 在上一次切歌尚未完成时被再次触发，导致连续多次切换。
+    let handlingPlaybackEnd = false;
+    const handlePlaybackEnded = async () => {
+      if (handlingPlaybackEnd) return;
+      handlingPlaybackEnd = true;
+      try {
+        if (state.autoNextSuppressed) {
+          setPlaybackIntentPlayback(state, false);
+          setEnginePlaybackStatus(state, 'paused');
+          return;
+        }
+        const sourceQueueId = resolvePlaybackSourceQueueId({
+          currentSourceQueueId: state.currentSourceQueueId,
+          activeQueueId: playlistStore.activeQueue?.id,
+        });
+        if (sourceQueueId === PERSONAL_FM_QUEUE_ID) {
+          await playbackManager.advancePersonalFm(true);
+          return;
+        }
+        if (state.playMode === 'single') {
+          if (state.currentPlaybackSource || state.currentAudioUrl) {
+            const restartTrackId = state.currentTrackId;
+            const restartSeq = state.playbackRequestSeq;
+            beginNativeTrackLoad(state);
+            let nativeLoadCompleted = false;
+            void (async () => {
+              await engine.setSource(state.currentPlaybackSource ?? state.currentAudioUrl, {
+                force: true,
+              });
+              nativeLoadCompleted = true;
+              if (
+                restartSeq !== state.playbackRequestSeq ||
+                String(state.currentTrackId ?? '') !== String(restartTrackId ?? '')
+              ) {
+                return;
+              }
+              await engine.play();
+            })().catch((error) => {
+              if (
+                restartSeq === state.playbackRequestSeq &&
+                String(state.currentTrackId ?? '') === String(restartTrackId ?? '') &&
+                !nativeLoadCompleted
+              ) {
+                abortNativeTrackLoad(state);
+              }
+              logger.warn('PlayerStore', 'Loop restart failed:', error);
+            });
+          }
+          return;
+        }
+        await playbackManager.next({
+          gaplessTransition: settingStore.effectiveTrackTransitionMode !== 'none',
+        });
+      } finally {
+        handlingPlaybackEnd = false;
+      }
+    };
+
+    const registerSettingWatchers = () => {
+      if (state.settingsWatcherRegistered) return;
+      state.settingsWatcherRegistered = true;
+      let snapshot = {
+        defaultAudioQuality: settingStore.defaultAudioQuality,
+        compatibilityMode: settingStore.compatibilityMode,
+        volumeFade: settingStore.volumeFade,
+        volumeFadeTime: settingStore.volumeFadeTime,
+        trackTransitionMode: settingStore.effectiveTrackTransitionMode,
+        fadeCrossSecs: settingStore.fadeCrossSecs,
+        outputDevice: settingStore.outputDevice,
+        exclusiveAudioDevice: settingStore.exclusiveAudioDevice,
+        playbackStallTimeout: settingStore.playbackStallTimeout,
+        pauseOnOutputDeviceDisconnect: settingStore.pauseOnOutputDeviceDisconnect,
+        volumeNormalization: settingStore.volumeNormalization,
+        volumeNormalizationLufs: settingStore.volumeNormalizationLufs,
+      };
+      const unsubscribePauseOnDeviceDisconnect = watch(
+        () => settingStore.pauseOnOutputDeviceDisconnect,
+        (enabled) => {
+          void window.electron?.player?.setPauseOnDeviceDisconnect(enabled);
+        },
+        { immediate: true },
+      );
+      // 歌曲过渡设置下发给 native 引擎；模式/时长变化时引擎会丢弃按旧设置准备的下一首。
+      const unsubscribeTrackTransition = watch(
+        () => [settingStore.effectiveTrackTransitionMode, settingStore.fadeCrossSecs] as const,
+        ([mode, fadeSecs]) => {
+          engine.setTransitionSettings({ mode, fadeSecs });
+        },
+        { immediate: true },
+      );
+      // Capabilities can resolve without a settings mutation. Watch both the
+      // persisted selection and runtime support through the effective command.
+      const unsubscribeSpatialAudio = watch(
+        () => JSON.stringify(getActiveSpatialAudioEffect()),
+        () => spatialAudioEffectQueue.enqueue(getActiveSpatialAudioEffect()),
+      );
+      const unsubscribeGaplessQueueDecision = watch(
+        () => playbackManager.getGaplessInvalidationKey(),
+        () => playbackManager.clearGaplessPreparedSource(),
+        { flush: 'sync' },
+      );
+      const unsubscribePendingSourceRefresh = watch(
+        () =>
+          state.pendingSettingRefresh &&
+          !!state.currentTrackId &&
+          !getPlaybackIsLoading(state) &&
+          !getPlaybackHasFailed(state) &&
+          !state.nativeSeekActive &&
+          state.seekTargetTime == null &&
+          state.audioSourceRefreshRequestSeq == null,
+        (ready) => {
+          if (!ready) return;
+          state.pendingSettingRefresh = false;
+          void refreshCurrentTrack({ seamless: true });
+        },
+        { flush: 'post' },
+      );
+      // 保存取消函数，以便在需要时清理订阅
+      const unsubscribeSettings = settingStore.$subscribe(() => {
+        const compatibilityChanged = settingStore.compatibilityMode !== snapshot.compatibilityMode;
+        const shouldRefresh =
+          (state.currentAudioQualityOverride === null &&
+            settingStore.defaultAudioQuality !== snapshot.defaultAudioQuality) ||
+          compatibilityChanged;
+        const shouldUpdateFade =
+          settingStore.volumeFade !== snapshot.volumeFade ||
+          settingStore.volumeFadeTime !== snapshot.volumeFadeTime;
+        const shouldUpdateGapless =
+          settingStore.effectiveTrackTransitionMode !== snapshot.trackTransitionMode ||
+          settingStore.fadeCrossSecs !== snapshot.fadeCrossSecs;
+        const shouldUpdateOutputDevice =
+          settingStore.outputDevice !== snapshot.outputDevice ||
+          settingStore.exclusiveAudioDevice !== snapshot.exclusiveAudioDevice;
+        const shouldUpdateStallTimeout =
+          settingStore.playbackStallTimeout !== snapshot.playbackStallTimeout;
+        const shouldUpdateVolumeNormalization =
+          settingStore.volumeNormalization !== snapshot.volumeNormalization;
+        const shouldUpdateReferenceLufs =
+          settingStore.volumeNormalizationLufs !== snapshot.volumeNormalizationLufs;
+        snapshot = {
+          defaultAudioQuality: settingStore.defaultAudioQuality,
+          compatibilityMode: settingStore.compatibilityMode,
+          volumeFade: settingStore.volumeFade,
+          volumeFadeTime: settingStore.volumeFadeTime,
+          trackTransitionMode: settingStore.effectiveTrackTransitionMode,
+          fadeCrossSecs: settingStore.fadeCrossSecs,
+          outputDevice: settingStore.outputDevice,
+          exclusiveAudioDevice: settingStore.exclusiveAudioDevice,
+          playbackStallTimeout: settingStore.playbackStallTimeout,
+          pauseOnOutputDeviceDisconnect: settingStore.pauseOnOutputDeviceDisconnect,
+          volumeNormalization: settingStore.volumeNormalization,
+          volumeNormalizationLufs: settingStore.volumeNormalizationLufs,
+        };
+        if (shouldRefresh) {
+          const refreshing =
+            state.audioSourceRefreshRequestSeq != null &&
+            state.audioSourceRefreshRequestSeq === state.playbackRequestSeq;
+          const requestedQuality =
+            state.currentAudioQualityOverride ?? settingStore.defaultAudioQuality;
+          const alreadyRequested =
+            refreshing &&
+            state.audioSourceRefreshQuality === requestedQuality &&
+            !compatibilityChanged;
+          if (!alreadyRequested) {
+            if (refreshing || getPlaybackIsLoading(state) || state.pendingSettingRefresh)
+              state.pendingSettingRefresh = true;
+            else void refreshCurrentTrack({ seamless: true });
+          }
+        }
+        if (shouldUpdateFade && getPlaybackIsPlaying(state)) {
+          void audioManager.fadeVolume(state.volume, { durationMs: 120, respectUserVolume: false });
+        }
+        // Reprepare pending plans, but let a transition already rendering finish normally.
+        if (shouldUpdateGapless) playbackManager.invalidateGaplessForSettings();
+        if (shouldUpdateOutputDevice)
+          void deviceManager.applyOutputDevice(settingStore.outputDevice);
+        if (shouldUpdateStallTimeout)
+          engine.setStallTimeout(settingStore.playbackStallTimeout ?? 8);
+        if (shouldUpdateVolumeNormalization)
+          audioManager.setVolumeNormalization(settingStore.volumeNormalization);
+        if (shouldUpdateReferenceLufs)
+          audioManager.setReferenceLufs(settingStore.volumeNormalizationLufs);
+      });
+      // 返回清理函数
+      return () => {
+        unsubscribePauseOnDeviceDisconnect();
+        unsubscribeTrackTransition();
+        unsubscribeSpatialAudio();
+        unsubscribeGaplessQueueDecision();
+        unsubscribePendingSourceRefresh();
+        unsubscribeSettings();
+      };
+    };
+
+    const disableActiveSpatialAudioEffect = (failedEffect?: AudioEffectPlaybackOptions | null) => {
+      if (
+        failedEffect &&
+        JSON.stringify(getActiveSpatialAudioEffect()) !== JSON.stringify(failedEffect)
+      )
+        return;
+      if (failedEffect?.providerPath) {
+        if (configuredProviderPath() !== failedEffect.providerPath) return;
+        if (failedEffect.providerResources?.length) {
+          // A rejected file is not proof the engine itself cannot run. Unload
+          // all of the file's resources, keep the engine and preserve downloads.
+          settingStore.selectOriginalSpatialAudio();
+          spatialAudioEffectQueue.enqueue(getActiveSpatialAudioEffect());
+          toastStore.warning('音效应用失败，已切换为原声，文件仍保留', 4200);
+          return;
+        }
+        settingStore.disableDspProvider();
+        const builtinEffect = getActiveSpatialAudioEffect();
+        spatialAudioEffectQueue.enqueue(builtinEffect);
+        toastStore.warning(
+          builtinEffect
+            ? '第三方音效引擎加载失败，已改用内置音效处理'
+            : '第三方音效引擎加载失败，已自动停用',
+          4200,
+        );
+        return;
+      }
+      if (failedEffect) {
+        const current = getActiveSpatialAudioEffect();
+        if (current?.impulseResponsePath !== failedEffect.impulseResponsePath) {
+          return;
+        }
+      }
+      if (!settingStore.impulseResponseEnabled) return;
+      settingStore.impulseResponseEnabled = false;
+      spatialAudioEffectQueue.enqueue(null);
+      toastStore.warning('音效加载失败，已自动关闭', 4200);
+    };
+    let appliedSpatialAudioEffect: AudioEffectPlaybackOptions | null | undefined;
+    const canPatchBasicDspMix = (
+      previous: AudioEffectPlaybackOptions | null | undefined,
+      next: AudioEffectPlaybackOptions | null,
+    ) =>
+      !!previous &&
+      !!next &&
+      !previous.providerPath &&
+      !next.providerPath &&
+      !!previous.impulseResponsePath &&
+      previous.impulseResponsePath === next.impulseResponsePath &&
+      previous.impulseResponseMix !== next.impulseResponseMix;
+    const applySpatialAudioEffect = async (effect: AudioEffectPlaybackOptions | null) => {
+      if (canPatchBasicDspMix(appliedSpatialAudioEffect, effect)) {
+        try {
+          await engine.setAudioGraphParameter({
+            kind: 'spatial',
+            name: 'mix',
+            value: effect?.impulseResponseMix ?? DEFAULT_BASIC_DSP_CONVOLUTION_MIX,
+          });
+        } catch {
+          // A stale native build may not expose spatial.mix yet. Reloading preserves
+          // correctness and keeps the setting usable while the addon is being updated.
+          await engine.setSpatialAudioEffect(effect);
+        }
+      } else {
+        await engine.setSpatialAudioEffect(effect);
+      }
+      appliedSpatialAudioEffect = effect ? { ...effect } : null;
+    };
+    const spatialAudioEffectQueue = createLatestRequestQueue<AudioEffectPlaybackOptions | null>({
+      apply: applySpatialAudioEffect,
+      applied: refreshAudioGraphSnapshot,
+      failed: (effect) => disableActiveSpatialAudioEffect(effect),
+      report: (error) => logger.warn('音效状态刷新失败', error),
+    });
+
+    const restorePlaybackSessionFromQueue = () => {
+      const activeQueue = playlistStore.activeQueue;
+      const activeSongs = activeQueue?.songs ?? [];
+      const queueTrackId = String(activeQueue?.currentTrackId ?? '');
+      const persistedTrackId = String(state.currentTrackId ?? '');
+      const targetTrackId = queueTrackId || persistedTrackId;
+      const targetTrack = targetTrackId
+        ? activeSongs.find((song) => String(song.id) === targetTrackId)
+        : undefined;
+
+      clearPlaybackIntent(state);
+      setEnginePlaybackStatus(state, 'idle');
+      state.currentTime = 0;
+      state.currentTimeUpdatedAt = Date.now();
+      state.currentAudioUrl = '';
+      state.currentPlaybackSource = null;
+      state.currentAudioCandidateUrls = [];
+      state.currentAudioCandidateSources = [];
+      state.currentAudioCandidateIndex = -1;
+      state.nativeTrackSeq = null;
+      state.supersededNativeTrackSeq = null;
+      state.currentResolvedAudioQuality = null;
+      state.currentResolvedAudioEffect = 'none';
+      state.currentResolvedAudioLoudness = null;
+      state.currentResolvedSourceKind = 'catalog';
+      state.currentAudioQualityOverride = null;
+      state.currentCatalogSourceOverrideTrackId = null;
+      state.currentCloudSourceOverrideTrackId = null;
+      state.historyUploadCommitted = false;
+      state.historyUploadTrackId = null;
+
+      if (!targetTrack || !targetTrackId) {
+        if (queueTrackId && activeQueue) {
+          playlistStore.updateQueueCurrentTrack(null, activeQueue.id);
+        }
+        state.currentTrackId = null;
+        state.currentSourceQueueId = null;
+        state.currentPlaylist = null;
+        state.currentTrackSnapshot = null;
+        state.duration = 0;
+        state.lastError = null;
+        clearPlaybackNotice();
+        engine.updateMediaPlaybackState(buildMediaState(state));
+        return;
+      }
+
+      state.currentTrackId = targetTrackId;
+      state.currentSourceQueueId = activeQueue?.id ?? playlistStore.activeQueueId ?? null;
+      state.currentPlaylist = activeSongs.length > 0 ? activeSongs : null;
+      state.currentTrackSnapshot = toRawSong(targetTrack);
+      state.nativeTrackSeq = null;
+      state.supersededNativeTrackSeq = null;
+      state.duration = targetTrack.duration || 0;
+      state.lastError = null;
+      clearPlaybackNotice();
+
+      const mediaMeta = buildMediaMeta(targetTrack);
+      if (mediaMeta) {
+        engine.updateMediaMetadata({
+          ...mediaMeta,
+          durationMs: (targetTrack.duration || 0) * 1000,
+        });
+      }
+      engine.updateMediaPlaybackState(buildMediaState(state));
+    };
+
+    const init = () => {
+      state.audioEffect = normalizeEffect(state.audioEffect);
+      // 提前注册 MediaSession handlers，避免启动时丢失系统媒体控制事件
+      engine.setMediaSessionHandlers({
+        play: () => {
+          if (!getPlaybackIsPlaying(state)) playbackManager.togglePlay();
+        },
+        pause: () => {
+          if (getPlaybackIsPlaying(state)) playbackManager.togglePlay();
+        },
+        previoustrack: () => playbackManager.prev(),
+        nexttrack: () => playbackManager.next(),
+        seekto: (time) => playbackManager.seek(time),
+        seekbackward: (offset) =>
+          playbackManager.seek(
+            Math.max(0, state.currentTime - (offset ?? settingStore.seekBackwardOffset ?? 5)),
+          ),
+        seekforward: (offset) =>
+          playbackManager.seek(
+            Math.min(
+              state.duration,
+              state.currentTime + (offset ?? settingStore.seekForwardOffset ?? 5),
+            ),
+          ),
+      });
+
+      restorePlaybackSessionFromQueue();
+      audioManager.setVolume(state.volume);
+      engine.setPlaybackRate(state.playbackRate);
+      engine.setPitch(state.pitch);
+      engine.setEqualizer(state.equalizerGains);
+      void (async () => {
+        try {
+          await ensureConfiguredProviderPath();
+          await settingStore.reconcileSpatialAudioEffects();
+        } catch (error) {
+          logger.warn('音效设置恢复失败', error);
+        }
+        // Even a failed file reconciliation must not leave every library item
+        // stuck in the initial capability-checking state.
+        try {
+          await spatialAudioSupport.start();
+          spatialAudioEffectQueue.enqueue(getActiveSpatialAudioEffect());
+        } catch (error) {
+          logger.warn('音效能力检查失败', error);
+        }
+      })();
+      engine.setVolumeNormalization(settingStore.volumeNormalization);
+      engine.setReferenceLufs(settingStore.volumeNormalizationLufs);
+      engine.setLoopFile(
+        state.playMode === 'single' && state.currentSourceQueueId !== PERSONAL_FM_QUEUE_ID,
+      );
+      engine.setStallTimeout(settingStore.playbackStallTimeout ?? 8);
+      registerSettingWatchers();
+      if (!audioDeviceListListenerRegistered) {
+        audioDeviceListListenerRegistered = true;
+        window.electron?.player?.onAudioDeviceListChanged?.((payload) => {
+          void deviceManager.refreshOutputDevices(payload);
+        });
+        window.electron?.player?.onCoreStateChange?.((payload) => {
+          deviceManager.handleCoreStateChange(payload);
+        });
+      }
+      void deviceManager.refreshOutputDevices();
+
+      let lastMediaSessionSync = 0;
+      const MEDIA_SESSION_SYNC_MS = 2000;
+      let lastHistoryCheck = 0;
+      const HISTORY_CHECK_MS = 5000;
+      let lastEventTimeUpdate = 0;
+      const EVENT_TIMEUPDATE_MS = 1000;
+      const isCurrentNativePlaybackContext = (payload?: { trackSeq?: number }) => {
+        const trackSeq = Number(payload?.trackSeq);
+        if (!Number.isFinite(trackSeq) || trackSeq <= 0) return true;
+        return state.nativeTrackSeq === null || state.nativeTrackSeq === trackSeq;
+      };
+      const syncTransportPosition = (payload?: { time?: number }) => {
+        if (typeof payload?.time !== 'number' || !Number.isFinite(payload.time)) return;
+        if (!matchesPendingSeekTarget(state.seekTargetTime, payload.time)) return;
+        state.currentTime = Math.max(0, payload.time);
+        state.currentTimeUpdatedAt = Date.now();
+      };
+
+      const events: PlayerEngineEvents = {
+        timeUpdate: (currentTime, payload) => {
+          if (!isCurrentNativePlaybackContext(payload) || getPlaybackHasFailed(state)) return;
+          // Only file-loaded may bind the native sequence for a new track. While an
+          // async source is resolving, these ticks can still belong to the old track.
+          if (state.awaitingTrackLoad) return;
+          // 卡死恢复护栏：reload 期间还没追回断点的回报值（含归零）一律忽略，UI 停在断点不跳动；
+          // 追回到断点附近或超时兜底后解除护栏。
+          if (state.stallRecovering) {
+            if (
+              Date.now() < state.stallRecoverDeadline &&
+              currentTime < state.stallRecoverTarget - 1
+            )
+              return;
+            state.stallRecovering = false;
+          }
+          if (!matchesPendingSeekTarget(state.seekTargetTime, currentTime)) return;
+          const previousTime = state.currentTime;
+          const now = Date.now();
+          const contextualTrackSeq = Number(payload?.trackSeq);
+          // PlayerEngine also forwards seeked as a synthetic timeUpdate without context.
+          // Only a contextual native tick that advances time proves output samples resumed.
+          if (
+            Number.isFinite(contextualTrackSeq) &&
+            contextualTrackSeq > 0 &&
+            currentTime > previousTime + 0.001
+          ) {
+            state.nativePlaybackEventRevision += 1;
+            state.nativePlaybackProgressRevision = state.nativePlaybackEventRevision;
+          }
+          state.currentTime = currentTime;
+          state.currentTimeUpdatedAt = now;
+          listeningTimeManager.tick();
+          void playbackManager.prepareGaplessNext();
+          if (now - lastEventTimeUpdate >= EVENT_TIMEUPDATE_MS) {
+            lastEventTimeUpdate = now;
+            emitPlayerEvent('timeupdate');
+          }
+          if (now - lastHistoryCheck >= HISTORY_CHECK_MS) {
+            lastHistoryCheck = now;
+            void historyManager.commitListeningHistory();
+          }
+          if (now - lastMediaSessionSync >= MEDIA_SESSION_SYNC_MS) {
+            lastMediaSessionSync = now;
+            engine.updateMediaPlaybackState(buildMediaState(state));
+          }
+        },
+        durationChange: (duration) => {
+          // 切歌加载护栏：file-loaded 之前的 duration 回报（含 setSource 的归零与上一首残留）一律丢弃，
+          // 真实时长在 fileLoaded 时从引擎补回
+          if (state.awaitingTrackLoad) return;
+          // 卡死恢复 reload 期间，player 会先回报 duration=0，忽略以免进度条最大值瞬间归零
+          if (state.stallRecovering && duration <= 0) return;
+          state.duration = duration;
+          engine.updateMediaPlaybackState(buildMediaState(state));
+          const trackDuration = state.currentTrackSnapshot?.duration ?? 0;
+          if (duration > 0 && trackDuration > 0) {
+            const diff = Math.abs(duration - trackDuration);
+            lyricStore.lyricSyncWarning = diff > 10 && diff / trackDuration > 0.1;
+          } else {
+            lyricStore.lyricSyncWarning = false;
+          }
+        },
+        seekStateChange: (payload) => {
+          if (!isCurrentNativePlaybackContext(payload)) return;
+          if (!matchesPendingSeekTarget(state.seekTargetTime, payload.time)) return;
+          const generation = Number(payload.generation);
+          if (payload.active) {
+            state.nativeSeekActive = true;
+            state.nativeSeekGeneration =
+              Number.isFinite(generation) && generation > 0 ? generation : null;
+            return;
+          }
+          if (
+            state.nativeSeekGeneration !== null &&
+            Number.isFinite(generation) &&
+            generation > 0 &&
+            generation < state.nativeSeekGeneration
+          ) {
+            // 只忽略真正早于当前 seek 的完成事件。seek 命令超时并回退到重开
+            // 解码器时，native 会递增 generation；该较新的完成事件仍应结束动画。
+            return;
+          }
+          state.nativeSeekActive = false;
+          state.nativeSeekGeneration = null;
+          state.seekTargetTime = null;
+        },
+        fileLoaded: (payload) => {
+          const payloadSeq =
+            typeof payload?.seq === 'number' && Number.isFinite(payload.seq) && payload.seq > 0
+              ? payload.seq
+              : typeof payload?.trackSeq === 'number' &&
+                  Number.isFinite(payload.trackSeq) &&
+                  payload.trackSeq > 0
+                ? payload.trackSeq
+                : undefined;
+          const payloadStartTime =
+            typeof payload?.startTime === 'number' && Number.isFinite(payload.startTime)
+              ? Math.max(0, payload.startTime)
+              : 0;
+          if (
+            playbackManager.activateGaplessPreparedTransition(
+              payloadSeq,
+              payloadStartTime,
+              payload?.transition,
+            )
+          )
+            return;
+          const expectedPath =
+            state.currentPlaybackSource?.url ?? state.currentAudioUrl ?? undefined;
+          if (
+            state.awaitingTrackLoad &&
+            (!expectedPath || (payload?.path && payload.path !== expectedPath))
+          ) {
+            return;
+          }
+          // 新文件真正加载完成，解除切歌加载护栏，放行后续进度回报
+          if (!bindNativeTrackLoad(state, payloadSeq)) return;
+          state.playbackEnded = false;
+          setEnginePlaybackStatus(state, 'loading');
+          // 补回加载窗口内被丢弃的真实时长，避免进度条最大值停留在 0
+          if (engine.duration > 0) {
+            state.duration = engine.duration;
+            engine.updateMediaPlaybackState(buildMediaState(state));
+          }
+        },
+        ended: (payload) => {
+          if (
+            !state.currentTrackId ||
+            state.awaitingTrackLoad ||
+            !isCurrentNativePlaybackContext(payload) ||
+            state.playbackEnded
+          )
+            return;
+          setEnginePlaybackStatus(state, 'stopped');
+          if (!state.recentSeekIgnoreEnd) {
+            state.playbackEnded = true;
+            const sleepTimerCompleted = sleepTimer.trackEnded();
+            emitPlayerEvent('ended');
+            if (!sleepTimerCompleted) handlePlaybackEnded();
+          } else state.recentSeekIgnoreEnd = false;
+        },
+        play: (payload) => {
+          if (state.awaitingTrackLoad) return;
+          if (!isCurrentNativePlaybackContext(payload) || getPlaybackHasFailed(state)) return;
+          syncTransportPosition(payload);
+          setEnginePlaybackStatus(state, 'playing');
+          if (isPlaybackIntentPhase(state, 'loading')) {
+            completePlaybackIntent(state, state.playbackIntent.seq, { isPlaying: true });
+          } else {
+            setPlaybackIntentPlayback(state, true);
+          }
+          clearPlaybackNotice(state.currentTrackId);
+          settingStore.syncPreventSleep(true);
+          engine.updateMediaPlaybackState(buildMediaState(state));
+          emitPlayerEvent('play');
+          // 本地历史记录已在 playback.ts 的 playTrack 中调用
+          // 此处不再重复调用，避免同一首歌被记录两次
+        },
+        pause: (payload) => {
+          if (
+            !isCurrentNativePlaybackContext(payload) ||
+            shouldIgnoreEnginePause(state) ||
+            getPlaybackHasFailed(state)
+          )
+            return;
+          syncTransportPosition(payload);
+          setEnginePlaybackStatus(state, 'paused');
+          setPlaybackIntentPlayback(state, false);
+          settingStore.syncPreventSleep(false);
+          engine.updateMediaPlaybackState(buildMediaState(state));
+          emitPlayerEvent('pause');
+        },
+        error: (event) => {
+          if (event && !event.isTrusted && !(event as any)?.detail) return;
+          const detail = (event as CustomEvent<PlayerErrorPayload> | undefined)?.detail;
+          const errorTrackSeq = Number(detail?.trackSeq);
+          const isOutputError = Boolean(detail?.errorCode?.startsWith('output-'));
+          if (
+            (!isOutputError &&
+              state.awaitingTrackLoad &&
+              (!Number.isFinite(errorTrackSeq) ||
+                errorTrackSeq <= 0 ||
+                errorTrackSeq === state.supersededNativeTrackSeq)) ||
+            (!isOutputError && !isCurrentNativePlaybackContext(detail))
+          ) {
+            return;
+          }
+          const requestSeq = state.playbackRequestSeq;
+          const trackId = String(state.currentTrackId ?? '');
+          const isCurrentRequest = () =>
+            requestSeq === state.playbackRequestSeq &&
+            String(state.currentTrackId ?? '') === trackId;
+          void (async () => {
+            const wasPlayingBeforeOutputError = getPlaybackIsPlaying(state);
+            if (detail?.message) {
+              const handledOutputError = await deviceManager.handleOutputDeviceError(detail);
+              if (!isCurrentRequest()) return;
+              if (handledOutputError) {
+                engine.updateMediaPlaybackState(buildMediaState(state));
+                if (wasPlayingBeforeOutputError && !getPlaybackIsPlaying(state)) {
+                  emitPlayerEvent('pause');
+                }
+                return;
+              }
+            }
+
+            const triedFallback = await playbackManager.tryNextAudioCandidate({
+              reason: 'player-error',
+              position: state.currentTime,
+            });
+            if (triedFallback) return;
+            if (!isCurrentRequest()) return;
+
+            state.lastError = (event as any)?.type ?? 'playback-error';
+            setEnginePlaybackStatus(state, 'error');
+            showPlaybackNotice('playback-failed', state.currentTrackSnapshot);
+            playbackManager.applyFailedPlaybackState({ keepResolvedSource: true });
+            settingStore.syncPreventSleep(false);
+            if (!state.autoNextSuppressed && settingStore.autoNext && state.currentPlaylist?.length)
+              playbackManager.scheduleAutoNext();
+            else playbackManager.clearAutoNextTimer();
+            emitPlayerEvent('error', { error: state.lastError ?? 'playback-error' });
+          })();
+        },
+        stalled: (position) => {
+          if (state.awaitingTrackLoad) return;
+          void playbackManager.recoverFromStall(position);
+        },
+        coreStateChange: (payload) => {
+          state.nativePlaybackEventRevision += 1;
+          state.playbackDiagnostics.core = {
+            ...payload,
+            updatedAt: Date.now(),
+            revision: state.nativePlaybackEventRevision,
+          };
+        },
+        aoStateChange: (payload) => {
+          state.nativePlaybackEventRevision += 1;
+          state.playbackDiagnostics.ao = {
+            ...payload,
+            updatedAt: Date.now(),
+            revision: state.nativePlaybackEventRevision,
+          };
+        },
+        packetCacheStats: (payload) => {
+          state.playbackDiagnostics.packetCache = payload
+            ? {
+                ...payload,
+                updatedAt: Date.now(),
+              }
+            : null;
+        },
+        audioOutputStats: (payload) => {
+          state.playbackDiagnostics.output = payload
+            ? {
+                ...payload,
+                updatedAt: Date.now(),
+              }
+            : null;
+        },
+        audioGraphChange: (payload) => {
+          state.playbackDiagnostics.graph = payload
+            ? {
+                ...payload,
+                updatedAt: Date.now(),
+              }
+            : null;
+        },
+        seeked: (currentTime) => {
+          if (!matchesPendingSeekTarget(state.seekTargetTime, currentTime)) return;
+          state.seekTargetTime = null;
+          if (state.awaitingTrackLoad) return;
+          state.currentTime = currentTime;
+          state.currentTimeUpdatedAt = Date.now();
+          listeningTimeManager.resetPosition();
+          engine.updateMediaPlaybackState(buildMediaState(state));
+        },
+      };
+      engine.setEvents(events);
+      window.electron?.player?.getState?.().then((playerState) => {
+        if (!playerState) return;
+        if (playerState.playing && !getPlaybackIsPlaying(state)) {
+          setPlaybackIntentPlayback(state, true);
+          settingStore.syncPreventSleep(true);
+        }
+        setEnginePlaybackStatus(
+          state,
+          playerState.playing ? 'playing' : playerState.paused ? 'paused' : 'idle',
+        );
+        if (playerState.duration > 0) state.duration = playerState.duration;
+        if (playerState.timePos > 0) {
+          state.currentTime = playerState.timePos;
+          state.currentTimeUpdatedAt = Date.now();
+        }
+      });
+    };
+
+    const setVolumeSmooth = async (value: number, durationMs?: number) => {
+      await engine.fadeTo(value, durationMs ?? 1000);
+      state.volume = engine.volume;
+      if (state.volume > 0) state.lastNonZeroVolume = state.volume;
+    };
+
+    const setAutoNextSuppressed = (suppressed: boolean) => {
+      state.autoNextSuppressed = suppressed;
+      if (suppressed) {
+        playbackManager.clearAutoNextTimer();
+        playbackManager.clearGaplessPreparedSource();
+      }
+    };
+
+    // Explicitly return state and actions to help TypeScript
+    return {
+      ...toRefs(state),
+      startSleepTimer: sleepTimer.start,
+      setSleepTimerAction: sleepTimer.setAction,
+      cancelSleepTimer: sleepTimer.cancel,
+      setSleepTimerFinishTrack: (enabled: boolean) => {
+        state.sleepTimer.finishTrack = enabled;
+        sleepTimer.tick();
+      },
+      isPlaying,
+      isLoading,
+      playbackTargetTrackId,
+      playbackIsLoading,
+      playbackProgressBusyReason,
+      playbackProgressIsBusy,
+      playbackClock,
+      playbackDisplayState,
+      getSpatialAudioEffectSupport,
+      dspProviderInspection: spatialAudioSupport.providerInspection,
+      selectSpatialAudioEffect,
+      // State-like (actually actions but Pinia treats them as actions)
+      getEffectiveAudioQuality: resolver.getEffectiveAudioQuality,
+      getResolvedAudioQuality: resolver.getResolvedAudioQuality,
+      ensureTrackRelateGoods: resolver.ensureTrackRelateGoods,
+      resolveAudioUrl: resolver.resolveAudioUrl,
+      fetchClimaxMarks: resolver.fetchClimaxMarks,
+
+      resetHistoryUploadState: historyManager.resetHistoryUploadState,
+      commitListeningHistory: historyManager.commitListeningHistory,
+      flushListeningTime: listeningTimeManager.flush,
+
+      setVolume: audioManager.setVolume,
+      adjustVolume: audioManager.adjustVolume,
+      toggleMute: audioManager.toggleMute,
+      setPlaybackRate: audioManager.setPlaybackRate,
+      setPitch: (semitones: number) => {
+        state.pitch = semitones;
+        engine.setPitch(semitones);
+      },
+      setPlayMode: audioManager.setPlayMode,
+      setVolumeNormalization: audioManager.setVolumeNormalization,
+      setReferenceLufs: audioManager.setReferenceLufs,
+      setEq: audioManager.setEq,
+      setAudioEffect: audioManager.setAudioEffect,
+      fadeVolume: audioManager.fadeVolume,
+      setCurrentAudioQualityOverride: audioManager.setCurrentAudioQualityOverride,
+      setPreferredAudioQuality: audioManager.setPreferredAudioQuality,
+      preferCurrentTrackCatalogQuality: audioManager.preferCurrentTrackCatalogQuality,
+      preferCurrentTrackCloudSource: audioManager.preferCurrentTrackCloudSource,
+
+      refreshOutputDevices: deviceManager.refreshOutputDevices,
+      applyOutputDevice: deviceManager.applyOutputDevice,
+
+      playTrack: playbackManager.playTrack,
+      togglePlay: playbackManager.togglePlay,
+      seek: playbackManager.seek,
+      next: playbackManager.next,
+      dislikePersonalFm: playbackManager.dislikePersonalFm,
+      playPersonalFmTrack: playbackManager.playPersonalFmTrack,
+      prev: playbackManager.prev,
+      stop: playbackManager.stop,
+
+      toggleLyricView,
+      showPlaybackNotice,
+      clearPlaybackNotice,
+      refreshCurrentTrack,
+      init,
+      setVolumeSmooth,
+      setAutoNextSuppressed,
+      onPlayerEvent: playerEvents.on,
+      getPlayerEventPayload,
+    };
+  },
+  {
+    persist: {
+      pick: [
+        'volume',
+        'lastNonZeroVolume',
+        'playMode',
+        'currentTrackId',
+        'playbackRate',
+        'pitch',
+        'audioEffect',
+        'equalizerGains',
+      ],
+    },
+  },
+);

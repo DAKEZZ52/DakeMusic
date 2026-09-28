@@ -1,0 +1,2110 @@
+import logger from '@/utils/logger';
+import type { Song } from '@/models/song';
+import {
+  buildNextTrackDecisionKey,
+  findPlaybackSourceQueue,
+  resolveOrderedPlaybackMode,
+  resolvePlaybackSourceQueueId,
+  resolveQueuedNextTrackDecision,
+  resolveNextTrackDecision,
+  type NextTrackTargetDecision,
+  type OrderedPlaybackMode,
+} from '../../../shared/playbackQueueDecision';
+import { consumePlayedQueuedNextTrack } from '../../../shared/playbackQueueExecution';
+import type { PluginAudioSourceTransformStage } from '@/plugins/audioSource';
+import { isPlayableSong } from '@/utils/song';
+import type { PlayerState } from './state';
+import { normalizePlayerErrorPayload, type PlayerEngine } from '@/utils/player';
+import type { usePlaylistStore } from '../playlist';
+import type { useSettingStore } from '../setting';
+import { PERSONAL_FM_QUEUE_ID, type PlaybackQueueState } from '../playlist';
+import type { PersonalFmCandidate } from '../playlist/personalFmActions';
+import { toRawSong, toRawSongList } from '../playlist/helpers';
+import { useHistoryStore } from '../historyStore';
+import { useToastStore } from '../toast';
+import {
+  buildMediaMeta,
+  buildMediaState,
+  buildStoppedPlaybackState,
+  clampNumber,
+  findPlayableIndex,
+  findTrackById,
+} from './utils';
+import type { PlaybackSource, ResolvedAudioSource } from './types';
+import { canPrepareGaplessForQueue, getQueueAdvanceAuthority } from './queueAdvancePolicy';
+import {
+  formatTrackTransitionNotice,
+  transitionPrefetchLeadSecs,
+  transitionPreparationTimeoutSecs,
+  transitionPreparesNextTrack,
+  type TrackTransitionPlaybackInfo,
+} from '../../../shared/trackTransition';
+import {
+  abortNativeTrackLoad,
+  beginNativeTrackLoad,
+  beginPlaybackIntent,
+  clearPlaybackIntent,
+  completePlaybackIntent,
+  failPlaybackIntent,
+  getPlaybackIsLoading,
+  getPlaybackIsPlaying,
+  getPlaybackHasFailed,
+  setEnginePlaybackStatus,
+  setPlaybackIntentPlayback,
+} from './stateMachine';
+
+/** Fallback prefetch window when the transition settings are unavailable. */
+const GAPLESS_PREFETCH_WINDOW_SECS = 30;
+const GAPLESS_SEEK_REGISTRATION_WINDOW_SECS = 2;
+
+type GaplessPreparedSource = {
+  key: string;
+  currentTrackId: string;
+  targetTrackId: string;
+  sourceQueueId: string | null;
+  queuedNextTrackIdsToConsume: string[];
+  track: Song;
+  list: Song[];
+  resolved: ResolvedAudioSource;
+  nativeSeq: number | null;
+  requestSeq: number;
+  fmCandidate?: PersonalFmCandidate;
+  fromPersonalFm?: boolean;
+};
+
+type PlaybackNextDecision = NextTrackTargetDecision<Song> & {
+  key: string;
+  currentTrackId: string;
+  list: Song[];
+  sourceQueueId: string | null;
+  queueRevision: number;
+  mode: OrderedPlaybackMode;
+  fmCandidate?: PersonalFmCandidate;
+  fromPersonalFm?: boolean;
+};
+
+/** 预解析候选全部失效后，供原生异步错误路径消费的一次性完整解析任务。 */
+type DeferredPreResolvedFallback = {
+  requestSeq: number;
+  trackId: string;
+  onFailure?: (reason: string) => void;
+  consumed: boolean;
+};
+
+export const createPlaybackManager = (
+  state: PlayerState,
+  engine: PlayerEngine,
+  playlistStore: ReturnType<typeof usePlaylistStore>,
+  settingStore: ReturnType<typeof useSettingStore>,
+  lyricStore: any,
+  resolver: any,
+  historyManager: any,
+  showPlaybackNotice: (code: string, track?: Song | null) => void,
+  clearPlaybackNotice: (trackId?: string | number | null) => void,
+  handleOutputDeviceError?: (error: unknown) => Promise<boolean>,
+  onGaplessTrackEnded?: () => void,
+) => {
+  let gaplessPreparingKey = '';
+  let gaplessPreparingRequestId: number | null = null;
+  let gaplessPreparingRegistration: Promise<void> | null = null;
+  let gaplessPreparingContext: {
+    invalidationKey: string;
+    allowCompletion: boolean;
+    expire?: () => void;
+  } | null = null;
+  let gaplessPreparedSource: GaplessPreparedSource | null = null;
+  let timedOutGaplessPrepareKey = '';
+  const adoptedNativeSeqs = new Set<number>();
+  let fmAdvanceId = 0;
+  let pendingFmLoad: { requestSeq: number; candidate: PersonalFmCandidate } | null = null;
+  // The exact occurrence a candidate was committed under. Manual selections append
+  // `:advanceId`, so reporting must reuse it (not the bare fmOccurrence) or repeated
+  // plays of the same track under one context would be collapsed by the dedup key.
+  let committedFmOccurrence: string | null = null;
+  const fmOccurrence = () =>
+    `${state.playbackRequestSeq}:${state.nativeTrackSeq ?? 0}:${state.currentTrackId ?? ''}`;
+  const fmForeignQueues = () => {
+    const queues = playlistStore.playbackQueues.filter(
+      (queue) =>
+        getQueueAdvanceAuthority(queue.id) === 'local' && queue.queuedNextTrackIds.length > 0,
+    );
+    return queues.sort(
+      (a, b) =>
+        Number(b.id === playlistStore.lastNonFmQueueId) -
+        Number(a.id === playlistStore.lastNonFmQueueId),
+    );
+  };
+  const reportFmAdvance = (action: 'play' | 'garbage' = 'play', natural = false) => {
+    // A failed or superseded load never became a played FM occurrence.
+    if (action === 'play' && pendingFmLoad?.requestSeq === state.playbackRequestSeq) return;
+    void playlistStore.reportPersonalFmAdvance(committedFmOccurrence ?? fmOccurrence(), {
+      track: state.currentTrackSnapshot,
+      playtime: state.currentTime,
+      isOverplay:
+        action !== 'garbage' &&
+        (natural || (state.duration > 0 && state.currentTime >= state.duration - 2)),
+      action,
+    });
+  };
+  const commitFmLoad = (requestSeq: number) => {
+    if (!pendingFmLoad || pendingFmLoad.requestSeq !== requestSeq) return true;
+    const { candidate } = pendingFmLoad;
+    pendingFmLoad = null;
+    const list = playlistStore.commitPersonalFmCandidate(candidate);
+    if (!list) return false;
+    committedFmOccurrence = candidate.occurrence;
+    state.currentPlaylist = list;
+    if (!state.historyLocalRecorded) {
+      state.historyLocalRecorded = true;
+      void useHistoryStore().recordPlay(candidate.track);
+    }
+    void playlistStore.replenishPersonalFmBuffer();
+    return true;
+  };
+  const invalidatedGaplessSources = new Map<
+    number,
+    { prepared: GaplessPreparedSource; completionContextKey?: string }
+  >();
+  let deferredPreResolvedFallback: DeferredPreResolvedFallback | null = null;
+  let seekDispatchSeq = 0;
+
+  const applyFailedPlaybackState = (options?: { keepResolvedSource?: boolean }) => {
+    failPlaybackIntent(state);
+    setEnginePlaybackStatus(state, 'error');
+    state.nativeTrackSeq = null;
+    state.supersededNativeTrackSeq = null;
+    engine.reset();
+    state.currentTime = 0;
+    state.currentTimeUpdatedAt = Date.now();
+    state.duration = 0;
+    state.awaitingTrackLoad = false;
+    if (!options?.keepResolvedSource) {
+      state.currentAudioUrl = '';
+      state.currentPlaybackSource = null;
+      state.currentAudioCandidateUrls = [];
+      state.currentAudioCandidateSources = [];
+      state.currentAudioCandidateIndex = -1;
+      state.currentResolvedAudioQuality = null;
+      state.currentResolvedAudioEffect = 'none';
+      state.currentResolvedAudioLoudness = null;
+      state.currentResolvedSourceKind = 'catalog';
+    }
+    engine.updateMediaPlaybackState(buildStoppedPlaybackState(state));
+  };
+
+  const normalizePlaybackSource = (
+    source: PlaybackSource | string | null | undefined,
+    fallbackAudioTrackId?: number | null,
+  ): PlaybackSource | null => {
+    const candidate =
+      typeof source === 'string'
+        ? { url: source, audioTrackId: fallbackAudioTrackId ?? null }
+        : {
+            url: String(source?.url || '').trim(),
+            audioTrackId: source?.audioTrackId ?? fallbackAudioTrackId ?? null,
+          };
+    if (!candidate.url) return null;
+    return candidate;
+  };
+
+  const playbackSourceKey = (source: PlaybackSource | null) =>
+    source ? `${source.audioTrackId ? `mkv:${source.audioTrackId}:` : ''}${source.url}` : '';
+
+  const getAudioCandidateSources = (resolved: ResolvedAudioSource): PlaybackSource[] => {
+    const fallbackTrackId = resolved.source?.audioTrackId ?? resolved.audioTrackId ?? null;
+    const primary =
+      normalizePlaybackSource(resolved.source, fallbackTrackId) ??
+      normalizePlaybackSource(resolved.url, fallbackTrackId);
+    const sources: PlaybackSource[] = [];
+
+    [primary, ...(resolved.sources ?? []), ...(resolved.urls ?? [])].forEach((source) => {
+      const candidate = normalizePlaybackSource(source, primary?.audioTrackId ?? fallbackTrackId);
+      if (!candidate) return;
+      if (!sources.some((item) => playbackSourceKey(item) === playbackSourceKey(candidate))) {
+        sources.push(candidate);
+      }
+    });
+
+    return sources;
+  };
+
+  const applyResolvedAudioSource = (track: Song, resolved: ResolvedAudioSource) => {
+    const sources = getAudioCandidateSources(resolved);
+    const primarySource = sources[0] ?? normalizePlaybackSource(resolved.url);
+    const currentIndex = primarySource
+      ? Math.max(
+          0,
+          sources.findIndex(
+            (source) => playbackSourceKey(source) === playbackSourceKey(primarySource),
+          ),
+        )
+      : -1;
+    state.currentAudioUrl = primarySource?.url ?? resolved.url;
+    state.currentPlaybackSource = primarySource;
+    state.currentAudioCandidateUrls = sources.map((source) => source.url);
+    state.currentAudioCandidateSources = sources;
+    state.currentAudioCandidateIndex = currentIndex;
+    state.currentResolvedAudioQuality = resolved.quality;
+    state.currentResolvedAudioEffect = resolved.effect;
+    state.currentResolvedAudioLoudness = resolved.loudness;
+    state.currentResolvedSourceKind = resolved.sourceKind ?? 'catalog';
+    track.audioUrl = primarySource?.url ?? resolved.url;
+    if (state.currentTrackSnapshot && String(state.currentTrackSnapshot.id) === String(track.id)) {
+      state.currentTrackSnapshot = {
+        ...state.currentTrackSnapshot,
+        audioUrl: track.audioUrl,
+        ...(track.cloudAudioSource ? { cloudAudioSource: track.cloudAudioSource } : {}),
+        ...(track.relateGoods?.length ? { relateGoods: track.relateGoods } : {}),
+      };
+    }
+    if (resolved.noticeCode) {
+      showPlaybackNotice(resolved.noticeCode, track);
+    } else {
+      clearPlaybackNotice(track.id);
+    }
+  };
+
+  const tryNextAudioCandidate = async (options?: {
+    position?: number;
+    reason?: string;
+    autoPlay?: boolean;
+    trackId?: string;
+  }): Promise<boolean> => {
+    const trackId = String(options?.trackId ?? state.currentTrackId ?? '');
+    if (!trackId) return false;
+    const requestSeq = state.playbackRequestSeq;
+    const isCurrentRequest = () =>
+      requestSeq === state.playbackRequestSeq && String(state.currentTrackId ?? '') === trackId;
+    const shouldAutoPlay = options?.autoPlay ?? state.playbackIntent.shouldPlay;
+    const candidates = state.currentAudioCandidateSources.length
+      ? state.currentAudioCandidateSources
+      : state.currentAudioCandidateUrls
+          .map((url) => normalizePlaybackSource(url, state.currentPlaybackSource?.audioTrackId))
+          .filter((source): source is PlaybackSource => !!source);
+    // 单候选源仍可能配置了延迟的 preResolved 完整解析兜底，不能在这里提前返回。
+
+    const track =
+      findTrackById(trackId, state.currentPlaylist, playlistStore) || state.currentTrackSnapshot;
+    if (!track) return false;
+
+    let nextIndex = state.currentAudioCandidateIndex + 1;
+    while (nextIndex >= 0 && nextIndex < candidates.length) {
+      if (!isCurrentRequest()) return false;
+      const nextSource = candidates[nextIndex];
+      if (
+        !nextSource ||
+        playbackSourceKey(nextSource) === playbackSourceKey(state.currentPlaybackSource)
+      ) {
+        nextIndex += 1;
+        continue;
+      }
+
+      state.currentAudioCandidateIndex = nextIndex;
+      state.currentAudioUrl = nextSource.url;
+      state.currentPlaybackSource = nextSource;
+      track.audioUrl = nextSource.url;
+      beginPlaybackIntent(state, {
+        seq: requestSeq,
+        trackId,
+        sourceQueueId: state.currentSourceQueueId,
+        shouldPlay: shouldAutoPlay,
+      });
+      beginNativeTrackLoad(state);
+      state.lastError = null;
+
+      const targetPosition = Math.max(0, Number(options?.position) || 0);
+      if (targetPosition > 0) {
+        state.stallRecovering = true;
+        state.stallRecoverTarget = targetPosition;
+        state.stallRecoverDeadline = Date.now() + 20000;
+        state.currentTime = targetPosition;
+        state.currentTimeUpdatedAt = Date.now();
+      }
+
+      logger.info('PlayerPlayback', 'Trying fallback audio url', {
+        trackId,
+        reason: options?.reason ?? 'playback-error',
+        candidate: nextIndex + 1,
+        total: candidates.length,
+      });
+
+      try {
+        await engine.reloadSource(nextSource);
+        if (!isCurrentRequest()) return false;
+        engine.applyTrackLoudness(state.currentResolvedAudioLoudness);
+        if (shouldAutoPlay) {
+          await engine.play();
+          if (!isCurrentRequest()) return false;
+        }
+        if (!commitFmLoad(requestSeq)) {
+          stop();
+          return false;
+        }
+        if (targetPosition > 0) engine.seek(targetPosition);
+        completePlaybackIntent(state, requestSeq, { isPlaying: shouldAutoPlay });
+        setEnginePlaybackStatus(state, shouldAutoPlay ? 'playing' : 'paused', trackId);
+        return true;
+      } catch (error) {
+        if (!isCurrentRequest()) return false;
+        logger.warn('PlayerPlayback', 'Fallback audio url failed:', error);
+        nextIndex += 1;
+      }
+    }
+
+    const deferred = deferredPreResolvedFallback;
+    if (
+      !deferred ||
+      deferred.consumed ||
+      deferred.requestSeq !== requestSeq ||
+      deferred.trackId !== trackId
+    ) {
+      return false;
+    }
+
+    // 房间授权源等预解析地址可能在 setSource 成功后才由原生播放器报告解码错误。
+    // 候选耗尽时只重新执行一次完整解析链，并排除已经失败的预解析地址。
+    // 此处到首次 await 之前同步完成“取值 → 标记 → 清空”；JS 同线程内不会被另一
+    // 次事件回调穿插，因此并发 error/stalled 事件只能有一个消费这次 fallback。
+    deferred.consumed = true;
+    deferredPreResolvedFallback = null;
+    const reason = options?.reason ?? 'pre-resolved-candidate-exhausted';
+    try {
+      deferred.onFailure?.(reason);
+    } catch (error) {
+      logger.warn('PlayerPlayback', 'Pre-resolved failure callback failed:', error);
+    }
+
+    try {
+      const fallbackResolved = await resolver.resolveAudioUrl(track, { forceReload: true });
+      if (!isCurrentRequest()) return false;
+
+      const rejectedKeys = new Set(candidates.map((source) => playbackSourceKey(source)));
+      const fallbackSources = getAudioCandidateSources(fallbackResolved).filter(
+        (source) => !rejectedKeys.has(playbackSourceKey(source)),
+      );
+      const primary = fallbackSources[0];
+      if (!primary) {
+        logger.warn('PlayerPlayback', 'Pre-resolved fallback returned no new audio source', {
+          trackId,
+          reason,
+        });
+        return false;
+      }
+
+      const normalizedFallback: ResolvedAudioSource = {
+        ...fallbackResolved,
+        url: primary.url,
+        urls: fallbackSources.map((source) => source.url),
+        audioTrackId: primary.audioTrackId ?? fallbackResolved.audioTrackId ?? null,
+        source: primary,
+        sources: fallbackSources,
+      };
+      applyResolvedAudioSource(track, normalizedFallback);
+      beginPlaybackIntent(state, {
+        seq: requestSeq,
+        trackId,
+        sourceQueueId: state.currentSourceQueueId,
+        shouldPlay: shouldAutoPlay,
+      });
+      beginNativeTrackLoad(state);
+      state.lastError = null;
+
+      const targetPosition = Math.max(0, Number(options?.position) || 0);
+      logger.info('PlayerPlayback', 'Retrying with fully resolved audio source', {
+        trackId,
+        reason,
+        sourceKind: normalizedFallback.sourceKind ?? 'catalog',
+      });
+      await engine.reloadSource(primary);
+      if (!isCurrentRequest()) return false;
+      engine.applyTrackLoudness(normalizedFallback.loudness);
+      if (shouldAutoPlay) {
+        await engine.play();
+        if (!isCurrentRequest()) return false;
+      }
+      if (!commitFmLoad(requestSeq)) {
+        stop();
+        return false;
+      }
+      if (targetPosition > 0) engine.seek(targetPosition);
+      completePlaybackIntent(state, requestSeq, { isPlaying: shouldAutoPlay });
+      setEnginePlaybackStatus(state, shouldAutoPlay ? 'playing' : 'paused', trackId);
+      return true;
+    } catch (error) {
+      if (!isCurrentRequest()) return false;
+      logger.warn('PlayerPlayback', 'Fully resolved audio fallback failed:', error);
+    }
+
+    return false;
+  };
+
+  const clearAutoNextTimer = () => {
+    if (state.autoNextTimer !== null) {
+      window.clearTimeout(state.autoNextTimer);
+      state.autoNextTimer = null;
+    }
+  };
+
+  const getPlaybackSourceQueueId = (): string | null =>
+    resolvePlaybackSourceQueueId({
+      currentSourceQueueId: state.currentSourceQueueId,
+      activeQueueId: playlistStore.activeQueue?.id,
+    });
+
+  const getCurrentSourceQueue = (): PlaybackQueueState | null => {
+    const sourceQueueId = getPlaybackSourceQueueId();
+    return findPlaybackSourceQueue({
+      queues: playlistStore.playbackQueues,
+      currentSourceQueueId: sourceQueueId,
+      getQueueId: (queue) => queue.id,
+    });
+  };
+
+  const getPlaybackSourceContext = () => {
+    const sourceQueueId = getPlaybackSourceQueueId();
+    const sourceQueue = getCurrentSourceQueue();
+    return {
+      sourceQueueId,
+      sourceQueue,
+      list: sourceQueue ? sourceQueue.songs : (state.currentPlaylist ?? []),
+    };
+  };
+
+  const getGaplessPrepareKey = (decision: PlaybackNextDecision) =>
+    [
+      decision.key,
+      state.audioEffect,
+      decision.targetTrackId === String(state.currentTrackId)
+        ? (state.currentAudioQualityOverride ?? settingStore.defaultAudioQuality)
+        : settingStore.defaultAudioQuality,
+      settingStore.compatibilityMode ? 'compat' : 'strict',
+    ].join('|');
+
+  const canAutoAdvanceGaplessly = () =>
+    canPrepareGaplessForQueue(
+      state.currentSourceQueueId ?? playlistStore.activeQueue?.id,
+      state.autoNextSuppressed || state.sleepTimer.deadline !== null,
+    );
+
+  const rememberInvalidatedGaplessSource = (
+    prepared: GaplessPreparedSource | null,
+    completionContextKey?: string,
+  ) => {
+    if (!prepared?.nativeSeq) return;
+    invalidatedGaplessSources.set(prepared.nativeSeq, { prepared, completionContextKey });
+    while (invalidatedGaplessSources.size > 8) {
+      const oldestSeq = invalidatedGaplessSources.keys().next().value;
+      if (typeof oldestSeq !== 'number') break;
+      invalidatedGaplessSources.delete(oldestSeq);
+    }
+  };
+
+  const clearGaplessPreparedSource = (rememberForRecovery = true) => {
+    timedOutGaplessPrepareKey = '';
+    if (rememberForRecovery) {
+      rememberInvalidatedGaplessSource(gaplessPreparedSource);
+    }
+    gaplessPreparingKey = '';
+    gaplessPreparingRequestId = null;
+    gaplessPreparingRegistration = null;
+    gaplessPreparingContext = null;
+    gaplessPreparedSource = null;
+    engine.clearPreparedNextSource();
+  };
+
+  const invalidateGaplessForSettings = () => {
+    // Native preserves mixes already rendering. Keep their metadata so a late boundary
+    // can be accepted without reloading, provided the playback context is still valid.
+    rememberInvalidatedGaplessSource(gaplessPreparedSource, getGaplessInvalidationKey());
+    if (gaplessPreparingContext) gaplessPreparingContext.allowCompletion = true;
+    clearGaplessPreparedSource(false);
+  };
+
+  const resolveOrderedNextTrack = (options?: {
+    explicitAdvance?: boolean;
+  }): PlaybackNextDecision | null => {
+    if (!state.currentTrackId) return null;
+    if (getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID) {
+      const foreignQueue = fmForeignQueues()[0];
+      if (foreignQueue) {
+        const decision = resolveQueuedNextTrackDecision({
+          tracks: foreignQueue.songs,
+          currentTrackId: state.currentTrackId,
+          queuedNextTrackIds: foreignQueue.queuedNextTrackIds,
+          getTrackId: (song) => song.id,
+          isPlayable: isPlayableSong,
+        });
+        if (!decision || decision.reason === 'cleanup') return null;
+        return {
+          ...decision,
+          currentTrackId: String(state.currentTrackId),
+          list: foreignQueue.songs,
+          sourceQueueId: foreignQueue.id,
+          queueRevision: foreignQueue.playbackRevision ?? 0,
+          mode: 'sequential',
+          fromPersonalFm: true,
+          key: `fm-queued|${playlistStore.personalFmSessionEpoch}|${fmOccurrence()}|${foreignQueue.id}|${foreignQueue.playbackRevision}|${decision.targetTrackId}`,
+        };
+      }
+      const candidate = playlistStore.peekNextPersonalFmCandidate(
+        String(state.currentTrackId),
+        fmOccurrence(),
+      );
+      if (!candidate) return null;
+      const queue = playlistStore.getQueueById(PERSONAL_FM_QUEUE_ID);
+      if (!queue) return null;
+      const list = queue.songs.some((song) => String(song.id) === String(candidate.track.id))
+        ? queue.songs
+        : [...queue.songs, candidate.track];
+      return {
+        track: candidate.track,
+        targetTrackId: String(candidate.track.id),
+        targetIndex: list.findIndex((song) => String(song.id) === String(candidate.track.id)),
+        reason: 'queue-order',
+        queuedNextTrackId: null,
+        queuedNextTrackIdsToConsume: [],
+        currentTrackId: String(state.currentTrackId),
+        list,
+        sourceQueueId: PERSONAL_FM_QUEUE_ID,
+        queueRevision: queue.playbackRevision ?? 0,
+        mode: 'sequential',
+        fmCandidate: candidate,
+        fromPersonalFm: true,
+        key: `fm|${candidate.sessionEpoch}|${candidate.occurrence}|${candidate.origin}|${candidate.key}`,
+      };
+    }
+    const mode = resolveOrderedPlaybackMode(state.playMode, options?.explicitAdvance === true);
+    if (!mode) return null;
+    const sourceQueueId = getPlaybackSourceQueueId();
+    const sourceQueue = getCurrentSourceQueue();
+    if (sourceQueue) playlistStore.syncQueuedNextTrackIds(sourceQueue.id);
+    const list = sourceQueue ? sourceQueue.songs : (state.currentPlaylist ?? []);
+    if (list.length === 0) return null;
+    const queueRevision = sourceQueue?.playbackRevision ?? 0;
+    const decision = resolveNextTrackDecision({
+      tracks: list,
+      currentTrackId: state.currentTrackId,
+      queuedNextTrackIds: sourceQueue?.queuedNextTrackIds ?? [],
+      mode,
+      getTrackId: (song) => song.id,
+      isPlayable: isPlayableSong,
+    });
+    if (!decision) return null;
+    if (decision.reason === 'cleanup') {
+      if (sourceQueue) {
+        playlistStore.consumeQueuedNextTrackIds(
+          decision.queuedNextTrackIdsToConsume,
+          sourceQueue.id,
+        );
+      }
+      return null;
+    }
+    const key = buildNextTrackDecisionKey({
+      queueId: sourceQueueId,
+      queueRevision,
+      currentTrackId: state.currentTrackId,
+      targetTrackId: decision.targetTrackId,
+      mode,
+      reason: decision.reason,
+      queuedNextTrackId: decision.queuedNextTrackId,
+    });
+    return {
+      ...decision,
+      key,
+      currentTrackId: String(state.currentTrackId),
+      list,
+      sourceQueueId,
+      queueRevision,
+      mode,
+    };
+  };
+
+  const getGaplessInvalidationKey = () => {
+    const activeQueue = playlistStore.activeQueue;
+    const sourceQueue = getCurrentSourceQueue();
+    const decisionQueue = sourceQueue ?? (state.currentSourceQueueId ? null : activeQueue);
+    return [
+      state.currentSourceQueueId ?? decisionQueue?.id ?? '',
+      decisionQueue?.playbackRevision ?? 0,
+      state.currentTrackId ?? '',
+      state.playMode,
+      state.playbackRequestSeq,
+      state.autoNextSuppressed ? 'suppressed' : 'automatic',
+      getQueueAdvanceAuthority(state.currentSourceQueueId ?? activeQueue?.id),
+      getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID
+        ? `${playlistStore.personalFmSessionEpoch}|${resolveOrderedNextTrack()?.key ?? ''}`
+        : '',
+      state.audioEffect,
+      state.currentAudioQualityOverride ?? settingStore.defaultAudioQuality,
+      settingStore.defaultAudioQuality,
+      settingStore.compatibilityMode ? 'compat' : 'strict',
+    ].join('|');
+  };
+
+  const createGaplessPreparedSource = (
+    decision: PlaybackNextDecision,
+    key: string,
+    resolved: ResolvedAudioSource,
+    nativeSeq: number | null,
+    requestSeq: number,
+  ): GaplessPreparedSource => ({
+    key,
+    currentTrackId: decision.currentTrackId,
+    targetTrackId: decision.targetTrackId,
+    sourceQueueId: decision.sourceQueueId,
+    queuedNextTrackIdsToConsume: decision.queuedNextTrackIdsToConsume,
+    track: toRawSong(decision.track),
+    list: toRawSongList(decision.list),
+    resolved,
+    nativeSeq,
+    requestSeq,
+    fmCandidate: decision.fmCandidate,
+    fromPersonalFm: decision.fromPersonalFm,
+  });
+
+  const takeGaplessPreparedSource = (
+    decision: PlaybackNextDecision,
+  ): GaplessPreparedSource | null => {
+    const key = getGaplessPrepareKey(decision);
+    if (gaplessPreparedSource?.key !== key) return null;
+    const prepared = gaplessPreparedSource;
+    return prepared;
+  };
+
+  const activateGaplessPreparedTransition = (
+    seq?: number,
+    startTime = 0,
+    transition?: TrackTransitionPlaybackInfo,
+  ): boolean => {
+    if (!seq) return false;
+    if (adoptedNativeSeqs.has(seq)) return true;
+    const retained = invalidatedGaplessSources.get(seq);
+    invalidatedGaplessSources.delete(seq);
+    const known =
+      gaplessPreparedSource?.nativeSeq === seq ? gaplessPreparedSource : retained?.prepared;
+    if (known?.fromPersonalFm) {
+      adoptedNativeSeqs.add(seq);
+      if (adoptedNativeSeqs.size > 128)
+        adoptedNativeSeqs.delete(adoptedNativeSeqs.values().next().value!);
+      if (
+        known.requestSeq !== state.playbackRequestSeq ||
+        known.currentTrackId !== String(state.currentTrackId ?? '')
+      )
+        return true;
+      if (state.autoNextSuppressed) {
+        clearGaplessPreparedSource(false);
+        setPlaybackIntentPlayback(state, false);
+        setEnginePlaybackStatus(state, 'paused');
+        engine.pause();
+        return true;
+      }
+    }
+    const invalidated =
+      retained && retained.completionContextKey !== getGaplessInvalidationKey()
+        ? retained.prepared
+        : null;
+    if (invalidated) {
+      logger.warn('PlayerPlayback', 'Invalidated gapless source reached playback boundary', {
+        fromTrackId: invalidated.currentTrackId,
+        staleTargetTrackId: invalidated.targetTrackId,
+        nativeSeq: seq,
+      });
+      if (!state.awaitingTrackLoad) {
+        if (getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID) {
+          void advancePersonalFm(true);
+          return true;
+        }
+        const samePlaybackContext =
+          String(state.currentTrackId ?? '') === invalidated.currentTrackId &&
+          String(state.currentSourceQueueId ?? playlistStore.activeQueue?.id ?? '') ===
+            String(invalidated.sourceQueueId ?? '');
+        const recovery =
+          samePlaybackContext && canAutoAdvanceGaplessly() ? resolveOrderedNextTrack() : null;
+        if (recovery) {
+          playlistStore.consumeQueuedNextTrackIds(
+            recovery.queuedNextTrackIdsToConsume,
+            recovery.sourceQueueId ?? undefined,
+          );
+          void playTrack(recovery.targetTrackId, recovery.list, {
+            sourceQueueId: recovery.sourceQueueId,
+          });
+        } else {
+          setPlaybackIntentPlayback(state, false);
+          setEnginePlaybackStatus(state, 'paused');
+          engine.pause();
+        }
+      }
+      return true;
+    }
+    const prepared =
+      gaplessPreparedSource?.nativeSeq === seq ? gaplessPreparedSource : retained?.prepared;
+    if (!prepared) return false;
+    const currentDecision = canAutoAdvanceGaplessly() ? resolveOrderedNextTrack() : null;
+    if (
+      String(state.currentTrackId ?? '') !== prepared.currentTrackId ||
+      !currentDecision ||
+      getGaplessPrepareKey(currentDecision) !== prepared.key
+    ) {
+      logger.warn('PlayerPlayback', 'Rejecting stale gapless transition', {
+        fromTrackId: prepared.currentTrackId,
+        staleTargetTrackId: prepared.targetTrackId,
+        currentTargetTrackId: currentDecision?.targetTrackId ?? null,
+        nativeSeq: seq,
+      });
+      clearGaplessPreparedSource(false);
+      if (!state.awaitingTrackLoad && getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID) {
+        void advancePersonalFm(true);
+        return true;
+      }
+      if (!state.awaitingTrackLoad && currentDecision) {
+        playlistStore.consumeQueuedNextTrackIds(
+          currentDecision.queuedNextTrackIdsToConsume,
+          currentDecision.sourceQueueId ?? undefined,
+        );
+        void playTrack(currentDecision.targetTrackId, currentDecision.list, {
+          sourceQueueId: currentDecision.sourceQueueId,
+        });
+      } else if (!state.awaitingTrackLoad) {
+        setPlaybackIntentPlayback(state, false);
+        setEnginePlaybackStatus(state, 'paused');
+        engine.pause();
+      }
+      return true;
+    }
+    clearGaplessPreparedSource(false);
+    logger.info('PlayerPlayback', 'Gapless transition activated', {
+      fromTrackId: prepared.currentTrackId,
+      targetTrackId: prepared.targetTrackId,
+      nativeSeq: seq,
+      sourceQueueId: prepared.sourceQueueId,
+      fmOrigin: prepared.fmCandidate?.origin,
+    });
+    if (prepared.fmCandidate) {
+      const list = playlistStore.commitPersonalFmCandidate(prepared.fmCandidate);
+      if (!list) {
+        void advancePersonalFm(true);
+        return true;
+      }
+      committedFmOccurrence = prepared.fmCandidate.occurrence;
+      prepared.list = list;
+    }
+    adoptedNativeSeqs.add(seq);
+    if (adoptedNativeSeqs.size > 128)
+      adoptedNativeSeqs.delete(adoptedNativeSeqs.values().next().value!);
+    if (prepared.fromPersonalFm) reportFmAdvance();
+
+    const targetTrack =
+      prepared.list.find((song) => String(song.id) === prepared.targetTrackId) ?? prepared.track;
+    if (!targetTrack) return false;
+
+    // 在切换旧曲目快照之前关闭听歌事件；无缝切歌不会经过普通 ended 回调。
+    onGaplessTrackEnded?.();
+    const snapshot = toRawSong(targetTrack);
+    playlistStore.consumeQueuedNextTrackIds(
+      prepared.queuedNextTrackIdsToConsume,
+      prepared.sourceQueueId ?? undefined,
+    );
+    state.historyLocalRecorded = false;
+    state.currentTrackId = prepared.targetTrackId;
+    state.playbackEnded = false;
+    state.currentSourceQueueId =
+      prepared.sourceQueueId ??
+      playlistStore.activeQueue?.id ??
+      playlistStore.activeQueueId ??
+      null;
+    beginPlaybackIntent(state, {
+      seq: state.playbackRequestSeq,
+      trackId: prepared.targetTrackId,
+      sourceQueueId: state.currentSourceQueueId,
+      shouldPlay: true,
+    });
+    state.nativeTrackSeq = prepared.nativeSeq;
+    state.supersededNativeTrackSeq = null;
+    state.currentPlaylist = prepared.list;
+    state.currentTrackSnapshot = snapshot;
+    if (prepared.fromPersonalFm && !prepared.fmCandidate && state.currentSourceQueueId) {
+      playlistStore.setActiveQueue(state.currentSourceQueueId);
+    }
+    playlistStore.updateQueueCurrentTrack(
+      prepared.targetTrackId,
+      state.currentSourceQueueId ?? playlistStore.activeQueue?.id ?? playlistStore.activeQueueId,
+    );
+    historyManager.resetHistoryUploadState(targetTrack);
+    clearPlaybackNotice();
+    applyResolvedAudioSource(targetTrack, prepared.resolved);
+    engine.adoptPreparedSource(state.currentPlaybackSource ?? prepared.resolved.url);
+    // Smart mixes enter the next track at its cue point, not at 0.
+    state.currentTime = Number.isFinite(startTime) ? Math.max(0, startTime) : 0;
+    state.currentTimeUpdatedAt = Date.now();
+    state.duration = prepared.resolved.url ? engine.duration || state.duration : state.duration;
+    completePlaybackIntent(state, state.playbackRequestSeq, { isPlaying: true });
+    setEnginePlaybackStatus(state, 'playing', prepared.targetTrackId);
+    state.awaitingTrackLoad = false;
+    state.lastError = null;
+    state.stallRecovering = false;
+    state.autoNextAttempts = 0;
+    state.autoNextSourceTrackId = prepared.targetTrackId;
+    clearAutoNextTimer();
+    state.climaxMarks = [];
+    state.currentAudioQualityOverride = null;
+    state.currentCatalogSourceOverrideTrackId = null;
+    state.currentCloudSourceOverrideTrackId = null;
+    const isSameTrack = prepared.targetTrackId === prepared.currentTrackId;
+    if (prepared.resolved.loudness || !isSameTrack) {
+      engine.adoptPreparedTrackLoudness(prepared.resolved.loudness);
+    }
+    engine.setLoopFile(
+      state.playMode === 'single' && state.currentSourceQueueId !== PERSONAL_FM_QUEUE_ID,
+    );
+    if (prepared.fmCandidate) void playlistStore.replenishPersonalFmBuffer();
+
+    const lyricHash = String(targetTrack.hash ?? targetTrack.id ?? '');
+    if (targetTrack.lyric) {
+      lyricStore.setLyric(targetTrack.lyric, lyricHash);
+    } else if (lyricHash) {
+      lyricStore.clear(lyricHash, '歌词加载中...');
+    } else {
+      lyricStore.clear('', '暂无歌词');
+    }
+    if (lyricHash) {
+      void lyricStore.fetchLyrics(lyricHash, {
+        preserveCurrent: Boolean(targetTrack.lyric),
+        duration: targetTrack.duration ? targetTrack.duration * 1000 : 0,
+        track: targetTrack,
+      });
+    }
+
+    const mediaMeta = buildMediaMeta(targetTrack);
+    if (mediaMeta) {
+      engine.updateMediaMetadata({
+        ...mediaMeta,
+        durationMs: (targetTrack.duration || 0) * 1000,
+      });
+    }
+    engine.updateMediaPlaybackState(buildMediaState(state));
+    state.historyLocalRecorded = true;
+    void useHistoryStore().recordPlay(snapshot);
+    void resolver.fetchClimaxMarks(targetTrack);
+    const notice = formatTrackTransitionNotice(transition, state.currentTime);
+    if (notice) useToastStore().show(notice, 'info', 3200);
+    return true;
+  };
+
+  const prepareGaplessNext = (options?: {
+    position?: number;
+    allowAtEnd?: boolean;
+    requirePlaying?: boolean;
+  }): Promise<void> => {
+    // Gapless belongs to the source currently producing audio, not whichever queue
+    // happens to be selected in the UI while that source is still playing.
+    const gaplessAllowed = canAutoAdvanceGaplessly();
+    const transitionMode = settingStore.effectiveTrackTransitionMode;
+    if (
+      !transitionPreparesNextTrack(transitionMode) ||
+      !gaplessAllowed ||
+      ((options?.requirePlaying ?? true) && !getPlaybackIsPlaying(state)) ||
+      getPlaybackIsLoading(state)
+    ) {
+      if (!gaplessAllowed && (gaplessPreparingKey || gaplessPreparedSource)) {
+        clearGaplessPreparedSource();
+      }
+      return Promise.resolve();
+    }
+    if (
+      state.awaitingTrackLoad ||
+      state.pendingSettingRefresh ||
+      (state.audioSourceRefreshRequestSeq != null &&
+        state.audioSourceRefreshRequestSeq === state.playbackRequestSeq) ||
+      state.stallRecovering ||
+      state.seekTargetTime != null ||
+      state.nativeSeekActive ||
+      getPlaybackHasFailed(state)
+    )
+      return Promise.resolve();
+    const position = options?.position ?? state.currentTime;
+    if (state.duration <= 0 || position <= 0) return Promise.resolve();
+    const remaining = state.duration - position;
+    // Smart mixing analyses both tracks and may cut the current one up to ~25 s early, so
+    // its prefetch window is wider than the plain gapless one.
+    const prefetchWindow = Math.max(
+      GAPLESS_PREFETCH_WINDOW_SECS,
+      transitionPrefetchLeadSecs(transitionMode, settingStore.fadeCrossSecs),
+    );
+    if (remaining > prefetchWindow) return Promise.resolve();
+
+    if (getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID) {
+      void playlistStore.replenishPersonalFmBuffer();
+    }
+
+    const next = resolveOrderedNextTrack();
+    if (!next) {
+      clearGaplessPreparedSource();
+      return Promise.resolve();
+    }
+
+    const targetTrackId = next.targetTrackId;
+    const key = getGaplessPrepareKey(next);
+    const attemptKey = JSON.stringify([
+      getGaplessInvalidationKey(),
+      key,
+      transitionMode,
+      settingStore.fadeCrossSecs,
+    ]);
+    if (timedOutGaplessPrepareKey === attemptKey) return Promise.resolve();
+    if (gaplessPreparedSource?.key === key) return Promise.resolve();
+    const timeoutSecs = transitionPreparationTimeoutSecs(
+      transitionMode,
+      remaining,
+      state.playbackRate,
+    );
+    if (gaplessPreparingKey === key) {
+      // A seek or speed change can bring EOF forward while analysis is still running.
+      if (timeoutSecs <= 0) gaplessPreparingContext?.expire?.();
+      return gaplessPreparingRegistration ?? Promise.resolve();
+    }
+    if (timeoutSecs <= 0) return Promise.resolve();
+    if (gaplessPreparingKey || gaplessPreparedSource) {
+      clearGaplessPreparedSource();
+    }
+
+    logger.info('PlayerPlayback', 'Gapless prepare requested', {
+      currentTrackId: state.currentTrackId,
+      targetTrackId,
+      remaining: Number(remaining.toFixed(2)),
+      timeoutSecs: Number(timeoutSecs.toFixed(2)),
+    });
+    gaplessPreparingKey = key;
+    const requestSeq = state.playbackRequestSeq;
+    const context: NonNullable<typeof gaplessPreparingContext> = {
+      invalidationKey: getGaplessInvalidationKey(),
+      allowCompletion: false,
+    };
+    gaplessPreparingContext = context;
+    let registrationSettled = false;
+    let settleRegistration = () => {};
+    const registration = new Promise<void>((resolve) => {
+      settleRegistration = () => {
+        if (registrationSettled) return;
+        registrationSettled = true;
+        resolve();
+      };
+    });
+    gaplessPreparingRegistration = registration;
+    void (async () => {
+      let requestId: number | null = null;
+      let preparedCommitted = false;
+      let preparationTimeout: number | null = null;
+      try {
+        context.expire = () => {
+          if (gaplessPreparingContext !== context) return;
+          logger.warn('PlayerPlayback', 'Gapless prepare timed out; using normal track change', {
+            targetTrackId,
+            timeoutSecs: Number(timeoutSecs.toFixed(2)),
+          });
+          settleRegistration();
+          clearGaplessPreparedSource();
+          // Reopening the same readers on every prefetch tick cannot complete this attempt.
+          timedOutGaplessPrepareKey = attemptKey;
+        };
+        preparationTimeout = window.setTimeout(context.expire, timeoutSecs * 1000);
+        requestId = await engine.beginNextSourcePreparation();
+        if (!requestId) return;
+        if (gaplessPreparingContext !== context) {
+          return;
+        }
+        gaplessPreparingRequestId = requestId;
+        settleRegistration();
+
+        const resolved: ResolvedAudioSource = await resolver.resolveAudioUrl(next.track);
+        if (gaplessPreparingContext !== context || gaplessPreparingRequestId !== requestId) return;
+        if (!resolved.url) {
+          logger.warn('PlayerPlayback', 'Gapless prepare skipped: empty resolved url', {
+            targetTrackId,
+          });
+          return;
+        }
+        const sources = getAudioCandidateSources(resolved);
+        const primarySource = sources[0] ?? normalizePlaybackSource(resolved.url);
+        const sameTrack = String(next.track.id) === String(state.currentTrackId);
+        const normalizationGainDb = resolved.loudness
+          ? engine.getTrackLoudnessGainDb(resolved.loudness)
+          : sameTrack
+            ? engine.normalizationGainDb
+            : 0;
+        logger.info('PlayerPlayback', 'Transition loudness prepared', {
+          requestId,
+          currentTrackId: state.currentTrackId,
+          targetTrackId,
+          normalizationEnabled: engine.volumeNormalizationEnabled,
+          referenceLufs: settingStore.volumeNormalizationLufs,
+          currentGainDb: engine.normalizationGainDb,
+          nextGainDb: normalizationGainDb,
+          nextLoudness: resolved.loudness ?? null,
+          gainSource: resolved.loudness
+            ? 'track-metadata'
+            : sameTrack
+              ? 'same-track-cache'
+              : 'missing-metadata-unity',
+        });
+        const nativeSeq = primarySource
+          ? await engine
+              .prepareNextSource(primarySource, requestId, normalizationGainDb)
+              .catch((error: unknown) => {
+                logger.warn('PlayerPlayback', 'Native gapless prepare failed:', error);
+                return null;
+              })
+          : null;
+        if (gaplessPreparingContext !== context || gaplessPreparingRequestId !== requestId) {
+          if (nativeSeq !== null) {
+            rememberInvalidatedGaplessSource(
+              createGaplessPreparedSource(next, key, resolved, nativeSeq, requestSeq),
+              context.allowCompletion ? context.invalidationKey : undefined,
+            );
+          }
+          return;
+        }
+        logger.info('PlayerPlayback', 'Gapless prepare completed', {
+          targetTrackId,
+          nativeSeq,
+        });
+        gaplessPreparedSource = createGaplessPreparedSource(
+          next,
+          key,
+          resolved,
+          nativeSeq,
+          requestSeq,
+        );
+        preparedCommitted = true;
+      } catch (error) {
+        logger.warn('PlayerPlayback', 'Prepare gapless next source failed:', error);
+      } finally {
+        if (preparationTimeout !== null) window.clearTimeout(preparationTimeout);
+        settleRegistration();
+        if (requestId && !preparedCommitted) {
+          engine.cancelNextSourcePreparation(requestId);
+        }
+        if (gaplessPreparingContext === context && gaplessPreparingRequestId === requestId) {
+          gaplessPreparingKey = '';
+          gaplessPreparingRequestId = null;
+          gaplessPreparingRegistration = null;
+          gaplessPreparingContext = null;
+        }
+      }
+    })();
+    return registration;
+  };
+
+  const skipToNextAfterFailure = async () => {
+    const { sourceQueueId, sourceQueue, list } = getPlaybackSourceContext();
+    if (sourceQueue) playlistStore.syncQueuedNextTrackIds(sourceQueue.id);
+    if (sourceQueueId === PERSONAL_FM_QUEUE_ID) {
+      if (pendingFmLoad?.requestSeq === state.playbackRequestSeq) {
+        if (pendingFmLoad.candidate.sessionEpoch !== playlistStore.personalFmSessionEpoch) {
+          stop();
+          return;
+        }
+        playlistStore.skipFailedPersonalFmCandidate(pendingFmLoad.candidate);
+      }
+      await advancePersonalFm(false, false, true);
+      return;
+    }
+    if (list.length === 0 || !state.currentTrackId) return;
+
+    const currentIndex = list.findIndex((song) => String(song.id) === String(state.currentTrackId));
+    let nextIndex = -1;
+
+    if (state.playMode === 'random') {
+      nextIndex = pickRandomIndex(list.length, currentIndex);
+      if (!isPlayableSong(list[nextIndex]))
+        nextIndex = findPlayableIndex(list, nextIndex, true, false);
+    } else {
+      nextIndex = findPlayableIndex(list, Math.max(0, currentIndex), true, false);
+    }
+
+    const nextSong = nextIndex >= 0 ? list[nextIndex] : null;
+    if (!nextSong) return;
+
+    return playTrack(String(nextSong.id), list, {
+      preserveFailureChain: true,
+      sourceQueueId,
+    });
+  };
+
+  const scheduleAutoNext = () => {
+    if (state.autoNextSuppressed || !settingStore.autoNext || !state.currentTrackId) return;
+    const { list, sourceQueueId } = getPlaybackSourceContext();
+    const isFm = sourceQueueId === PERSONAL_FM_QUEUE_ID;
+    if (list.length <= 1 && !isFm) return;
+
+    const currentTrackId = String(state.currentTrackId);
+    const maxAttempts = Math.max(0, Math.floor(settingStore.autoNextMaxAttempts || (isFm ? 3 : 0)));
+    if (maxAttempts > 0 && state.autoNextAttempts >= maxAttempts) return;
+
+    clearAutoNextTimer();
+    const delayMs = Math.max(0, Math.floor((settingStore.autoNextDelaySeconds || 0) * 1000));
+    state.autoNextTimer = window.setTimeout(() => {
+      state.autoNextTimer = null;
+      if (
+        String(state.currentTrackId ?? '') !== currentTrackId ||
+        getPlaybackIsPlaying(state) ||
+        getPlaybackIsLoading(state)
+      )
+        return;
+      state.autoNextAttempts += 1;
+      void skipToNextAfterFailure();
+    }, delayMs);
+  };
+
+  const playTrack = async (
+    id: string,
+    playlist?: Song[],
+    options?: {
+      preserveFailureChain?: boolean;
+      autoPlay?: boolean;
+      sourceQueueId?: string | null;
+      preResolved?: ResolvedAudioSource;
+      /** 省略表示该预解析结果已经经过 transform（例如无缝播放预加载）。 */
+      preResolvedStage?: PluginAudioSourceTransformStage;
+      /** 预解析地址加载失败后，重新执行一次完整音源解析链。 */
+      fallbackOnPreResolvedFailure?: boolean;
+      onPreResolvedFailure?: (reason: string) => void;
+      fmCandidate?: PersonalFmCandidate;
+    },
+  ) => {
+    const requestSeq = ++state.playbackRequestSeq;
+    deferredPreResolvedFallback = null;
+    fmAdvanceId++;
+    pendingFmLoad = options?.fmCandidate ? { requestSeq, candidate: options.fmCandidate } : null;
+    if (!options?.fmCandidate) committedFmOccurrence = null;
+    state.historyLocalRecorded = false;
+    const recordLocalHistoryOnce = (song: Song) => {
+      if (requestSeq !== state.playbackRequestSeq) return;
+      if (state.historyLocalRecorded) return;
+      state.historyLocalRecorded = true;
+      void useHistoryStore().recordPlay(song);
+    };
+    const sourceList = playlist
+      ? toRawSongList(playlist)
+      : (playlistStore.activeQueue?.songs ?? playlistStore.defaultList);
+    const resolvedId = String(id);
+    clearAutoNextTimer();
+    if (!options?.preserveFailureChain) {
+      state.autoNextAttempts = 0;
+      state.autoNextSourceTrackId = null;
+    }
+    if (String(state.currentTrackId ?? '') !== resolvedId) {
+      state.currentAudioQualityOverride = null;
+      state.currentCatalogSourceOverrideTrackId = null;
+      state.currentCloudSourceOverrideTrackId = null;
+    }
+    const track =
+      sourceList.find((s) => String(s.id) === resolvedId) ||
+      playlistStore.favorites.find((s) => String(s.id) === resolvedId);
+
+    if (!track) return;
+    const sourceQueueId =
+      options?.sourceQueueId ??
+      playlistStore.activeQueue?.id ??
+      playlistStore.activeQueueId ??
+      null;
+    state.currentSourceQueueId = sourceQueueId;
+    if (!options?.preResolved) clearGaplessPreparedSource();
+
+    if (!isPlayableSong(track)) {
+      state.lastError = 'track-not-playable';
+      state.currentTrackSnapshot = toRawSong(track);
+      state.currentTrackId = resolvedId;
+      state.currentPlaylist = sourceList;
+      showPlaybackNotice('track-not-playable', track);
+      applyFailedPlaybackState();
+      if (settingStore.autoNext && sourceList.length > 0) {
+        state.autoNextSourceTrackId = resolvedId;
+        scheduleAutoNext();
+      }
+      return;
+    }
+
+    const autoPlay = options?.autoPlay ?? true;
+    const snapshot = toRawSong(track);
+
+    // Cancel old opens/play/fades before resolving the URL, retaining the output device.
+    engine.beginSourceChange();
+    engine.setPlaybackRate(state.playbackRate);
+
+    state.currentTrackId = resolvedId;
+    state.currentTrackSnapshot = snapshot;
+    historyManager.resetHistoryUploadState(track);
+    state.currentPlaylist = sourceList;
+    if (!options?.fmCandidate)
+      playlistStore.updateQueueCurrentTrack(
+        resolvedId,
+        state.currentSourceQueueId ?? playlistStore.activeQueue?.id ?? playlistStore.activeQueueId,
+      );
+    state.currentAudioUrl = '';
+    state.currentPlaybackSource = null;
+    state.currentAudioCandidateUrls = [];
+    state.currentAudioCandidateSources = [];
+    state.currentAudioCandidateIndex = -1;
+    state.currentResolvedAudioQuality = null;
+    state.currentResolvedAudioEffect = 'none';
+    state.currentResolvedAudioLoudness = null;
+    state.currentResolvedSourceKind = track.source === 'cloud' ? 'cloud' : 'catalog';
+    state.currentTime = 0;
+    state.currentTimeUpdatedAt = Date.now();
+    state.duration = 0;
+    beginPlaybackIntent(state, {
+      seq: requestSeq,
+      trackId: resolvedId,
+      sourceQueueId: state.currentSourceQueueId,
+      shouldPlay: autoPlay,
+    });
+    state.lastError = null;
+    state.stallRecovering = false;
+    // 开启切歌加载护栏：在新文件 file-loaded 之前丢弃上一首的残留进度回报
+    beginNativeTrackLoad(state);
+    clearPlaybackNotice();
+    state.climaxMarks = [];
+
+    consumePlayedQueuedNextTrack(playlistStore, id, sourceQueueId);
+
+    const lyricHash = String(track.hash ?? track.id ?? '');
+    const initialLyricAlbumAudioId = String(track.albumAudioId ?? track.mixSongId ?? '');
+    if (track.lyric) {
+      lyricStore.setLyric(track.lyric, lyricHash);
+    } else if (lyricHash) {
+      lyricStore.clear(lyricHash, '歌词加载中...');
+    } else {
+      lyricStore.clear('', '暂无歌词');
+    }
+
+    if (lyricHash) {
+      void lyricStore.fetchLyrics(lyricHash, {
+        preserveCurrent: Boolean(track.lyric),
+        duration: track.duration ? track.duration * 1000 : 0,
+        track,
+      });
+    }
+
+    const pendingMediaMeta = buildMediaMeta(track);
+    if (pendingMediaMeta) {
+      engine.updateMediaMetadata({
+        ...pendingMediaMeta,
+        durationMs: (track.duration || 0) * 1000,
+      });
+    }
+    // 切歌期间不发送 Paused 状态，避免蓝牙耳机多点连接将音频路由切走
+    // 保持上一首的 Playing 状态，直到新歌开始播放或加载失败
+    if (autoPlay) {
+      engine.updateMediaPlaybackState(buildMediaState(state));
+    }
+
+    if (requestSeq !== state.playbackRequestSeq) return;
+
+    let resolved: ResolvedAudioSource;
+    let usedPreResolvedSource = false;
+    try {
+      if (options?.preResolved && options.preResolvedStage) {
+        const transformed = await resolver.transformAudioSource(
+          track,
+          options.preResolved,
+          options.preResolvedStage,
+        );
+        if (transformed) {
+          resolved = transformed;
+          usedPreResolvedSource = true;
+        } else {
+          // transform 主动拒绝后得到的是正常 resolver 结果，不再属于预解析源，
+          // 因而不注册“预解析失败后再解析一次”的重复兜底。
+          resolved = await resolver.resolveAudioUrl(track);
+        }
+      } else {
+        resolved = options?.preResolved ?? (await resolver.resolveAudioUrl(track));
+        usedPreResolvedSource = Boolean(options?.preResolved);
+      }
+    } catch (error) {
+      logger.error('PlayerPlayback', 'Resolve track source failed:', error);
+      if (requestSeq !== state.playbackRequestSeq) return;
+      state.lastError = 'audio-url-unavailable';
+      showPlaybackNotice('audio-url-unavailable', track);
+      applyFailedPlaybackState();
+      if (settingStore.autoNext && sourceList.length > 0) {
+        state.autoNextSourceTrackId = resolvedId;
+        scheduleAutoNext();
+      }
+      return;
+    }
+    if (requestSeq !== state.playbackRequestSeq) return;
+
+    const resolvedLyricAlbumAudioId = String(track.albumAudioId ?? track.mixSongId ?? '');
+    if (
+      options?.fmCandidate &&
+      options.fmCandidate.sessionEpoch !== playlistStore.personalFmSessionEpoch
+    ) {
+      stop();
+      return;
+    }
+    if (lyricHash && resolvedLyricAlbumAudioId !== initialLyricAlbumAudioId) {
+      void lyricStore.fetchLyrics(lyricHash, {
+        force: true,
+        duration: track.duration ? track.duration * 1000 : 0,
+        albumAudioId: track.albumAudioId ?? track.mixSongId,
+        track,
+      });
+    }
+
+    // privilege/lite 比 /audio 多返回封面和标准 album_audio_id。
+    // 音源解析完成后刷新一次媒体元数据，播放器封面无需等到下次切歌。
+    const resolvedMediaMeta = buildMediaMeta(track);
+    if (resolvedMediaMeta) {
+      engine.updateMediaMetadata({
+        ...resolvedMediaMeta,
+        durationMs: (track.duration || 0) * 1000,
+      });
+    }
+
+    if (!resolved.url) {
+      state.lastError = 'audio-url-unavailable';
+      state.currentTrackSnapshot = toRawSong(track);
+      state.currentTrackId = resolvedId;
+      state.currentPlaylist = sourceList;
+      showPlaybackNotice('audio-url-unavailable', track);
+      applyFailedPlaybackState();
+      if (settingStore.autoNext && sourceList.length > 0) {
+        state.autoNextSourceTrackId = resolvedId;
+        scheduleAutoNext();
+      }
+      return;
+    }
+
+    applyResolvedAudioSource(track, resolved);
+    if (usedPreResolvedSource && options?.fallbackOnPreResolvedFailure) {
+      deferredPreResolvedFallback = {
+        requestSeq,
+        trackId: resolvedId,
+        onFailure: options.onPreResolvedFailure,
+        consumed: false,
+      };
+    }
+
+    try {
+      await engine.setSource(state.currentPlaybackSource ?? resolved.url, { force: true });
+      if (requestSeq !== state.playbackRequestSeq) return;
+      if (
+        options?.fmCandidate &&
+        options.fmCandidate.sessionEpoch !== playlistStore.personalFmSessionEpoch
+      ) {
+        stop();
+        return;
+      }
+      engine.applyTrackLoudness(resolved.loudness);
+      engine.setLoopFile(state.playMode === 'single' && sourceQueueId !== PERSONAL_FM_QUEUE_ID);
+      if (autoPlay) {
+        if (settingStore.volumeFade) {
+          const fadeMs = clampNumber(settingStore.volumeFadeTime ?? 1000, 500, 3000);
+          await engine.play({ fadeIn: true, fadeDurationMs: fadeMs });
+        } else {
+          await engine.play();
+        }
+      }
+      if (requestSeq !== state.playbackRequestSeq) return;
+
+      // 在 engine.play() 成功后立即记录本地历史，使用闭包捕获的 snapshot
+      // 避免因 player end-file 事件竞态导致 state.currentTrackSnapshot 被下一首覆盖
+      if (!commitFmLoad(requestSeq)) {
+        stop();
+        return;
+      }
+      recordLocalHistoryOnce(snapshot);
+
+      state.autoNextAttempts = 0;
+      state.autoNextSourceTrackId = String(track.id);
+      clearAutoNextTimer();
+      if (!state.duration && !engine.duration && track.duration) state.duration = track.duration;
+      if (!autoPlay || !settingStore.volumeFade) engine.setVolume(state.volume);
+      if (!autoPlay) {
+        completePlaybackIntent(state, requestSeq, { isPlaying: false });
+        setEnginePlaybackStatus(state, 'paused', resolvedId);
+        engine.updateMediaPlaybackState(buildStoppedPlaybackState(state));
+      } else {
+        completePlaybackIntent(state, requestSeq, { isPlaying: true });
+        setEnginePlaybackStatus(state, 'playing', resolvedId);
+      }
+      logger.info('PlayerPlayback', 'Track playback committed', {
+        trackId: resolvedId,
+        requestSeq,
+        nativeTrackSeq: state.nativeTrackSeq,
+        autoPlay,
+      });
+      void resolver.fetchClimaxMarks(track);
+    } catch (error) {
+      logger.error('PlayerPlayback', 'Play track failed:', error);
+      if (requestSeq !== state.playbackRequestSeq) return;
+      const handledOutputError = await handleOutputDeviceError?.(
+        normalizePlayerErrorPayload(error),
+      );
+      if (requestSeq !== state.playbackRequestSeq) return;
+      if (handledOutputError) {
+        engine.updateMediaPlaybackState(buildMediaState(state));
+        return;
+      }
+      if (
+        await tryNextAudioCandidate({
+          reason: 'play-track-failed',
+          trackId: resolvedId,
+          autoPlay,
+        })
+      ) {
+        return;
+      }
+      if (requestSeq !== state.playbackRequestSeq) return;
+      state.lastError = 'playback-failed';
+      showPlaybackNotice('playback-failed', track);
+      applyFailedPlaybackState({ keepResolvedSource: true });
+      if (settingStore.autoNext && sourceList.length > 0) {
+        state.autoNextSourceTrackId = resolvedId;
+        scheduleAutoNext();
+      }
+    }
+  };
+
+  const togglePlay = async () => {
+    if (state.isResuming) return;
+
+    if (!state.currentTrackId) {
+      if (playlistStore.activeQueue?.id === PERSONAL_FM_QUEUE_ID) {
+        await playPersonalFmTrack();
+        return;
+      }
+      if ((playlistStore.activeQueue?.songs.length ?? playlistStore.defaultList.length) > 0) {
+        const activeSongs = playlistStore.activeQueue?.songs ?? playlistStore.defaultList;
+        let firstTrackIndex = 0;
+        if (state.playMode === 'random')
+          firstTrackIndex = Math.floor(Math.random() * activeSongs.length);
+        const playableIndex = findPlayableIndex(activeSongs, firstTrackIndex, true, true);
+        if (playableIndex !== -1) playTrack(activeSongs[playableIndex].id, activeSongs);
+      }
+      return;
+    }
+
+    if (getPlaybackIsPlaying(state)) {
+      fmAdvanceId++;
+      setPlaybackIntentPlayback(state, false);
+      settingStore.syncPreventSleep(false);
+      engine.updateMediaPlaybackState(buildMediaState(state));
+      engine.pause().catch((err) => logger.error('PlayerPlayback', 'Pause failed', err));
+      setEnginePlaybackStatus(state, 'paused');
+      return;
+    }
+
+    if (!engine.source || state.playbackEnded) {
+      const { sourceQueueId, list } = getPlaybackSourceContext();
+      if (sourceQueueId === PERSONAL_FM_QUEUE_ID) {
+        await playPersonalFmTrack(state.currentTrackSnapshot ?? undefined);
+        return;
+      }
+      await playTrack(state.currentTrackId, list, { sourceQueueId });
+      return;
+    }
+
+    state.isResuming = true;
+    setPlaybackIntentPlayback(state, true);
+    settingStore.syncPreventSleep(true);
+    engine.updateMediaPlaybackState(buildMediaState(state));
+    const resumeSeq = state.playbackRequestSeq;
+    const resumeTrackId = state.currentTrackId;
+    const isCurrentResume = () =>
+      resumeSeq === state.playbackRequestSeq &&
+      String(state.currentTrackId ?? '') === String(resumeTrackId ?? '');
+
+    try {
+      const timeoutMs = (settingStore.playResumeTimeout ?? 5) * 1000;
+      await engine.play({ timeoutMs: timeoutMs > 0 ? timeoutMs : undefined });
+      if (!isCurrentResume()) return;
+      setEnginePlaybackStatus(state, 'playing');
+    } catch (error) {
+      if (!isCurrentResume()) return;
+      setPlaybackIntentPlayback(state, false);
+      const handledOutputError = await handleOutputDeviceError?.(
+        normalizePlayerErrorPayload(error),
+      );
+      if (!isCurrentResume()) return;
+      if (handledOutputError) {
+        engine.updateMediaPlaybackState(buildMediaState(state));
+        return;
+      }
+      try {
+        await playTrack(state.currentTrackId);
+      } catch {
+        /* ignore */
+      }
+    } finally {
+      state.isResuming = false;
+    }
+  };
+
+  const seek = (time: number): Promise<void> => {
+    if (!Number.isFinite(time)) return Promise.resolve();
+    fmAdvanceId++;
+    const effectiveDuration = engine.duration > 0 ? engine.duration : state.duration;
+    const targetTime = Math.max(0, Math.min(effectiveDuration, time));
+    const dispatchSeq = ++seekDispatchSeq;
+    const seekTrackId = state.currentTrackId;
+    const seekRequestSeq = state.playbackRequestSeq;
+    clearGaplessPreparedSource();
+    state.seekTargetTime = targetTime;
+    state.seekTimestamp = Math.max(Date.now(), state.seekTimestamp + 1);
+    state.currentTime = targetTime;
+    state.currentTimeUpdatedAt = state.seekTimestamp;
+
+    // 当 seek 目标接近结尾时（距结尾 < 2 秒），不忽略 EOF 事件，
+    // 否则播放完毕后不会自动切下一首
+    const remaining = effectiveDuration - targetTime;
+    const nearEnd = effectiveDuration > 0 && remaining < GAPLESS_SEEK_REGISTRATION_WINDOW_SECS;
+    state.recentSeekIgnoreEnd = !nearEnd;
+    if (!nearEnd) {
+      window.setTimeout(() => {
+        if (dispatchSeq === seekDispatchSeq) state.recentSeekIgnoreEnd = false;
+      }, 800);
+    }
+    // User transport takes priority over background transition analysis.
+    const seekPromise = engine.seek(targetTime);
+    let shouldPrepare = false;
+    engine.updateMediaPlaybackState(buildMediaState(state));
+    return seekPromise
+      .then(() => {
+        if (
+          dispatchSeq === seekDispatchSeq &&
+          seekRequestSeq === state.playbackRequestSeq &&
+          seekTrackId === state.currentTrackId &&
+          (effectiveDuration <= 0 || targetTime < effectiveDuration)
+        ) {
+          state.playbackEnded = false;
+          shouldPrepare = true;
+        }
+      })
+      .finally(() => {
+        // 只有最新 seek 命令的完成才能结束 UI 生命周期；被覆盖的旧请求不得
+        // 清理新目标。这里依赖命令完成事件，不依赖超时。
+        if (
+          dispatchSeq === seekDispatchSeq &&
+          seekRequestSeq === state.playbackRequestSeq &&
+          seekTrackId === state.currentTrackId
+        ) {
+          state.seekTargetTime = null;
+          state.nativeSeekActive = false;
+          state.nativeSeekGeneration = null;
+          if (shouldPrepare) {
+            void prepareGaplessNext({ position: targetTime, requirePlaying: false });
+          }
+        }
+      });
+  };
+
+  const pushShuffleHistory = (trackId: string | null) => {
+    if (!trackId) return;
+    const MAX_SHUFFLE_HISTORY = 100;
+    state.shuffleHistory.push(trackId);
+    if (state.shuffleHistory.length > MAX_SHUFFLE_HISTORY) {
+      state.shuffleHistory = state.shuffleHistory.slice(-MAX_SHUFFLE_HISTORY);
+    }
+  };
+
+  const playPersonalFmTrack = async (
+    selected?: Song,
+    preserveFailureChain = false,
+    preResolved?: ResolvedAudioSource,
+    automatic = false,
+  ) => {
+    const advanceId = ++fmAdvanceId;
+    const requestSeq = state.playbackRequestSeq;
+    if (automatic && state.autoNextSuppressed) return;
+    if (!playlistStore.getQueueById(PERSONAL_FM_QUEUE_ID)) {
+      const ready = await playlistStore.startPersonalFm();
+      if (!ready || advanceId !== fmAdvanceId || requestSeq !== state.playbackRequestSeq) return;
+    }
+    const epoch = playlistStore.personalFmSessionEpoch;
+    const occurrence = `${fmOccurrence()}:${advanceId}`;
+    let candidate = playlistStore.peekNextPersonalFmCandidate(
+      getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID
+        ? String(state.currentTrackId ?? '')
+        : null,
+      occurrence,
+      selected,
+    );
+    if (!candidate && !selected) {
+      await playlistStore.replenishPersonalFmBuffer();
+      if (
+        advanceId !== fmAdvanceId ||
+        epoch !== playlistStore.personalFmSessionEpoch ||
+        requestSeq !== state.playbackRequestSeq ||
+        (automatic && state.autoNextSuppressed)
+      )
+        return;
+      if (getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID && fmForeignQueues().length > 0) {
+        await advancePersonalFm(automatic, false, preserveFailureChain);
+        return;
+      }
+      candidate = playlistStore.peekNextPersonalFmCandidate(
+        getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID
+          ? String(state.currentTrackId ?? '')
+          : null,
+        occurrence,
+      );
+    }
+    if (!candidate) {
+      if (getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID) stop();
+      showPlaybackNotice('audio-url-unavailable');
+      return;
+    }
+    const queue = playlistStore.getQueueById(PERSONAL_FM_QUEUE_ID);
+    if (!queue) return;
+    const list = queue.songs.some((song) => String(song.id) === String(candidate.track.id))
+      ? queue.songs.slice()
+      : [...queue.songs, candidate.track];
+    await playTrack(String(candidate.track.id), list, {
+      sourceQueueId: PERSONAL_FM_QUEUE_ID,
+      fmCandidate: candidate,
+      preserveFailureChain,
+      preResolved,
+      fallbackOnPreResolvedFailure: Boolean(preResolved),
+    });
+  };
+
+  const advancePersonalFm = async (
+    natural = false,
+    disliked = false,
+    preserveFailureChain = false,
+  ) => {
+    if (
+      getPlaybackSourceQueueId() !== PERSONAL_FM_QUEUE_ID ||
+      (natural && state.autoNextSuppressed)
+    )
+      return;
+    const advanceId = ++fmAdvanceId;
+    const epoch = playlistStore.personalFmSessionEpoch;
+    const requestSeq = state.playbackRequestSeq;
+    const isCurrent = () =>
+      advanceId === fmAdvanceId &&
+      epoch === playlistStore.personalFmSessionEpoch &&
+      requestSeq === state.playbackRequestSeq &&
+      (!natural || !state.autoNextSuppressed) &&
+      getPlaybackSourceQueueId() === PERSONAL_FM_QUEUE_ID;
+    if (getPlaybackHasFailed(state) && pendingFmLoad?.requestSeq === requestSeq) {
+      playlistStore.skipFailedPersonalFmCandidate(pendingFmLoad.candidate);
+    }
+    const nextCandidate = playlistStore.peekNextPersonalFmCandidate(
+      String(state.currentTrackId ?? ''),
+      fmOccurrence(),
+    );
+    const decision = !disliked ? resolveOrderedNextTrack() : null;
+    const prepared = decision ? takeGaplessPreparedSource(decision) : null;
+    reportFmAdvance(disliked ? 'garbage' : 'play', natural);
+    clearAutoNextTimer();
+    clearGaplessPreparedSource();
+    if (disliked) {
+      // Stop the disliked audio immediately, even if fetching the next song is slow.
+      engine.beginSourceChange();
+      if (state.currentTrackId)
+        playlistStore.removeFromQueue(String(state.currentTrackId), PERSONAL_FM_QUEUE_ID);
+    }
+    for (const queued of fmForeignQueues()) {
+      try {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        await Promise.race([
+          playlistStore.ensurePlaybackQueueSongsLoaded(queued.id),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error('Queued-next load timed out')), 10_000);
+          }),
+        ]).finally(() => clearTimeout(timer));
+      } catch (error) {
+        if (!isCurrent()) return;
+        logger.warn('PlayerPlayback', 'FM queued-next load failed:', error);
+        stop();
+        showPlaybackNotice('audio-url-unavailable');
+        return;
+      }
+      if (!isCurrent()) return;
+      const queue = playlistStore.getQueueById(queued.id);
+      if (!queue) continue;
+      const decision = resolveQueuedNextTrackDecision({
+        tracks: queue.songs,
+        currentTrackId: state.currentTrackId,
+        queuedNextTrackIds: queue.queuedNextTrackIds,
+        getTrackId: (song) => song.id,
+        isPlayable: isPlayableSong,
+      });
+      if (!decision) continue;
+      if (decision.reason === 'cleanup') {
+        playlistStore.consumeQueuedNextTrackIds(decision.queuedNextTrackIdsToConsume, queue.id);
+        continue;
+      }
+      const playback = playTrack(decision.targetTrackId, queue.songs.slice(), {
+        sourceQueueId: queue.id,
+        preserveFailureChain,
+        preResolved:
+          prepared?.targetTrackId === decision.targetTrackId ? prepared.resolved : undefined,
+        fallbackOnPreResolvedFailure: Boolean(prepared),
+      });
+      playlistStore.setActiveQueue(queue.id);
+      await playback;
+      return;
+    }
+    if (!isCurrent()) return;
+    await playPersonalFmTrack(
+      disliked ? nextCandidate?.track : undefined,
+      preserveFailureChain,
+      prepared?.fmCandidate && prepared.targetTrackId === String(nextCandidate?.track.id ?? '')
+        ? prepared.resolved
+        : undefined,
+      natural,
+    );
+  };
+
+  const dislikePersonalFm = async () => {
+    if (getPlaybackSourceQueueId() !== PERSONAL_FM_QUEUE_ID || !state.currentTrackId) return false;
+    await advancePersonalFm(false, true);
+    return true;
+  };
+
+  const next = async (options?: { gaplessTransition?: boolean }) => {
+    const { sourceQueueId, sourceQueue, list } = getPlaybackSourceContext();
+    if (sourceQueueId === PERSONAL_FM_QUEUE_ID) {
+      await advancePersonalFm(options?.gaplessTransition === true);
+      return;
+    }
+    if (sourceQueue) playlistStore.syncQueuedNextTrackIds(sourceQueue.id);
+    if (list.length === 0) return;
+    clearAutoNextTimer();
+    if (state.playMode === 'random' && state.currentTrackId)
+      pushShuffleHistory(state.currentTrackId);
+    const currentIndex = list.findIndex((song) => String(song.id) === String(state.currentTrackId));
+
+    if (state.playMode === 'random') {
+      const queuedDecision = resolveQueuedNextTrackDecision({
+        tracks: list,
+        currentTrackId: state.currentTrackId,
+        queuedNextTrackIds: sourceQueue?.queuedNextTrackIds ?? [],
+        getTrackId: (song) => song.id,
+        isPlayable: isPlayableSong,
+      });
+      if (queuedDecision) {
+        if (sourceQueue) {
+          playlistStore.consumeQueuedNextTrackIds(
+            queuedDecision.queuedNextTrackIdsToConsume,
+            sourceQueue.id,
+          );
+        }
+        if (queuedDecision.reason === 'queued-next') {
+          await playTrack(queuedDecision.targetTrackId, list, { sourceQueueId });
+          return;
+        }
+      }
+      let nextIndex = pickRandomIndex(list.length, currentIndex);
+      if (!isPlayableSong(list[nextIndex])) {
+        nextIndex = findPlayableIndex(list, nextIndex, true, false);
+      }
+      const nextSong = list[nextIndex];
+      if (!nextSong) return;
+      await playTrack(String(nextSong.id), list, { sourceQueueId });
+      return;
+    }
+
+    const decision = resolveOrderedNextTrack({ explicitAdvance: true });
+    if (!decision) {
+      if (state.playMode === 'sequential') {
+        setPlaybackIntentPlayback(state, false);
+        setEnginePlaybackStatus(state, 'paused');
+        engine.pause();
+      }
+      return;
+    }
+
+    const prepared =
+      options?.gaplessTransition === true ? takeGaplessPreparedSource(decision) : null;
+    // Manual skips go through playTrack synchronously so every click advances the
+    // selection before the next click. Only automatic EOF may await a prepared commit.
+    const requestSeq = state.playbackRequestSeq;
+    if (prepared?.nativeSeq) {
+      try {
+        if (await engine.commitPreparedNextSource(15)) return;
+      } catch (error) {
+        logger.warn('PlayerPlayback', 'Prepared track switch failed:', error);
+      }
+      if (requestSeq !== state.playbackRequestSeq) return;
+    }
+    if (prepared) clearGaplessPreparedSource();
+    playlistStore.consumeQueuedNextTrackIds(
+      decision.queuedNextTrackIdsToConsume,
+      decision.sourceQueueId ?? undefined,
+    );
+    await playTrack(decision.targetTrackId, decision.list, {
+      sourceQueueId: decision.sourceQueueId,
+      preResolved: prepared?.resolved,
+    });
+  };
+
+  const prev = async () => {
+    const { sourceQueueId, list } = getPlaybackSourceContext();
+    if (list.length === 0) return;
+
+    if (sourceQueueId === PERSONAL_FM_QUEUE_ID) {
+      const index = list.findIndex((song) => String(song.id) === String(state.currentTrackId));
+      const track = list.slice(0, Math.max(0, index)).reverse().find(isPlayableSong);
+      if (track) await playPersonalFmTrack(track);
+      return;
+    }
+
+    clearAutoNextTimer();
+
+    // 随机模式下，从播放历史中回退
+    if (state.playMode === 'random' && state.shuffleHistory.length > 0) {
+      const prevTrackId = state.shuffleHistory.pop()!;
+      const prevSong = list.find((s) => String(s.id) === prevTrackId);
+      if (prevSong && isPlayableSong(prevSong)) {
+        void playTrack(String(prevSong.id), list, { sourceQueueId });
+        return;
+      }
+      // 历史中的歌曲在列表中已不存在或不可播放，继续尝试更早的历史
+      while (state.shuffleHistory.length > 0) {
+        const olderTrackId = state.shuffleHistory.pop()!;
+        const olderSong = list.find((s) => String(s.id) === olderTrackId);
+        if (olderSong && isPlayableSong(olderSong)) {
+          void playTrack(String(olderSong.id), list, { sourceQueueId });
+          return;
+        }
+      }
+      // 历史全部耗尽，回退到默认行为
+    }
+
+    const currentIndex = list.findIndex((s) => String(s.id) === String(state.currentTrackId));
+    let prevIndex = (currentIndex - 1 + list.length) % list.length;
+    prevIndex = findPlayableIndex(list, prevIndex, false, true);
+    const prevSong = list[prevIndex];
+    if (!prevSong) return;
+    void playTrack(prevSong.id, list, { sourceQueueId });
+  };
+
+  const stop = () => {
+    fmAdvanceId++;
+    pendingFmLoad = null;
+    committedFmOccurrence = null;
+    state.playbackEnded = false;
+    const sourceQueueId =
+      state.currentSourceQueueId ?? playlistStore.activeQueue?.id ?? playlistStore.activeQueueId;
+    clearAutoNextTimer();
+    clearGaplessPreparedSource();
+    state.autoNextAttempts = 0;
+    state.autoNextSourceTrackId = null;
+    state.currentTrackSnapshot = null;
+    state.historyUploadCommitted = false;
+    state.historyUploadTrackId = null;
+    engine.reset();
+    state.currentTime = 0;
+    state.currentTimeUpdatedAt = Date.now();
+    state.duration = 0;
+    state.stallRecovering = false;
+    state.awaitingTrackLoad = false;
+    state.supersededNativeTrackSeq = null;
+    state.stallRecoverTrackId = null;
+    state.stallRecoverAttempts = 0;
+    state.currentTrackId = null;
+    state.currentSourceQueueId = null;
+    state.currentAudioUrl = '';
+    state.currentPlaybackSource = null;
+    state.currentAudioCandidateUrls = [];
+    state.currentAudioCandidateSources = [];
+    state.currentAudioCandidateIndex = -1;
+    state.currentResolvedAudioQuality = null;
+    state.currentResolvedAudioEffect = 'none';
+    state.currentResolvedAudioLoudness = null;
+    state.currentResolvedSourceKind = 'catalog';
+    state.currentAudioQualityOverride = null;
+    state.currentCatalogSourceOverrideTrackId = null;
+    state.currentCloudSourceOverrideTrackId = null;
+    state.audioEffect = 'none';
+    state.nativeTrackSeq = null;
+    state.playbackRequestSeq += 1;
+    state.climaxRequestSeq += 1;
+    clearPlaybackIntent(state);
+    setEnginePlaybackStatus(state, 'stopped', null);
+    playlistStore.updateQueueCurrentTrack(null, sourceQueueId);
+    engine.updateMediaPlaybackState(buildMediaState(state));
+  };
+
+  // 主进程看门狗检测到播放卡死后的恢复：重取最新地址 → 从断点续播。
+  // 进度防跳由 store 的 stallRecovering 护栏保证（UI 停在断点，忽略 reload 期间的归零/回跳）。
+  const recoverFromStall = async (position: number) => {
+    if (!state.currentTrackId) return;
+    // 用户已暂停 / 正在加载 / 已在恢复中，均不处理
+    if (!getPlaybackIsPlaying(state) || getPlaybackIsLoading(state) || state.stallRecovering)
+      return;
+
+    const trackId = String(state.currentTrackId);
+    const requestSeq = state.playbackRequestSeq;
+    const isCurrentRequest = () =>
+      requestSeq === state.playbackRequestSeq && String(state.currentTrackId ?? '') === trackId;
+    const track =
+      findTrackById(state.currentTrackId, state.currentPlaylist, playlistStore) ||
+      state.currentTrackSnapshot;
+    if (!track) return;
+
+    // 按曲目统计恢复次数；切到新曲目则重置计数
+    if (state.stallRecoverTrackId !== trackId) {
+      state.stallRecoverTrackId = trackId;
+      state.stallRecoverAttempts = 0;
+    }
+    const maxAttempts = Math.max(0, Math.floor(settingStore.playbackStallMaxAttempts ?? 3));
+    if (maxAttempts > 0 && state.stallRecoverAttempts >= maxAttempts) {
+      logger.warn('PlayerPlayback', 'Stall recovery gave up after max attempts', {
+        trackId,
+        attempts: state.stallRecoverAttempts,
+      });
+      state.lastError = 'playback-failed';
+      showPlaybackNotice('playback-failed', track);
+      applyFailedPlaybackState({ keepResolvedSource: true });
+      if (settingStore.autoNext && (state.currentPlaylist?.length ?? 0) > 0) {
+        state.autoNextSourceTrackId = trackId;
+        scheduleAutoNext();
+      }
+      return;
+    }
+    state.stallRecoverAttempts += 1;
+
+    const targetPosition = Math.max(0, Number(position) || state.currentTime || 0);
+    let nativeLoadCompleted = false;
+
+    // 开启进度防跳护栏：UI 停在断点位置
+    state.stallRecovering = true;
+    state.stallRecoverTarget = targetPosition;
+    state.stallRecoverDeadline = Date.now() + 20000;
+    state.currentTime = targetPosition;
+    state.currentTimeUpdatedAt = Date.now();
+
+    logger.warn('PlayerPlayback', 'Recovering from playback stall', {
+      trackId,
+      position: targetPosition,
+      attempt: state.stallRecoverAttempts,
+    });
+
+    try {
+      const triedCandidate = await tryNextAudioCandidate({
+        reason: 'playback-stall',
+        position: targetPosition,
+        trackId,
+      });
+      if (triedCandidate) return;
+      if (!isCurrentRequest()) return;
+
+      const resolved = await resolver.resolveAudioUrl(track, { forceReload: true });
+      if (!isCurrentRequest()) {
+        return;
+      }
+      if (!resolved.url) {
+        abortNativeTrackLoad(state);
+        state.stallRecovering = false;
+        state.lastError = 'audio-url-unavailable';
+        showPlaybackNotice('audio-url-unavailable', track);
+        if (settingStore.autoNext && (state.currentPlaylist?.length ?? 0) > 0) {
+          state.autoNextSourceTrackId = trackId;
+          scheduleAutoNext();
+        }
+        return;
+      }
+      applyResolvedAudioSource(track, resolved);
+      beginNativeTrackLoad(state);
+      await engine.reloadSource(state.currentPlaybackSource ?? resolved.url);
+      nativeLoadCompleted = true;
+      if (!isCurrentRequest()) {
+        return;
+      }
+      engine.applyTrackLoudness(resolved.loudness);
+      await engine.play();
+      if (!isCurrentRequest()) {
+        return;
+      }
+      if (targetPosition > 0) engine.seek(targetPosition);
+    } catch (error) {
+      logger.error('PlayerPlayback', 'Recover from stall failed:', error);
+      if (isCurrentRequest()) {
+        if (!nativeLoadCompleted) {
+          abortNativeTrackLoad(state);
+        }
+        state.stallRecovering = false;
+      }
+    }
+  };
+
+  const pickRandomIndex = (length: number, currentIndex: number) => {
+    if (length <= 1) return currentIndex;
+    state.shufflePlayed.add(currentIndex);
+    if (!state.shuffleQueue || state.shuffleQueueLength !== length) {
+      if (state.shuffleQueue && state.shuffleQueueLength !== length) {
+        const remaining = new Set(state.shuffleQueue.filter((i) => i < length));
+        const newIndices: number[] = [];
+        for (let i = 0; i < length; i++) {
+          if (i !== currentIndex && !state.shufflePlayed.has(i) && !remaining.has(i))
+            newIndices.push(i);
+        }
+        for (const idx of state.shufflePlayed) {
+          if (idx >= length) state.shufflePlayed.delete(idx);
+        }
+        shuffleInsert(newIndices);
+        const validRemaining = state.shuffleQueue.filter((i) => i < length && i !== currentIndex);
+        state.shuffleQueue = [...validRemaining, ...newIndices];
+      } else {
+        state.shufflePlayed = new Set([currentIndex]);
+        state.shuffleQueue = buildShuffleQueue(length, currentIndex);
+      }
+      state.shuffleQueueLength = length;
+    }
+    if (state.shuffleQueue.length === 0) {
+      state.shufflePlayed = new Set([currentIndex]);
+      state.shuffleQueue = buildShuffleQueue(length, currentIndex);
+    }
+    const nextIndex = state.shuffleQueue.shift()!;
+    state.shufflePlayed.add(nextIndex);
+    return nextIndex;
+  };
+
+  const shuffleInsert = (arr: number[]) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  };
+
+  const buildShuffleQueue = (length: number, excludeIndex: number): number[] => {
+    const indices = Array.from({ length }, (_, i) => i).filter((i) => i !== excludeIndex);
+    for (let i = indices.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [indices[i], indices[j]] = [indices[j], indices[i]];
+    }
+    return indices;
+  };
+
+  return {
+    applyFailedPlaybackState,
+    clearAutoNextTimer,
+    skipToNextAfterFailure,
+    scheduleAutoNext,
+    playTrack,
+    togglePlay,
+    seek,
+    next,
+    dislikePersonalFm,
+    advancePersonalFm,
+    playPersonalFmTrack,
+    prev,
+    stop,
+    recoverFromStall,
+    tryNextAudioCandidate,
+    prepareGaplessNext,
+    activateGaplessPreparedTransition,
+    clearGaplessPreparedSource,
+    invalidateGaplessForSettings,
+    getGaplessInvalidationKey,
+    pickRandomIndex,
+    shuffleInsert,
+    buildShuffleQueue,
+  };
+};

@@ -1,0 +1,216 @@
+import type { PlayerState } from './state';
+import type { useSettingStore } from '../setting';
+import type { PlayerEngine } from '@/utils/player';
+import type { AudioEffectValue, AudioQualityValue, PlayMode } from '../../types';
+import { clampNumber, normalizeEffect, normalizeQuality } from './utils';
+import { DEFAULT_PLAYER_VOLUME } from '../../../shared/playback';
+import { getPlaybackIsLoading } from './stateMachine';
+import { PERSONAL_FM_QUEUE_ID } from '../playlist/constants';
+
+export const createAudioManager = (
+  state: PlayerState,
+  engine: PlayerEngine,
+  refreshCurrentTrack: (options?: { seamless?: boolean }) => Promise<void>,
+  settingStore: Pick<ReturnType<typeof useSettingStore>, 'defaultAudioQuality'>,
+) => {
+  const isSourceSwitching = () =>
+    state.audioSourceRefreshRequestSeq != null &&
+    state.audioSourceRefreshRequestSeq === state.playbackRequestSeq;
+
+  const normalizeVolume = (value: number, fallback = DEFAULT_PLAYER_VOLUME) => {
+    const candidate = Number.isFinite(value) ? value : fallback;
+    return clampNumber(Number.isFinite(candidate) ? candidate : DEFAULT_PLAYER_VOLUME, 0, 100);
+  };
+
+  const rememberVolume = (value = state.volume) => {
+    if (value > 0) state.lastNonZeroVolume = normalizeVolume(value);
+  };
+
+  const getRestoreVolume = () =>
+    state.lastNonZeroVolume > 0 ? normalizeVolume(state.lastNonZeroVolume) : DEFAULT_PLAYER_VOLUME;
+
+  const setVolume = (value: number) => {
+    state.volume = engine.setVolume(normalizeVolume(value, state.volume));
+    rememberVolume();
+  };
+
+  const adjustVolume = (delta: number) => {
+    const base = state.volume > 0 ? state.volume : getRestoreVolume();
+    setVolume(base + delta);
+  };
+
+  const toggleMute = () => {
+    if (state.volume > 0) {
+      rememberVolume();
+      setVolume(0);
+    } else {
+      setVolume(getRestoreVolume());
+    }
+  };
+
+  const setPlaybackRate = (rate: number) => {
+    state.playbackRate = engine.setPlaybackRate(rate);
+  };
+
+  const setPlayMode = (mode: PlayMode) => {
+    state.playMode = mode;
+    state.shuffleQueue = null;
+    state.shuffleQueueLength = 0;
+    state.shufflePlayed = new Set();
+    state.shuffleHistory = [];
+    engine.setLoopFile(mode === 'single' && state.currentSourceQueueId !== PERSONAL_FM_QUEUE_ID);
+  };
+
+  const setVolumeNormalization = (enabled: boolean) => {
+    engine.setVolumeNormalization(enabled);
+  };
+
+  const setReferenceLufs = (lufs: number) => {
+    engine.setReferenceLufs(lufs);
+  };
+
+  const setEq = (gains: number[]) => {
+    const clampedGains = gains.map((g) => clampNumber(g, -12, 12));
+    state.equalizerGains = clampedGains;
+    engine.setEqualizer(clampedGains);
+  };
+
+  const setAudioEffect = (effect: AudioEffectValue) => {
+    if (state.audioEffectApplying || isSourceSwitching()) return;
+    const nextEffect = normalizeEffect(effect);
+    if (
+      state.audioEffect === nextEffect &&
+      (!state.currentTrackId || state.currentResolvedAudioEffect === nextEffect)
+    )
+      return;
+    state.audioEffect = nextEffect;
+    if (!state.currentTrackId) return;
+    if (getPlaybackIsLoading(state) || state.pendingSettingRefresh) {
+      state.pendingSettingRefresh = true;
+      return;
+    }
+    state.audioEffectError = '';
+    state.audioEffectApplying = true;
+    void refreshCurrentTrack({ seamless: true }).finally(() => {
+      state.audioEffectApplying = false;
+    });
+  };
+
+  const fadeVolume = (
+    target: number,
+    options?: { durationMs?: number; respectUserVolume?: boolean },
+  ): Promise<void> => {
+    const durationMs = Math.max(0, options?.durationMs ?? 1000);
+    const respectUserVolume = options?.respectUserVolume ?? false;
+    const targetValue = respectUserVolume ? Math.min(target, state.volume) : target;
+    return engine.fadeTo(targetValue, durationMs).then(() => {
+      if (!respectUserVolume) {
+        state.volume = engine.volume;
+        rememberVolume();
+      }
+    });
+  };
+
+  const setPreferredAudioQuality = (quality: AudioQualityValue) => {
+    if (isSourceSwitching()) return;
+    const nextQuality = normalizeQuality(quality);
+    const changed =
+      settingStore.defaultAudioQuality !== nextQuality ||
+      state.currentAudioQualityOverride !== null ||
+      state.currentResolvedAudioQuality !== nextQuality ||
+      state.currentResolvedSourceKind === 'cloud';
+    if (!changed) return;
+    state.currentAudioQualityOverride = null;
+    state.currentCatalogSourceOverrideTrackId = state.currentTrackId
+      ? String(state.currentTrackId)
+      : null;
+    state.currentCloudSourceOverrideTrackId = null;
+    settingStore.defaultAudioQuality = nextQuality;
+    if (!state.currentTrackId) return;
+    if (getPlaybackIsLoading(state) || state.pendingSettingRefresh) {
+      state.pendingSettingRefresh = true;
+      return;
+    }
+    void refreshCurrentTrack({ seamless: true });
+  };
+
+  const setCurrentAudioQualityOverride = (
+    quality: AudioQualityValue | null,
+    options?: { refresh?: boolean },
+  ) => {
+    if (isSourceSwitching()) return;
+    const nextQuality = quality ? normalizeQuality(quality) : null;
+    if (
+      state.currentAudioQualityOverride === nextQuality &&
+      (state.currentResolvedAudioQuality === nextQuality ||
+        state.audioSourceRefreshRequestSeq === state.playbackRequestSeq ||
+        options?.refresh === false)
+    )
+      return;
+    state.currentAudioQualityOverride = nextQuality;
+    if (options?.refresh === false) return;
+    if (!state.currentTrackId) return;
+    if (getPlaybackIsLoading(state) || state.pendingSettingRefresh) {
+      state.pendingSettingRefresh = true;
+      return;
+    }
+    void refreshCurrentTrack({ seamless: true });
+  };
+
+  const preferCurrentTrackCatalogQuality = (quality: AudioQualityValue) => {
+    if (!state.currentTrackId || isSourceSwitching()) return;
+    const nextQuality = normalizeQuality(quality);
+    const trackId = String(state.currentTrackId);
+    // 当前曲目的手动音质覆盖会持续到切歌，用于在云盘/曲库音源间来回切换时保持用户选择。
+    const changed =
+      state.currentCatalogSourceOverrideTrackId !== trackId ||
+      state.currentAudioQualityOverride !== nextQuality ||
+      (state.currentResolvedAudioQuality !== nextQuality &&
+        state.audioSourceRefreshRequestSeq !== state.playbackRequestSeq);
+    if (!changed) return;
+    state.currentCatalogSourceOverrideTrackId = trackId;
+    state.currentCloudSourceOverrideTrackId = null;
+    state.currentAudioQualityOverride = nextQuality;
+    if (getPlaybackIsLoading(state) || state.pendingSettingRefresh) {
+      state.pendingSettingRefresh = true;
+      return;
+    }
+    void refreshCurrentTrack({ seamless: true });
+  };
+
+  const preferCurrentTrackCloudSource = () => {
+    if (!state.currentTrackId || isSourceSwitching()) return;
+    const trackId = String(state.currentTrackId);
+    const changed =
+      state.currentCatalogSourceOverrideTrackId !== null ||
+      state.currentCloudSourceOverrideTrackId !== trackId ||
+      state.currentResolvedSourceKind !== 'cloud' ||
+      state.currentAudioQualityOverride !== null;
+    if (!changed) return;
+    state.currentCatalogSourceOverrideTrackId = null;
+    state.currentCloudSourceOverrideTrackId = trackId;
+    state.currentAudioQualityOverride = null;
+    if (getPlaybackIsLoading(state) || state.pendingSettingRefresh) {
+      state.pendingSettingRefresh = true;
+      return;
+    }
+    void refreshCurrentTrack({ seamless: true });
+  };
+
+  return {
+    setVolume,
+    adjustVolume,
+    toggleMute,
+    setPlaybackRate,
+    setPlayMode,
+    setVolumeNormalization,
+    setReferenceLufs,
+    setEq,
+    setAudioEffect,
+    fadeVolume,
+    setPreferredAudioQuality,
+    setCurrentAudioQualityOverride,
+    preferCurrentTrackCatalogQuality,
+    preferCurrentTrackCloudSource,
+  };
+};

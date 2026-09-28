@@ -1,0 +1,485 @@
+<script setup lang="ts">
+import { computed, ref, watch, nextTick } from 'vue';
+import Popover from './Popover.vue';
+import Tooltip from './Tooltip.vue';
+import { iconChevronDown, iconX } from '@/icons';
+
+type SelectValueType = string | number;
+
+interface SelectOption {
+  label: string;
+  value: SelectValueType;
+  disabled?: boolean;
+}
+
+interface Props {
+  modelValue?: SelectValueType | SelectValueType[];
+  options: SelectOption[];
+  placeholder?: string;
+  class?: string;
+  disabled?: boolean;
+  ariaLabel?: string;
+  /** 弹层默认与选择框右侧对齐，空间不足时自动避让 */
+  contentAlign?: 'start' | 'center' | 'end';
+  /** 是否可搜索 */
+  filterable?: boolean;
+  /** 是否可清空 */
+  clearable?: boolean;
+  /** 是否多选 */
+  multiple?: boolean;
+  /** 多选时最多显示几个标签，超出用 +N 表示 */
+  maxTagCount?: number;
+  /** 虚拟滚动阈值 */
+  virtualThreshold?: number;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  options: () => [],
+  placeholder: '请选择',
+  disabled: false,
+  contentAlign: 'end',
+  filterable: false,
+  clearable: false,
+  multiple: false,
+  maxTagCount: 1,
+  virtualThreshold: 50,
+});
+
+const emit = defineEmits<{
+  (e: 'update:modelValue', value: SelectValueType | SelectValueType[]): void;
+}>();
+
+const open = ref(false);
+const searchTerm = ref('');
+const inputRef = ref<HTMLInputElement | null>(null);
+const scrollTop = ref(0);
+const isHovered = ref(false);
+
+const ITEM_HEIGHT = 36;
+const VISIBLE_COUNT = 10;
+
+// 多选值数组
+const multiValue = computed<SelectValueType[]>(() => {
+  if (!props.multiple) return [];
+  return Array.isArray(props.modelValue) ? props.modelValue : [];
+});
+
+// 单选显示文本
+const selectedLabel = computed(() => {
+  if (props.multiple) return '';
+  const matched = props.options.find((opt) => Object.is(opt.value, props.modelValue));
+  return matched?.label ?? '';
+});
+
+// 多选已选标签（限制显示数量）
+const selectedTags = computed(() => {
+  if (!props.multiple) return [];
+  return multiValue.value
+    .map((v) => props.options.find((opt) => Object.is(opt.value, v)))
+    .filter(Boolean) as SelectOption[];
+});
+
+const visibleTags = computed(() => selectedTags.value.slice(0, props.maxTagCount));
+const overflowCount = computed(() => Math.max(0, selectedTags.value.length - props.maxTagCount));
+
+// 是否显示清除按钮
+const showClear = computed(() => {
+  if (!props.clearable || !isHovered.value) return false;
+  if (props.multiple) return multiValue.value.length > 0;
+  return props.modelValue !== undefined && props.modelValue !== '';
+});
+
+// 过滤后的选项
+const filteredOptions = computed(() => {
+  if (!props.filterable || !searchTerm.value) return props.options;
+  const keyword = searchTerm.value.toLowerCase();
+  return props.options.filter((opt) => opt.label.toLowerCase().includes(keyword));
+});
+
+// 虚拟滚动
+const useVirtual = computed(() => filteredOptions.value.length > props.virtualThreshold);
+const triggerRef = ref<HTMLElement | null>(null);
+const menuWidth = ref<number | null>(null);
+const measureMenuWidth = () => {
+  const trigger = triggerRef.value;
+  if (!trigger) return;
+  const style = getComputedStyle(trigger);
+  const context = document.createElement('canvas').getContext('2d');
+  if (!context) return;
+  context.font = `600 13px ${style.fontFamily}`;
+  const textWidth = props.options.reduce(
+    (width, option) => Math.max(width, context.measureText(option.label).width),
+    0,
+  );
+  // Reserve padding and a stable checkmark column, but don't let one device name
+  // create an excessively wide menu. CSS further constrains it to the viewport.
+  menuWidth.value = Math.min(
+    480,
+    Math.max(trigger.getBoundingClientRect().width, Math.ceil(textWidth) + 60),
+  );
+};
+watch(
+  () => props.options,
+  () => {
+    if (open.value) nextTick(measureMenuWidth);
+  },
+  { deep: true },
+);
+const totalHeight = computed(() => filteredOptions.value.length * ITEM_HEIGHT);
+const startIndex = computed(() => Math.max(0, Math.floor(scrollTop.value / ITEM_HEIGHT) - 2));
+const endIndex = computed(() =>
+  Math.min(filteredOptions.value.length, startIndex.value + VISIBLE_COUNT + 4),
+);
+const visibleItems = computed(() => {
+  if (!useVirtual.value) return filteredOptions.value;
+  return filteredOptions.value.slice(startIndex.value, endIndex.value);
+});
+const offsetY = computed(() => (useVirtual.value ? startIndex.value * ITEM_HEIGHT : 0));
+
+const handleScroll = (e: Event) => {
+  scrollTop.value = (e.target as HTMLDivElement).scrollTop;
+};
+
+const isSelected = (value: SelectValueType) => {
+  if (props.multiple) return multiValue.value.includes(value);
+  return Object.is(value, props.modelValue);
+};
+
+const handleSelect = (option: SelectOption) => {
+  if (props.disabled || option.disabled) return;
+  if (props.multiple) {
+    const current = [...multiValue.value];
+    const idx = current.indexOf(option.value);
+    if (idx >= 0) current.splice(idx, 1);
+    else current.push(option.value);
+    emit('update:modelValue', current);
+  } else {
+    emit('update:modelValue', option.value);
+    open.value = false;
+  }
+  searchTerm.value = '';
+};
+
+const handleClear = (e: Event) => {
+  e.stopPropagation();
+  if (props.disabled) return;
+  if (props.multiple) emit('update:modelValue', []);
+  else emit('update:modelValue', '' as SelectValueType);
+  searchTerm.value = '';
+};
+
+const removeTag = (value: SelectValueType, e: Event) => {
+  e.stopPropagation();
+  if (props.disabled) return;
+  emit(
+    'update:modelValue',
+    multiValue.value.filter((v) => v !== value),
+  );
+};
+
+watch(open, (val) => {
+  if (val) {
+    searchTerm.value = '';
+    scrollTop.value = 0;
+    nextTick(measureMenuWidth);
+    if (props.filterable) {
+      nextTick(() => inputRef.value?.focus());
+    }
+  }
+});
+</script>
+
+<template>
+  <Popover
+    v-model:open="open"
+    trigger="click"
+    side="bottom"
+    :align="props.contentAlign"
+    :side-offset="6"
+    :show-arrow="false"
+    :disabled="props.disabled"
+    content-class="echo-select-content"
+    :content-style="{
+      width: menuWidth === null ? 'var(--reka-popover-trigger-width)' : `${menuWidth}px`,
+    }"
+  >
+    <template #trigger>
+      <Tooltip
+        :content="props.multiple ? selectedTags.map((tag) => tag.label).join('、') : selectedLabel"
+        :overflow-only="!props.multiple && !props.filterable"
+      >
+        <template #trigger>
+          <div
+            ref="triggerRef"
+            :class="['echo-select-trigger', props.class, { 'is-disabled': props.disabled }]"
+            :data-state="open ? 'open' : 'closed'"
+            role="combobox"
+            :tabindex="props.disabled ? -1 : 0"
+            :aria-label="props.ariaLabel"
+            :aria-expanded="open"
+            :aria-disabled="props.disabled"
+            @keydown.enter.self.prevent="!props.disabled && (open = !open)"
+            @keydown.space.self.prevent="!props.disabled && (open = !open)"
+            @keydown.esc.stop.prevent="open = false"
+            @mouseenter="isHovered = true"
+            @mouseleave="isHovered = false"
+          >
+            <!-- 多选标签 -->
+            <div v-if="props.multiple" class="echo-select-tags">
+              <span v-for="tag in visibleTags" :key="String(tag.value)" class="echo-select-tag">
+                <span class="echo-select-tag-text">{{ tag.label }}</span>
+                <span class="echo-select-tag-close" @click="removeTag(tag.value, $event)">
+                  <Icon :icon="iconX" width="10" height="10" />
+                </span>
+              </span>
+              <span v-if="overflowCount > 0" class="echo-select-tag echo-select-tag--count">
+                +{{ overflowCount }}
+              </span>
+              <input
+                v-if="props.filterable"
+                ref="inputRef"
+                v-model="searchTerm"
+                class="echo-select-input"
+                :disabled="props.disabled"
+                :placeholder="selectedTags.length === 0 ? props.placeholder : ''"
+                @keydown.stop
+              />
+              <span v-else-if="selectedTags.length === 0" class="echo-select-placeholder">
+                {{ props.placeholder }}
+              </span>
+            </div>
+            <!-- 单选 -->
+            <template v-else>
+              <input
+                v-if="props.filterable"
+                ref="inputRef"
+                v-model="searchTerm"
+                class="echo-select-input"
+                :disabled="props.disabled"
+                :placeholder="selectedLabel || props.placeholder"
+                @keydown.stop
+              />
+              <span
+                v-else
+                class="echo-select-value"
+                data-tooltip-label
+                :class="{ 'is-placeholder': !selectedLabel }"
+              >
+                {{ selectedLabel || props.placeholder }}
+              </span>
+            </template>
+
+            <!-- 清除 / 箭头 -->
+            <span v-if="showClear" class="echo-select-clear" @click="handleClear">
+              <Icon :icon="iconX" width="12" height="12" />
+            </span>
+            <span v-else class="echo-select-arrow" :class="{ 'is-open': open }">
+              <Icon :icon="iconChevronDown" width="14" height="14" />
+            </span>
+          </div>
+        </template>
+      </Tooltip>
+    </template>
+
+    <div v-if="filteredOptions.length === 0" class="echo-select-empty">无匹配项</div>
+    <div
+      v-else
+      class="echo-select-list"
+      @scroll.passive="handleScroll"
+      @keydown.esc.stop.prevent="open = false"
+    >
+      <div :style="useVirtual ? { height: totalHeight + 'px', position: 'relative' } : {}">
+        <div :style="useVirtual ? { transform: `translateY(${offsetY}px)` } : {}">
+          <Tooltip
+            v-for="option in visibleItems"
+            :key="String(option.value)"
+            :content="option.label"
+            side="left"
+            overflow-only
+            ignore-non-keyboard-focus
+          >
+            <template #trigger>
+              <button
+                type="button"
+                class="echo-select-item"
+                :class="{
+                  'is-selected': isSelected(option.value),
+                  'is-disabled': option.disabled,
+                }"
+                :style="useVirtual ? { height: ITEM_HEIGHT + 'px' } : {}"
+                :disabled="props.disabled || option.disabled"
+                @click="handleSelect(option)"
+              >
+                <span class="echo-select-item-text" data-tooltip-label>{{ option.label }}</span>
+                <span class="echo-select-item-check" aria-hidden="true">{{
+                  isSelected(option.value) ? '✓' : ''
+                }}</span>
+              </button>
+            </template>
+          </Tooltip>
+        </div>
+      </div>
+    </div>
+  </Popover>
+</template>
+
+<style scoped>
+@reference "@/style.css";
+
+.echo-select-trigger {
+  @apply inline-flex h-9 px-3 rounded-xl border text-text-main text-[13px] font-semibold items-center gap-2 transition-all cursor-pointer overflow-hidden;
+  background: var(--control-muted-bg);
+  border-color: var(--control-border);
+}
+
+.echo-select-trigger:hover {
+  background: var(--control-hover-bg);
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--control-border));
+}
+
+.echo-select-trigger[data-state='open'] {
+  background: var(--control-active-bg);
+  border-color: color-mix(in srgb, var(--color-primary) 42%, var(--control-border));
+}
+
+.echo-select-trigger.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.echo-select-trigger:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.echo-select-tags {
+  @apply flex-1 flex items-center flex-wrap gap-1 min-w-0 overflow-hidden;
+}
+
+.echo-select-tag {
+  @apply inline-flex items-center gap-0.5 h-6 px-2 rounded-md bg-primary/10 text-primary-text text-[11px] font-semibold shrink-0;
+}
+
+.echo-select-tag--count {
+  @apply text-text-secondary;
+  background: var(--control-hover-bg);
+}
+
+.echo-select-tag-text {
+  @apply truncate max-w-[80px];
+}
+
+.echo-select-tag-close {
+  @apply flex items-center justify-center w-3.5 h-3.5 rounded-full hover:bg-primary/20 transition-colors cursor-pointer;
+}
+
+.echo-select-input {
+  @apply flex-1 min-w-[40px] h-full bg-transparent text-text-main text-[13px] font-semibold outline-none;
+}
+
+.echo-select-input::placeholder {
+  @apply text-text-main/50 font-semibold;
+}
+
+.echo-select-value {
+  @apply flex-1 truncate text-text-main/80;
+}
+
+.echo-select-value.is-placeholder {
+  @apply text-text-secondary/70;
+}
+
+.echo-select-placeholder {
+  @apply flex-1 text-text-secondary/70 truncate;
+}
+
+.echo-select-clear {
+  @apply flex items-center justify-center w-4 h-4 rounded-full text-text-secondary hover:text-text-main transition-colors cursor-pointer shrink-0;
+  background: var(--control-hover-bg);
+}
+
+.echo-select-arrow {
+  @apply transition-transform duration-200 shrink-0 text-text-secondary;
+}
+
+.echo-select-arrow.is-open {
+  transform: rotate(180deg);
+}
+</style>
+
+<style>
+.echo-select-content {
+  width: var(--reka-popover-trigger-width);
+  max-width: min(480px, calc(100vw - 24px), var(--reka-popover-content-available-width, 100vw));
+  box-sizing: border-box;
+  padding: 6px;
+}
+
+.echo-select-empty {
+  padding: 12px 16px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.echo-select-list {
+  max-height: min(320px, calc(var(--reka-popover-content-available-height, 332px) - 12px));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.echo-select-item {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--color-text-main);
+  background: transparent;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.echo-select-item:hover {
+  background: var(--row-hover-bg);
+}
+
+.echo-select-item.is-selected {
+  color: var(--color-primary-text);
+  background: var(--row-selected-bg);
+}
+
+.echo-select-item.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.echo-select-item.is-disabled:hover {
+  background: transparent;
+}
+
+.echo-select-item-text {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.echo-select-item-check {
+  width: 14px;
+  text-align: center;
+  color: var(--color-primary-text);
+  font-size: 14px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+</style>

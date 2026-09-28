@@ -1,0 +1,1551 @@
+import { ipcRegistry } from './registry';
+import {
+  shell,
+  app,
+  net,
+  session,
+  dialog,
+  type ClientRequest,
+  type IncomingMessage,
+  type OpenDialogOptions,
+  type Session,
+} from 'electron';
+import log from 'electron-log';
+import fs from 'fs';
+import { execFile } from 'child_process';
+import { dirname, extname, join, resolve, sep, basename } from 'path';
+import { autoUpdater, CancellationToken } from 'electron-updater';
+import { getFonts } from 'font-list';
+import { coerce as semverCoerce, gt as semverGt, valid as semverValid } from 'semver';
+import type {
+  AppInfoResult,
+  UpdateCheckResult,
+  UpdateDownloadResult,
+  UpdateInstallResult,
+} from '../../shared/app';
+import type { NetworkSettingsUpdateRequest } from '../../shared/network';
+import {
+  applyGithubAcceleratorUrl,
+  runGithubAcceleratorFallback,
+} from '../../shared/githubAccelerator';
+import {
+  normalizeCommunityAudioResourceUrl,
+  normalizeCommunityImpulseResponseUrl,
+  normalizeCommunityVpfUrl,
+  normalizeAudioEffectName,
+  type CommunityAudioResourceKind,
+  type DownloadCommunityAudioEffectRequest,
+  type DownloadCommunityAudioEffectResult,
+  type ImportImpulseResponseResult,
+  type SpatialAudioEffectEntry,
+} from '../../shared/audio';
+import type { LogSettings } from '../../shared/logging';
+import { formatUpdateCheckError, isUpdateSignatureError } from '../../shared/updateError';
+import { normalizeUpdateNotes, resolveUpdateNotes } from '../../shared/updateNotes';
+import {
+  getMacDmgAsset,
+  MAC_MANUAL_UPDATE_MESSAGE,
+  requiresManualMacUpdate,
+  type GithubReleaseAsset,
+} from '../../shared/manualUpdate';
+import { applyLogSettings, getLogSettings } from '../logger';
+import { getPlaybackQueueStorage } from '../storage/playbackQueues';
+import { setMainAppSetting } from '../storage/settings';
+import { getNetworkSettingsState, updateNetworkSettings } from '../networkSettings';
+import {
+  COMMUNITY_AUDIO_SESSION_PARTITION,
+  attachProxyLoginHandler,
+  getManagedNetworkSession,
+  getProxyCredentials,
+  networkFetch,
+} from '../networkPolicy';
+import {
+  clearUpdateInstallQuitRequested,
+  markUpdateInstallQuitRequested,
+} from '../updateInstallQuit';
+import type { IpcContext } from './types';
+import { createImportedAudioEffectId } from '../audioEffectFiles';
+
+const openLogDirectory = async () => {
+  const logFile = log.transports.file.getFile();
+  const logDir = logFile?.path ? dirname(logFile.path) : '';
+  if (!logDir) return;
+  await shell.openPath(logDir);
+};
+
+const getImpulseResponseDir = () => join(app.getPath('userData'), 'irs');
+const DEFAULT_IMPULSE_RESPONSE_EXTENSION = '.irs';
+const SUPPORTED_IMPULSE_RESPONSE_EXTENSIONS = new Set([
+  '.irs',
+  '.wav',
+  '.wave',
+  '.flac',
+  '.aif',
+  '.aiff',
+  '.caf',
+  '.ogg',
+  '.oga',
+  '.mp3',
+  '.m4a',
+  '.aac',
+  '.opus',
+]);
+const MAX_COMMUNITY_IMPULSE_RESPONSE_BYTES = 32 * 1024 * 1024;
+const MAX_COMMUNITY_VPF_BYTES = 1024 * 1024;
+const VPF_MAGIC = Buffer.from('ViPER4WindowsX', 'ascii');
+// Keep in sync with SECTION_SIZES in native/echo-audio-player/src/vpf.rs.
+const VPF_SECTION_SIZES = [0x170, 0x2e4, 0x2e8, 0x31c] as const;
+const MAX_COMMUNITY_AUDIO_PENDING_WRITE_BYTES = 4 * 1024 * 1024;
+const COMMUNITY_AUDIO_DOWNLOAD_TIMEOUT_MS = 30_000;
+const MAX_COMMUNITY_AUDIO_REDIRECTS = 5;
+const COMMUNITY_REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
+const communityAudioEffectDownloads = new Map<
+  string,
+  Promise<DownloadCommunityAudioEffectResult>
+>();
+
+type GithubRelease = {
+  tag_name?: unknown;
+  name?: unknown;
+  body?: unknown;
+  html_url?: unknown;
+  prerelease?: unknown;
+  draft?: unknown;
+  assets?: unknown;
+};
+
+type LinuxDistribution = {
+  id: string;
+  idLike: string[];
+};
+
+type LinuxPackageType = 'deb' | 'rpm' | 'pacman';
+const UPDATE_INSTALL_EXIT_TIMEOUT_MS = 15000;
+let echoUpdaterSilent = false;
+
+const setEchoSilent = (silent: boolean) => {
+  echoUpdaterSilent = silent;
+};
+
+const getEchoSilent = () => echoUpdaterSilent;
+
+const normalizeOpenExternalUrl = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw) return null;
+
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+};
+
+const readLinuxDistribution = (): LinuxDistribution | null => {
+  if (process.platform !== 'linux') return null;
+  try {
+    const content = fs.readFileSync('/etc/os-release', 'utf-8');
+    const values = new Map<string, string>();
+    for (const line of content.split('\n')) {
+      const match = line.match(/^([A-Z_]+)=(.*)$/);
+      if (!match) continue;
+      values.set(match[1], match[2].trim().replace(/^"(.*)"$/, '$1'));
+    }
+    const id = values.get('ID')?.toLowerCase() || '';
+    const idLike = (values.get('ID_LIKE') || '').toLowerCase().split(/\s+/).filter(Boolean);
+    return { id, idLike };
+  } catch (error) {
+    log.warn('[Updater] Failed to read Linux distribution:', error);
+    return null;
+  }
+};
+
+const isArchLinux = (): boolean => {
+  const distro = readLinuxDistribution();
+  if (!distro) return false;
+  return distro.id === 'arch' || distro.idLike.includes('arch');
+};
+
+const readLinuxPackageType = (): LinuxPackageType | null => {
+  if (process.platform !== 'linux') return null;
+  try {
+    const value = fs.readFileSync(join(process.resourcesPath, 'package-type'), 'utf-8').trim();
+    return value === 'deb' || value === 'rpm' || value === 'pacman' ? value : null;
+  } catch {
+    return null;
+  }
+};
+
+const shouldUseArchManualUpdate = (): boolean => {
+  if (!isArchLinux()) return false;
+  if (process.env.APPIMAGE) return false;
+  return readLinuxPackageType() !== 'pacman';
+};
+
+const requestJson = async <T>(url: string): Promise<T> => {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const response = await networkFetch(url, {
+      signal: controller.signal,
+      headers: { 'User-Agent': 'DakeMusic-Updater', Accept: 'application/json' },
+    });
+    if (!response.ok) throw new Error(`GitHub API returned HTTP ${response.status}`);
+    return (await response.json()) as T;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const normalizeReleaseVersion = (tagName: unknown): string => {
+  const raw = String(tagName || '')
+    .trim()
+    .replace(/^v/i, '');
+  return semverValid(raw) ?? semverCoerce(raw)?.version ?? raw;
+};
+
+const isNewerRelease = (nextVersion: string, currentVersion: string): boolean => {
+  const next = semverValid(nextVersion) ?? semverCoerce(nextVersion)?.version;
+  const current = semverValid(currentVersion) ?? semverCoerce(currentVersion)?.version;
+  if (next && current) return semverGt(next, current);
+  return nextVersion !== currentVersion;
+};
+
+const isArchPacmanPackageName = (name: string): boolean => name.endsWith('.pkg.tar.zst');
+const isElectronUpdaterPacmanPackageName = (name: string): boolean => name.endsWith('.pacman');
+const isPacmanAssetName = (name: string): boolean =>
+  isArchPacmanPackageName(name) || isElectronUpdaterPacmanPackageName(name);
+
+const getArchLinuxPackageAsset = (release: GithubRelease): GithubReleaseAsset | null => {
+  const assets = Array.isArray(release.assets) ? (release.assets as GithubReleaseAsset[]) : [];
+  const archTokens =
+    process.arch === 'x64'
+      ? ['x86_64', 'x64', 'amd64']
+      : process.arch === 'arm64'
+        ? ['arm64', 'aarch64']
+        : [process.arch];
+
+  return (
+    assets.find((asset) => {
+      const name = String(asset.name || '').toLowerCase();
+      return isArchPacmanPackageName(name) && archTokens.some((token) => name.includes(token));
+    }) ??
+    assets.find((asset) => {
+      const name = String(asset.name || '').toLowerCase();
+      return isArchPacmanPackageName(name);
+    }) ??
+    assets.find((asset) => {
+      const name = String(asset.name || '').toLowerCase();
+      return (
+        isElectronUpdaterPacmanPackageName(name) && archTokens.some((token) => name.includes(token))
+      );
+    }) ??
+    assets.find((asset) => {
+      const name = String(asset.name || '').toLowerCase();
+      return isElectronUpdaterPacmanPackageName(name);
+    }) ??
+    assets.find((asset) => {
+      const name = String(asset.name || '').toLowerCase();
+      return (
+        name.endsWith('.tar.gz') &&
+        name.includes('linux') &&
+        archTokens.some((token) => name.includes(token))
+      );
+    }) ??
+    assets.find((asset) => {
+      const name = String(asset.name || '').toLowerCase();
+      return name.endsWith('.tar.gz') && name.includes('linux');
+    }) ??
+    null
+  );
+};
+
+const probeAudioFileWithFfprobe = async (filePath: string): Promise<boolean | null> =>
+  new Promise((resolveProbe) => {
+    execFile(
+      'ffprobe',
+      [
+        '-v',
+        'error',
+        '-select_streams',
+        'a:0',
+        '-show_entries',
+        'stream=codec_type',
+        '-of',
+        'default=noprint_wrappers=1:nokey=1',
+        filePath,
+      ],
+      { timeout: 5000 },
+      (error, stdout) => {
+        if (error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+          resolveProbe(null);
+          return;
+        }
+        if (error) {
+          resolveProbe(false);
+          return;
+        }
+        resolveProbe(stdout.trim().split(/\s+/).includes('audio'));
+      },
+    );
+  });
+
+const isSupportedImpulseResponseAudio = async (filePath: string): Promise<boolean> => {
+  const ffprobeResult = await probeAudioFileWithFfprobe(filePath);
+  if (ffprobeResult !== null) return ffprobeResult;
+
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const buffer = Buffer.alloc(16);
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    if (bytesRead < 4) return false;
+
+    const magic4 = buffer.subarray(0, 4).toString('ascii');
+    const magic3 = buffer.subarray(0, 3).toString('ascii');
+    const brand = buffer.subarray(4, 12).toString('ascii');
+    if (magic4 === 'RIFF' && buffer.subarray(8, 12).toString('ascii') === 'WAVE') return true;
+    if (magic4 === 'caff') return true;
+    if (magic4 === 'fLaC' || magic4 === 'OggS' || magic4 === 'FORM') return true;
+    if (brand.includes('ftyp')) return true;
+    if (magic3 === 'ID3') return true;
+    return buffer[0] === 0xff && (buffer[1] & 0xe0) === 0xe0;
+  } finally {
+    await handle.close();
+  }
+};
+
+const isSupportedVpf = async (filePath: string): Promise<boolean> => {
+  const stat = await fs.promises.stat(filePath);
+  if (!stat.isFile() || stat.size < VPF_MAGIC.length + VPF_SECTION_SIZES.length) return false;
+  if (stat.size > MAX_COMMUNITY_VPF_BYTES) return false;
+  const handle = await fs.promises.open(filePath, 'r');
+  try {
+    const header = Buffer.alloc(VPF_MAGIC.length + VPF_SECTION_SIZES.length);
+    const { bytesRead } = await handle.read(header, 0, header.length, 0);
+    if (bytesRead !== header.length) return false;
+    if (!header.subarray(0, VPF_MAGIC.length).equals(VPF_MAGIC)) return false;
+    const flags = header.subarray(VPF_MAGIC.length);
+    if (!flags.every((value) => value <= 1) || flags[3] !== 1) return false;
+    const expectedSize =
+      header.length +
+      VPF_SECTION_SIZES.reduce((size, sectionSize, index) => {
+        return size + (flags[index] === 1 ? sectionSize : 0);
+      }, 0);
+    return stat.size === expectedSize;
+  } finally {
+    await handle.close();
+  }
+};
+
+const isPathInside = (targetPath: string, parentPath: string): boolean => {
+  const normalizedParent = resolve(parentPath);
+  const normalizedTarget = resolve(targetPath);
+  return (
+    normalizedTarget === normalizedParent ||
+    normalizedTarget.startsWith(`${normalizedParent}${sep}`)
+  );
+};
+
+const importImpulseResponseFile = async (
+  sourcePath: string,
+): Promise<{ file?: SpatialAudioEffectEntry; error?: string }> => {
+  const extension = extname(sourcePath).toLowerCase();
+  const sourceName = basename(sourcePath);
+  const targetExtension = SUPPORTED_IMPULSE_RESPONSE_EXTENSIONS.has(extension)
+    ? extension
+    : DEFAULT_IMPULSE_RESPONSE_EXTENSION;
+
+  const stat = await fs.promises.stat(sourcePath);
+  if (!stat.isFile()) {
+    return { error: `${sourceName}: 请选择有效的音频文件。` };
+  }
+  if (!(await isSupportedImpulseResponseAudio(sourcePath))) {
+    return { error: `${sourceName}: 该文件不是可识别的音频文件。` };
+  }
+
+  const id = await createImportedAudioEffectId(sourcePath);
+  const irsDir = getImpulseResponseDir();
+  await fs.promises.mkdir(irsDir, { recursive: true });
+
+  const targetPath = join(irsDir, `${id}${targetExtension}`);
+  if (resolve(sourcePath) !== resolve(targetPath)) {
+    await fs.promises.copyFile(sourcePath, targetPath);
+  }
+
+  return {
+    file: {
+      id,
+      name: normalizeAudioEffectName(sourceName),
+      size: stat.size,
+      importedAt: Date.now(),
+      format: targetExtension.slice(1),
+      kind: 'imported-ir',
+      impulseResponsePath: targetPath,
+    },
+  };
+};
+
+interface CommunityAudioDownloadResponse {
+  request: ClientRequest;
+  response: IncomingMessage;
+}
+
+interface CommunityAudioNetworkContext {
+  networkSession: Session;
+}
+
+const getCommunityAudioNetworkContext = async (): Promise<CommunityAudioNetworkContext> => {
+  const networkSession = await getManagedNetworkSession(COMMUNITY_AUDIO_SESSION_PARTITION);
+  return { networkSession };
+};
+
+const requestCommunityAudioResource = (
+  sourceUrl: URL,
+  signal: AbortSignal,
+  { networkSession }: CommunityAudioNetworkContext,
+): Promise<CommunityAudioDownloadResponse> =>
+  new Promise((resolve, reject) => {
+    let settled = false;
+    let redirectCount = 0;
+    const request = net.request({
+      url: sourceUrl.toString(),
+      method: 'GET',
+      session: networkSession,
+      redirect: 'manual',
+    });
+
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    };
+    signal.addEventListener(
+      'abort',
+      () => {
+        request.abort();
+        rejectOnce(new Error('download timed out'));
+      },
+      { once: true },
+    );
+    request.on('redirect', (statusCode, _method, redirectUrl) => {
+      if (!COMMUNITY_REDIRECT_STATUSES.has(statusCode)) {
+        rejectOnce(new Error(`unsupported redirect status ${statusCode}`));
+        request.abort();
+        return;
+      }
+      redirectCount += 1;
+      if (redirectCount > MAX_COMMUNITY_AUDIO_REDIRECTS) {
+        rejectOnce(new Error('too many redirects'));
+        request.abort();
+        return;
+      }
+      if (!normalizeCommunityAudioResourceUrl(redirectUrl, null, false)) {
+        rejectOnce(new Error('redirected to an unsupported host'));
+        request.abort();
+        return;
+      }
+      // Electron 要求在 redirect 回调内同步调用，否则会取消请求。
+      request.followRedirect();
+    });
+    request.on('response', (response) => {
+      if (settled) return;
+      settled = true;
+      resolve({ request, response });
+    });
+    request.on('error', rejectOnce);
+    request.on('abort', () => rejectOnce(new Error('request aborted')));
+    attachProxyLoginHandler(request);
+    request.end();
+  });
+
+const getCommunityResponseHeader = (response: IncomingMessage, name: string): string => {
+  const value = response.headers[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] || '' : value || '';
+};
+
+const writeCommunityAudioResource = (
+  request: ClientRequest,
+  response: IncomingMessage,
+  handle: fs.promises.FileHandle,
+  sizeLimit: number,
+): Promise<number> =>
+  new Promise((resolve, reject) => {
+    let size = 0;
+    let failed = false;
+    let pendingWriteBytes = 0;
+    let writeQueue = Promise.resolve();
+    const rejectOnce = (error: unknown) => {
+      if (failed) return;
+      failed = true;
+      request.abort();
+      reject(error);
+    };
+
+    response.on('end', () => {
+      writeQueue.then(() => resolve(size), rejectOnce);
+    });
+    response.on('error', rejectOnce);
+    response.on('aborted', () => rejectOnce(new Error('response aborted')));
+    response.on('data', (chunk) => {
+      if (failed) return;
+      const chunkSize = chunk.byteLength;
+      size += chunkSize;
+      if (size > sizeLimit) {
+        rejectOnce(new Error('file is too large'));
+        return;
+      }
+      if (pendingWriteBytes + chunkSize > MAX_COMMUNITY_AUDIO_PENDING_WRITE_BYTES) {
+        rejectOnce(new Error('disk write backlog is too large'));
+        return;
+      }
+      pendingWriteBytes += chunkSize;
+      writeQueue = writeQueue.then(async () => {
+        try {
+          await handle.writeFile(chunk);
+        } finally {
+          pendingWriteBytes -= chunkSize;
+        }
+      });
+      writeQueue.catch(rejectOnce);
+    });
+  });
+
+const downloadCommunityAudioResourceCandidate = async (
+  sourceUrl: URL,
+  targetPath: string,
+  id: string,
+  kind: CommunityAudioResourceKind,
+  sizeLimit: number,
+): Promise<number> => {
+  const targetDir = dirname(targetPath);
+  await fs.promises.mkdir(targetDir, { recursive: true });
+  const temporaryPath = join(
+    targetDir,
+    `.${id}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.download`,
+  );
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => abortController.abort(), COMMUNITY_AUDIO_DOWNLOAD_TIMEOUT_MS);
+  let handle: fs.promises.FileHandle | null = null;
+
+  try {
+    const networkContext = await getCommunityAudioNetworkContext();
+    const { request, response } = await requestCommunityAudioResource(
+      sourceUrl,
+      abortController.signal,
+      networkContext,
+    );
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      request.abort();
+      throw new Error(`HTTP ${response.statusCode}`);
+    }
+
+    const contentLength = Number(getCommunityResponseHeader(response, 'content-length') || 0);
+    if (contentLength > sizeLimit) {
+      request.abort();
+      throw new Error('file is too large');
+    }
+
+    handle = await fs.promises.open(temporaryPath, 'wx');
+    const size = await writeCommunityAudioResource(request, response, handle, sizeLimit);
+    await handle.close();
+    handle = null;
+
+    const valid =
+      kind === 'vpf'
+        ? await isSupportedVpf(temporaryPath)
+        : await isSupportedImpulseResponseAudio(temporaryPath);
+    if (size === 0 || !valid) {
+      throw new Error('downloaded file is not a supported audio effect resource');
+    }
+    await fs.promises.rename(temporaryPath, targetPath);
+    return size;
+  } catch (error) {
+    if (abortController.signal.aborted) throw new Error('download timed out');
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+    if (handle) await handle.close().catch(() => undefined);
+    await fs.promises.unlink(temporaryPath).catch(() => undefined);
+  }
+};
+
+const uniqueCommunityUrls = (values: unknown, kind: CommunityAudioResourceKind): URL[] => [
+  ...new Map(
+    (Array.isArray(values) ? values : [])
+      .map((value) =>
+        kind === 'vpf'
+          ? normalizeCommunityVpfUrl(value)
+          : normalizeCommunityImpulseResponseUrl(value),
+      )
+      .filter((url): url is URL => url !== null)
+      .map((url) => [url.toString(), url] as const),
+  ).values(),
+];
+
+const downloadCommunityResource = async (
+  sourceUrls: URL[],
+  targetPath: string,
+  id: string,
+  modelId: string,
+  kind: CommunityAudioResourceKind,
+): Promise<number> => {
+  const sizeLimit = kind === 'vpf' ? MAX_COMMUNITY_VPF_BYTES : MAX_COMMUNITY_IMPULSE_RESPONSE_BYTES;
+  let lastError: unknown;
+  for (const sourceUrl of sourceUrls) {
+    try {
+      return await downloadCommunityAudioResourceCandidate(
+        sourceUrl,
+        targetPath,
+        id,
+        kind,
+        sizeLimit,
+      );
+    } catch (error) {
+      lastError = error;
+      log.warn('[Audio] Download community audio effect candidate failed:', {
+        modelId,
+        resourceKind: kind,
+        hostname: sourceUrl.hostname,
+        error,
+      });
+    }
+  }
+  throw lastError ?? new Error('no valid resource candidate');
+};
+
+const performCommunityAudioEffectDownload = async (
+  payload: DownloadCommunityAudioEffectRequest,
+  modelId: string,
+): Promise<DownloadCommunityAudioEffectResult> => {
+  const impulseResponseUrls = uniqueCommunityUrls(payload?.impulseResponseUrls, 'impulse-response');
+  const vpfUrls = uniqueCommunityUrls(payload?.vpfUrls, 'vpf');
+  if (impulseResponseUrls.length === 0 && vpfUrls.length === 0) {
+    return { error: '社区音效地址无效。' };
+  }
+
+  const id = `community-effect-${modelId}`;
+  const name = normalizeAudioEffectName(String(payload?.name ?? '')).slice(0, 120);
+  const communityDir = join(app.getPath('userData'), 'audio-effects');
+  const targetDir = join(communityDir, id);
+  const transactionId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const stagingDir = join(communityDir, `.${id}-${transactionId}.download`);
+  const backupDir = join(communityDir, `.${id}-${transactionId}.backup`);
+  const impulseResponsePath =
+    impulseResponseUrls.length > 0 ? join(targetDir, 'impulse-response.wav') : undefined;
+  const vpfPath = vpfUrls.length > 0 ? join(targetDir, 'effect.vpf') : undefined;
+  const stagingImpulseResponsePath = impulseResponsePath
+    ? join(stagingDir, 'impulse-response.wav')
+    : undefined;
+  const stagingVpfPath = vpfPath ? join(stagingDir, 'effect.vpf') : undefined;
+  await fs.promises.mkdir(communityDir, { recursive: true });
+  await fs.promises.mkdir(stagingDir, { recursive: true });
+
+  try {
+    const impulseResponseSize = stagingImpulseResponsePath
+      ? await downloadCommunityResource(
+          impulseResponseUrls,
+          stagingImpulseResponsePath,
+          id,
+          modelId,
+          'impulse-response',
+        )
+      : 0;
+    const vpfSize = stagingVpfPath
+      ? await downloadCommunityResource(vpfUrls, stagingVpfPath, id, modelId, 'vpf')
+      : 0;
+    let previousPackageMoved = false;
+    try {
+      await fs.promises.rename(targetDir, backupDir);
+      previousPackageMoved = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    try {
+      await fs.promises.rename(stagingDir, targetDir);
+    } catch (error) {
+      if (previousPackageMoved) {
+        await fs.promises.rename(backupDir, targetDir);
+      }
+      throw error;
+    }
+    if (previousPackageMoved) {
+      await fs.promises.rm(backupDir, { recursive: true, force: true }).catch(() => undefined);
+    }
+    const kind = vpfPath
+      ? impulseResponsePath
+        ? 'community-combined'
+        : 'community-vpf'
+      : 'community-ir';
+    return {
+      file: {
+        id,
+        name,
+        size: impulseResponseSize + vpfSize,
+        importedAt: Date.now(),
+        format: vpfPath && !impulseResponsePath ? 'vpf' : 'wav',
+        kind,
+        impulseResponsePath,
+        vpfPath,
+      },
+    };
+  } catch (error) {
+    await fs.promises.rm(stagingDir, { recursive: true, force: true }).catch(() => undefined);
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'download timed out') return { error: '社区音效下载超时。' };
+    return { error: '社区音效下载或校验失败。' };
+  }
+};
+
+const downloadCommunityAudioEffect = async (
+  payload: DownloadCommunityAudioEffectRequest,
+): Promise<DownloadCommunityAudioEffectResult> => {
+  const modelId = String(payload?.modelId ?? '').trim();
+  if (!/^\d{1,20}$/.test(modelId)) return { error: '社区音效地址无效。' };
+
+  const inFlight = communityAudioEffectDownloads.get(modelId);
+  if (inFlight) return inFlight;
+
+  const task = performCommunityAudioEffectDownload(payload, modelId).catch((error) => {
+    log.warn('[Audio] Download community audio effect failed:', { modelId, error });
+    return { error: '社区音效下载或校验失败。' };
+  });
+  communityAudioEffectDownloads.set(modelId, task);
+  try {
+    return await task;
+  } finally {
+    if (communityAudioEffectDownloads.get(modelId) === task) {
+      communityAudioEffectDownloads.delete(modelId);
+    }
+  }
+};
+
+const getAppInfo = (): AppInfoResult => {
+  const version = app.getVersion();
+  return { version, isPrerelease: version.includes('-'), isPackaged: app.isPackaged };
+};
+
+export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContext) => {
+  const manualMacUpdate = requiresManualMacUpdate(process.platform);
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = !manualMacUpdate;
+  autoUpdater.logger = log;
+  autoUpdater.on('login', (authInfo, callback) => {
+    const credentials = getProxyCredentials();
+    if (authInfo.isProxy && credentials) {
+      callback(credentials.username, credentials.password);
+      return;
+    }
+    callback('', '');
+  });
+
+  const isDev = !app.isPackaged;
+
+  // 更新状态的单一可信来源（供渲染层在重新打开弹窗时恢复进度）
+  let lastCheckResult: UpdateCheckResult | null = null;
+  let downloadState: UpdateDownloadResult = { status: 'idle' };
+  let downloadCancellationToken: CancellationToken | null = null;
+  let updateInstallExitTimeout: ReturnType<typeof setTimeout> | null = null;
+  let managedUpdaterOperationCount = 0;
+  let activeUpdateSource = {
+    prerelease: false,
+    acceleratorUrl: '',
+    usingAccelerator: false,
+  };
+
+  const runManagedUpdaterOperation = async <T>(operation: () => Promise<T>): Promise<T> => {
+    managedUpdaterOperationCount += 1;
+    try {
+      return await operation();
+    } finally {
+      managedUpdaterOperationCount -= 1;
+    }
+  };
+
+  const configureGithubUpdateSource = (prerelease: boolean) => {
+    autoUpdater.setFeedURL({
+      provider: "github",
+      owner: "DAKEZZ52",
+      repo: "DakeMusic",
+    });
+    autoUpdater.allowPrerelease = prerelease;
+    activeUpdateSource = {
+      ...activeUpdateSource,
+      prerelease,
+      usingAccelerator: false,
+    };
+  };
+
+  const configureAcceleratedUpdateSource = async (context: {
+    prerelease: boolean;
+    acceleratorUrl: string;
+  }) => {
+    let githubFeedUrl = 'https://github.com/DAKEZZ52/DakeMusic/releases/latest/download';
+    if (context.prerelease) {
+      log.info('[Updater] Fetching latest prerelease tag via GitHub API...');
+      const releases = await requestJson<GithubRelease[]>(
+        'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases?per_page=1&page=1',
+      );
+      const tag = String(releases[0]?.tag_name ?? '').trim();
+      if (!tag) throw new Error('未找到可用的 GitHub 预发布版本');
+      githubFeedUrl = `https://github.com/DAKEZZ52/DakeMusic/releases/download/${tag}`;
+    }
+    const feedUrl = applyGithubAcceleratorUrl(githubFeedUrl, context.acceleratorUrl);
+    if (feedUrl === githubFeedUrl) throw new Error('GitHub 加速地址无效');
+    log.info(`[Updater] Using accelerated feed URL: ${feedUrl}`);
+    autoUpdater.setFeedURL({ provider: 'generic', url: feedUrl });
+    autoUpdater.allowPrerelease = context.prerelease;
+    activeUpdateSource = {
+      ...context,
+      usingAccelerator: true,
+    };
+  };
+
+  const checkForUpdatesWithFallback = async (context: {
+    prerelease: boolean;
+    acceleratorUrl: string;
+  }) => {
+    activeUpdateSource = { ...context, usingAccelerator: false };
+    return runGithubAcceleratorFallback({
+      acceleratorEnabled: Boolean(context.acceleratorUrl),
+      accelerated: async () => {
+        await configureAcceleratedUpdateSource(context);
+        return autoUpdater.checkForUpdates();
+      },
+      github: async () => {
+        configureGithubUpdateSource(context.prerelease);
+        return autoUpdater.checkForUpdates();
+      },
+      onAcceleratorFailure: (error) => {
+        log.warn('[Updater] GitHub accelerator failed, retrying original GitHub:', error);
+      },
+    });
+  };
+
+  const downloadUpdateWithFallback = async (token: CancellationToken) =>
+    runGithubAcceleratorFallback({
+      acceleratorEnabled: activeUpdateSource.usingAccelerator,
+      accelerated: () => autoUpdater.downloadUpdate(token),
+      github: async () => {
+        configureGithubUpdateSource(activeUpdateSource.prerelease);
+        await autoUpdater.checkForUpdates();
+        if (token.cancelled) throw new Error('cancelled');
+        return autoUpdater.downloadUpdate(token);
+      },
+      shouldFallback: (error) => !token.cancelled && !isUpdateSignatureError(error),
+      onAcceleratorFailure: (error) => {
+        log.warn('[Updater] Accelerator download failed, retrying original GitHub:', error);
+      },
+    });
+
+  const clearUpdateInstallExitTimeout = () => {
+    if (!updateInstallExitTimeout) return;
+    clearTimeout(updateInstallExitTimeout);
+    updateInstallExitTimeout = null;
+  };
+
+  const failUpdateInstall = (error: string, source: string) => {
+    clearUpdateInstallExitTimeout();
+    clearUpdateInstallQuitRequested();
+    downloadState = { status: 'error', error };
+    sendToRenderer('update-download-status', downloadState);
+    log.error(`[Updater] ${source}: ${error}`);
+  };
+
+  const scheduleUpdateInstallExitTimeout = () => {
+    clearUpdateInstallExitTimeout();
+    updateInstallExitTimeout = setTimeout(() => {
+      if (downloadState.status !== 'installing') return;
+      failUpdateInstall(
+        '更新安装器已启动但应用未能退出，请关闭 DakeMusic 后重试。',
+        'Install exit timeout',
+      );
+      log.error('[Updater] Force exiting after install quit timeout');
+      app.exit(1);
+    }, UPDATE_INSTALL_EXIT_TIMEOUT_MS);
+    updateInstallExitTimeout.unref?.();
+  };
+
+  const readCurrentVersionChangelog = (): string => {
+    const version = app.getVersion();
+    const changelogPath = isDev
+      ? join(process.cwd(), 'CHANGELOG.md')
+      : join(process.resourcesPath, 'CHANGELOG.md');
+    try {
+      const content = fs.readFileSync(changelogPath, 'utf-8');
+      // 提取顶部声明（第一个 ## 之前，去掉 # 标题行）
+      const headerMatch = content.match(/^([\s\S]*?)(?=\n## \[)/);
+      const header = (headerMatch?.[1] || '').replace(/^#\s+.*$/gm, '').trim();
+      // 提取当前版本的内容（包含 ## 标题行）
+      const escaped = version.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const versionMatch = content.match(
+        new RegExp(`(## \\[${escaped}\\][^\\n]*\\n[\\s\\S]*?)(?=\\n## \\[|$)`),
+      );
+      const versionBody = versionMatch?.[1]?.trim() || '';
+      if (!header && !versionBody) return '';
+      return [header, versionBody].filter(Boolean).join('\n\n');
+    } catch {
+      return '';
+    }
+  };
+
+  const sendToRenderer = (channel: string, data: unknown) => {
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) win.webContents.send(channel, data);
+  };
+
+  const publishAvailableUpdate = (result: UpdateCheckResult, release?: GithubRelease) => {
+    result.notesStatus = result.body?.trim() ? 'ready' : 'loading';
+    lastCheckResult = result;
+    sendToRenderer('update-check-result', result);
+    if (result.notesStatus === 'ready') return;
+    void resolveUpdateNotes(
+      result.latestVersion!,
+      requestJson,
+      async (url) => {
+        const response = await networkFetch(url, { signal: AbortSignal.timeout(10_000) });
+        if (!response.ok) throw new Error(`Changelog HTTP ${response.status}`);
+        return response.text();
+      },
+      release,
+    )
+      .then((body) => {
+        // A newer check may already have replaced this result.
+        if (lastCheckResult !== result) return;
+        result.body = body;
+        result.notesStatus = body ? 'ready' : 'unavailable';
+        sendToRenderer('update-release-notes', result);
+      })
+      .catch((error) => {
+        log.warn('[Updater] Release notes unavailable:', error);
+        if (lastCheckResult !== result) return;
+        result.notesStatus = 'unavailable';
+        sendToRenderer('update-release-notes', result);
+      });
+  };
+
+  // --- autoUpdater 事件 ---
+  autoUpdater.on('update-available', (info) => {
+    const { version: currentVersion } = getAppInfo();
+    const silent = getEchoSilent();
+
+    const body = normalizeUpdateNotes(info.releaseNotes, info.version);
+
+    const result: UpdateCheckResult = {
+      status: 'available',
+      currentVersion,
+      latestVersion: info.version,
+      releaseName: info.releaseName || `v${info.version}`,
+      releaseUrl: `https://github.com/DAKEZZ52/DakeMusic/releases/tag/v${info.version}`,
+      body,
+      silent,
+    };
+    publishAvailableUpdate(result);
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    const { version: currentVersion } = getAppInfo();
+    const silent = getEchoSilent();
+    const result: UpdateCheckResult = {
+      status: 'latest',
+      currentVersion,
+      latestVersion: info.version,
+      releaseName: info.releaseName || `v${info.version}`,
+      releaseUrl: `https://github.com/DAKEZZ52/DakeMusic/releases/tag/v${info.version}`,
+      body: readCurrentVersionChangelog(),
+      silent,
+    };
+    lastCheckResult = result;
+    sendToRenderer('update-check-result', result);
+  });
+
+  autoUpdater.on('error', (error) => {
+    if (managedUpdaterOperationCount > 0) {
+      log.warn('[Updater] Managed operation failed; fallback or caller will handle it:', error);
+      return;
+    }
+    log.error('[Updater] Error:', error);
+    const message = formatUpdateCheckError(error);
+    // 用户主动取消下载导致的错误，静默忽略（token 已被清空，state 已是 idle）
+    if (!downloadCancellationToken && downloadState.status === 'idle') return;
+    // 区分检查阶段与下载阶段的错误，避免下载出错时弹窗被「检查更新失败」覆盖
+    if (downloadState.status === 'downloading' || downloadState.status === 'installing') {
+      downloadCancellationToken = null;
+      if (downloadState.status === 'installing') {
+        clearUpdateInstallExitTimeout();
+        clearUpdateInstallQuitRequested();
+      }
+      downloadState = { status: 'error', error: message };
+      sendToRenderer('update-download-status', downloadState);
+    } else {
+      sendToRenderer('update-check-result', {
+        status: 'error',
+        currentVersion: getAppInfo().version,
+        message: formatUpdateCheckError(error),
+        silent: getEchoSilent(),
+      } satisfies UpdateCheckResult);
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (!downloadCancellationToken || downloadState.status !== 'downloading') return;
+    downloadState = {
+      status: 'downloading',
+      progress: {
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      },
+    };
+    sendToRenderer('update-download-status', downloadState);
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    if (!downloadCancellationToken || downloadState.status !== 'downloading') return;
+    downloadCancellationToken = null;
+    downloadState = { status: 'downloaded' };
+    sendToRenderer('update-download-status', downloadState);
+  });
+
+  const checkManualUpdate = async (payload: {
+    prerelease: boolean;
+    silent: boolean;
+    githubProxyUrl: string;
+  }): Promise<void> => {
+    const { version: currentVersion } = getAppInfo();
+    const releasesUrl = payload.prerelease
+      ? 'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases?per_page=20&page=1'
+      : 'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases/latest';
+
+    const response = payload.prerelease
+      ? await requestJson<GithubRelease[]>(releasesUrl)
+      : await requestJson<GithubRelease>(releasesUrl);
+    const releases = (Array.isArray(response) ? response : [response]).filter(
+      (item) => item && !item.draft && (payload.prerelease || !item.prerelease) && item.tag_name,
+    );
+    const release = releases.reduce<GithubRelease | undefined>((latest, item) => {
+      if (!latest) return item;
+      return isNewerRelease(
+        normalizeReleaseVersion(item.tag_name),
+        normalizeReleaseVersion(latest.tag_name),
+      )
+        ? item
+        : latest;
+    }, undefined);
+
+    if (!release?.tag_name) {
+      throw new Error('未找到可用的 GitHub Release。');
+    }
+
+    const latestVersion = normalizeReleaseVersion(release.tag_name);
+    const releaseUrl =
+      typeof release.html_url === 'string'
+        ? release.html_url
+        : `https://github.com/DAKEZZ52/DakeMusic/releases/tag/${release.tag_name}`;
+
+    if (!isNewerRelease(latestVersion, currentVersion)) {
+      const result: UpdateCheckResult = {
+        status: 'latest',
+        currentVersion,
+        latestVersion,
+        releaseName: String(release.name || release.tag_name || `v${latestVersion}`),
+        releaseUrl,
+        body: readCurrentVersionChangelog(),
+        silent: payload.silent,
+      };
+      lastCheckResult = result;
+      sendToRenderer('update-check-result', result);
+      return;
+    }
+
+    const archiveAsset = manualMacUpdate
+      ? getMacDmgAsset(release.assets, process.arch)
+      : getArchLinuxPackageAsset(release);
+    const archiveName = String(archiveAsset?.name || '').toLowerCase();
+    const isPacmanPackage = isPacmanAssetName(archiveName);
+    const downloadUrl =
+      typeof archiveAsset?.browser_download_url === 'string'
+        ? applyGithubAcceleratorUrl(archiveAsset.browser_download_url, payload.githubProxyUrl)
+        : releaseUrl;
+    const downloadLabel = archiveAsset
+      ? manualMacUpdate
+        ? '下载 DMG 手动更新'
+        : isPacmanPackage
+          ? '下载 pacman 包'
+          : '下载 tar.gz'
+      : '前往发布页下载';
+
+    const result: UpdateCheckResult = {
+      status: 'available',
+      currentVersion,
+      latestVersion,
+      releaseName: String(release.name || release.tag_name || `v${latestVersion}`),
+      releaseUrl,
+      downloadUrl,
+      downloadLabel,
+      manualDownload: true,
+      body: normalizeUpdateNotes((release as any).description || release.body, latestVersion),
+      message: manualMacUpdate
+        ? MAC_MANUAL_UPDATE_MESSAGE
+        : archiveAsset
+          ? isPacmanPackage
+            ? 'Arch Linux 暂不使用内置安装器，请下载 pacman 包后使用 pacman -U 手动安装。'
+            : 'Arch Linux 暂不使用内置安装器，请下载 tar.gz 压缩包后手动替换安装目录。'
+          : 'Arch Linux 暂不使用内置安装器，请前往发布页选择适合当前系统的安装包。',
+      silent: payload.silent,
+    };
+    downloadState = { status: 'idle' };
+    publishAvailableUpdate(result, release);
+    sendToRenderer('update-download-status', downloadState);
+  };
+
+  // --- IPC handlers ---
+  ipcRegistry.registerHandler('app:get-info', () => getAppInfo());
+
+  ipcRegistry.registerHandler('app:get-changelog', () => {
+    const changelogPath = isDev
+      ? join(process.cwd(), 'CHANGELOG.md')
+      : join(process.resourcesPath, 'CHANGELOG.md');
+    try {
+      return fs.readFileSync(changelogPath, 'utf-8');
+    } catch {
+      return '';
+    }
+  });
+
+  ipcRegistry.registerHandler(
+    'audio:import-impulse-response',
+    async (): Promise<ImportImpulseResponseResult> => {
+      const win = getMainWindow();
+      const options: OpenDialogOptions = {
+        title: '导入音效文件',
+        properties: ['openFile', 'multiSelections'],
+        filters: [
+          {
+            name: 'Impulse Response Audio',
+            extensions: [
+              'irs',
+              'wav',
+              'wave',
+              'flac',
+              'aif',
+              'aiff',
+              'caf',
+              'ogg',
+              'oga',
+              'mp3',
+              'm4a',
+              'aac',
+              'opus',
+            ],
+          },
+          { name: 'All Files', extensions: ['*'] },
+        ],
+      };
+      const result = win
+        ? await dialog.showOpenDialog(win, options)
+        : await dialog.showOpenDialog(options);
+
+      if (result.canceled || result.filePaths.length === 0) {
+        return { canceled: true };
+      }
+
+      const files: SpatialAudioEffectEntry[] = [];
+      const errors: string[] = [];
+
+      for (const sourcePath of result.filePaths) {
+        try {
+          const imported = await importImpulseResponseFile(sourcePath);
+          if (imported.file) files.push(imported.file);
+          if (imported.error) errors.push(imported.error);
+        } catch (error) {
+          log.error('[Audio] Import impulse response failed:', { sourcePath, error });
+          errors.push(`${basename(sourcePath)}: 音效文件导入失败。`);
+        }
+      }
+
+      return {
+        canceled: false,
+        file: files[0],
+        files,
+        error: files.length === 0 ? errors[0] || '音效文件导入失败。' : undefined,
+        errors,
+      };
+    },
+  );
+
+  ipcRegistry.registerHandler(
+    'audio:download-community-audio-effect',
+    async (
+      _event,
+      payload: DownloadCommunityAudioEffectRequest,
+    ): Promise<DownloadCommunityAudioEffectResult> => downloadCommunityAudioEffect(payload),
+  );
+
+  ipcRegistry.registerHandler('audio:delete-audio-effect', async (_event, filePath: string) => {
+    if (typeof filePath !== 'string' || !filePath) return false;
+    const irsDir = getImpulseResponseDir();
+    const communityDir = join(app.getPath('userData'), 'audio-effects');
+    if (isPathInside(filePath, communityDir)) {
+      const relative = filePath.slice(resolve(communityDir).length + 1).split(sep);
+      const id = relative[0] || '';
+      if (!/^community-effect-\d{1,20}$/.test(id)) return false;
+      await fs.promises.rm(join(communityDir, id), { recursive: true, force: true });
+      return true;
+    }
+    if (!isPathInside(filePath, irsDir)) return false;
+    try {
+      await fs.promises.unlink(filePath);
+      return true;
+    } catch (error) {
+      log.warn('[Audio] Delete impulse response failed:', error);
+      return false;
+    }
+  });
+
+  ipcRegistry.registerHandler(
+    'audio:reconcile-audio-effects',
+    async (_event, files: SpatialAudioEffectEntry[] = []) => {
+      if (!Array.isArray(files)) return [];
+      const irsDir = getImpulseResponseDir();
+      const communityDir = join(app.getPath('userData'), 'audio-effects');
+      const next: SpatialAudioEffectEntry[] = [];
+      const importedIds = new Set<string>();
+
+      for (const file of files) {
+        if (!file) continue;
+        try {
+          if (
+            file.kind === 'community-ir' ||
+            file.kind === 'community-vpf' ||
+            file.kind === 'community-combined'
+          ) {
+            if (!/^community-effect-\d{1,20}$/.test(file.id)) continue;
+            const targetDir = join(communityDir, file.id);
+            const impulseResponsePath = file.impulseResponsePath;
+            const vpfPath = file.vpfPath;
+            if (file.kind === 'community-ir' && (!impulseResponsePath || vpfPath)) continue;
+            if (file.kind === 'community-vpf' && (impulseResponsePath || !vpfPath)) continue;
+            if (file.kind === 'community-combined' && (!impulseResponsePath || !vpfPath)) continue;
+            let size = 0;
+            if (impulseResponsePath) {
+              if (
+                resolve(impulseResponsePath) !== resolve(join(targetDir, 'impulse-response.wav'))
+              ) {
+                continue;
+              }
+              const stat = await fs.promises.stat(impulseResponsePath);
+              if (
+                !stat.isFile() ||
+                stat.size === 0 ||
+                stat.size > MAX_COMMUNITY_IMPULSE_RESPONSE_BYTES ||
+                !(await isSupportedImpulseResponseAudio(impulseResponsePath))
+              ) {
+                continue;
+              }
+              size += stat.size;
+            }
+            if (vpfPath) {
+              if (resolve(vpfPath) !== resolve(join(targetDir, 'effect.vpf'))) continue;
+              const stat = await fs.promises.stat(vpfPath);
+              if (
+                !stat.isFile() ||
+                stat.size === 0 ||
+                stat.size > MAX_COMMUNITY_VPF_BYTES ||
+                !(await isSupportedVpf(vpfPath))
+              ) {
+                continue;
+              }
+              size += stat.size;
+            }
+            if (!impulseResponsePath && !vpfPath) continue;
+            next.push({ ...file, size });
+            continue;
+          }
+          if (file.kind !== 'imported-ir') continue;
+          const impulseResponsePath = file.impulseResponsePath;
+          if (!impulseResponsePath || file.vpfPath) continue;
+          if (!isPathInside(impulseResponsePath, irsDir)) continue;
+          const stat = await fs.promises.stat(impulseResponsePath);
+          if (!stat.isFile()) continue;
+          if (!(await isSupportedImpulseResponseAudio(impulseResponsePath))) continue;
+          const id = await createImportedAudioEffectId(impulseResponsePath);
+          if (importedIds.has(id)) continue;
+          importedIds.add(id);
+          const format = file.format || extname(impulseResponsePath).replace(/^\./, '');
+          next.push({
+            ...file,
+            id,
+            size: stat.size,
+            format: format || undefined,
+          });
+        } catch {
+          // 文件被手动删除或不可读时，从列表中剔除
+        }
+      }
+
+      return next;
+    },
+  );
+
+  ipcRegistry.registerListener('open-log-directory', async () => {
+    await openLogDirectory();
+  });
+
+  ipcRegistry.registerHandler('logging:get-settings', () => getLogSettings());
+
+  ipcRegistry.registerHandler(
+    'logging:update-settings',
+    (_event, settings: Partial<LogSettings>) => {
+      return applyLogSettings(settings, true);
+    },
+  );
+
+  ipcRegistry.registerListener(
+    'logging:update-settings',
+    (_event, settings: Partial<LogSettings>) => {
+      applyLogSettings(settings, true);
+    },
+  );
+
+  ipcRegistry.registerHandler('network:get-settings', () => getNetworkSettingsState());
+
+  ipcRegistry.registerHandler(
+    'network:update-settings',
+    async (_event, request: NetworkSettingsUpdateRequest) => {
+      const next = await updateNetworkSettings(request);
+      try {
+        await playerRef.current?.setNetwork(next.settings);
+      } catch (error) {
+        log.warn('[Network] Failed to apply player network settings:', error);
+      }
+      return next;
+    },
+  );
+
+  ipcRegistry.registerListener(
+    'check-for-updates',
+    (_event, payload?: { prerelease?: boolean; silent?: boolean; githubProxyUrl?: string }) => {
+      const silent = Boolean(payload?.silent);
+      setEchoSilent(silent);
+      const prerelease = Boolean(payload?.prerelease);
+      const githubProxyUrl = payload?.githubProxyUrl?.trim() || '';
+
+      if (isDev) {
+        sendToRenderer('update-check-result', {
+          status: 'latest',
+          currentVersion: getAppInfo().version,
+          body: readCurrentVersionChangelog(),
+          message: '开发模式下不支持在线更新。',
+          silent,
+        } satisfies UpdateCheckResult);
+        return;
+      }
+
+      if (manualMacUpdate || shouldUseArchManualUpdate()) {
+        checkManualUpdate({ prerelease, silent, githubProxyUrl }).catch((error) => {
+          log.error('[Updater] Manual update check failed:', error);
+          lastCheckResult = {
+            status: 'error',
+            currentVersion: getAppInfo().version,
+            message: formatUpdateCheckError(error),
+            manualDownload: manualMacUpdate,
+            releaseUrl: 'https://github.com/DAKEZZ52/DakeMusic/releases',
+            silent,
+          };
+          sendToRenderer('update-check-result', lastCheckResult);
+        });
+        return;
+      }
+
+      // 已在下载或已下载完成：不重复检查/下载，直接回传当前状态，
+      // 保证再次点击「检查更新」时能复现弹窗并看到真实进度。
+      if (downloadState.status === 'downloading' || downloadState.status === 'downloaded') {
+        if (lastCheckResult) {
+          sendToRenderer('update-check-result', { ...lastCheckResult, silent });
+        }
+        sendToRenderer('update-download-status', downloadState);
+        return;
+      }
+
+      runManagedUpdaterOperation(() =>
+        checkForUpdatesWithFallback({ prerelease, acceleratorUrl: githubProxyUrl }),
+      ).catch((error) => {
+        log.error('[Updater] Check failed:', error);
+        sendToRenderer('update-check-result', {
+          status: 'error',
+          currentVersion: getAppInfo().version,
+          message: formatUpdateCheckError(error),
+          silent,
+        } satisfies UpdateCheckResult);
+      });
+    },
+  );
+
+  ipcRegistry.registerHandler('update:get-state', () => ({
+    checkResult: lastCheckResult,
+    download: downloadState,
+  }));
+
+  ipcRegistry.registerListener('update:cancel-download', () => {
+    if (downloadCancellationToken) {
+      downloadCancellationToken.cancel();
+      downloadCancellationToken = null;
+    }
+    downloadState = { status: 'idle' };
+    sendToRenderer('update-download-status', downloadState);
+  });
+
+  ipcRegistry.registerListener('update:download', () => {
+    if (manualMacUpdate || lastCheckResult?.manualDownload) {
+      downloadState = {
+        status: 'error',
+        error: manualMacUpdate ? MAC_MANUAL_UPDATE_MESSAGE : '请前往发布页下载并手动安装更新。',
+      };
+      sendToRenderer('update-download-status', downloadState);
+      return;
+    }
+    // 防重入：正在下载或已下载完成时忽略，仅回传当前状态
+    if (
+      downloadState.status === 'downloading' ||
+      downloadState.status === 'downloaded' ||
+      downloadState.status === 'installing'
+    ) {
+      sendToRenderer('update-download-status', downloadState);
+      return;
+    }
+    downloadState = {
+      status: 'downloading',
+      progress: { percent: 0, bytesPerSecond: 0, transferred: 0, total: 0 },
+    };
+    sendToRenderer('update-download-status', downloadState);
+    const token = new CancellationToken();
+    downloadCancellationToken = token;
+    runManagedUpdaterOperation(() => downloadUpdateWithFallback(token)).catch((error) => {
+      // 中止后立即重下时，旧下载尝试（如取消）的失败回调不能覆盖新下载：
+      // 仅当 token 仍是当前下载的 token 时才更新错误状态。
+      if (downloadCancellationToken !== token) return;
+      downloadCancellationToken = null;
+      log.error('[Updater] Download failed:', error);
+      downloadState = {
+        status: 'error',
+        error: formatUpdateCheckError(error),
+      };
+      sendToRenderer('update-download-status', downloadState);
+    });
+  });
+
+  ipcRegistry.registerHandler(
+    'update:install',
+    (_event, payload?: { silent?: boolean }): UpdateInstallResult => {
+      if (manualMacUpdate || lastCheckResult?.manualDownload) {
+        return {
+          ok: false,
+          error: manualMacUpdate ? MAC_MANUAL_UPDATE_MESSAGE : '请手动安装下载的更新包。',
+        };
+      }
+      if (downloadState.status !== 'downloaded') {
+        const error = '更新尚未下载完成，请下载完成后再安装。';
+        downloadState = { status: 'error', error };
+        sendToRenderer('update-download-status', downloadState);
+        return { ok: false, error };
+      }
+
+      const isSilent = payload?.silent ?? false;
+      downloadState = { status: 'installing' };
+      sendToRenderer('update-download-status', downloadState);
+      log.info('[Updater] Starting update install', {
+        silent: isSilent,
+        platform: process.platform,
+      });
+      markUpdateInstallQuitRequested();
+      scheduleUpdateInstallExitTimeout();
+
+      try {
+        const updater = autoUpdater as unknown as {
+          install?: (isSilent?: boolean, isForceRunAfter?: boolean) => boolean;
+          autoRunAppAfterInstall?: boolean;
+          quitAndInstall: (isSilent?: boolean, isForceRunAfter?: boolean) => void;
+        };
+
+        if (typeof updater.install === 'function') {
+          const forceRunAfter = isSilent ? true : (updater.autoRunAppAfterInstall ?? true);
+          const started = updater.install(isSilent, forceRunAfter);
+          if (!started) {
+            const error = '更新安装器未能启动，请重新下载或前往发布页手动安装。';
+            failUpdateInstall(error, 'install() returned false');
+            return { ok: false, error };
+          }
+
+          setImmediate(() => {
+            try {
+              app.quit();
+            } catch (error) {
+              const message = error instanceof Error ? error.message : '更新安装退出失败，请重试。';
+              failUpdateInstall(message, 'Quit after install failed');
+            }
+          });
+        } else {
+          updater.quitAndInstall(isSilent, true);
+        }
+
+        return { ok: true };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : '更新安装器启动失败，请前往发布页手动安装。';
+        failUpdateInstall(message, 'Install failed');
+        return { ok: false, error: message };
+      }
+    },
+  );
+
+  ipcRegistry.registerListener('open-external', async (_event, url: string) => {
+    const safeUrl = normalizeOpenExternalUrl(url);
+    if (!safeUrl) {
+      log.warn('[MainIPC] Blocked unsafe external URL:', url);
+      return;
+    }
+    await shell.openExternal(safeUrl);
+  });
+
+  ipcRegistry.registerListener('open-disclaimer', () => {
+    const win = getMainWindow();
+    if (!win) return;
+    win.webContents.send('open-disclaimer');
+  });
+
+  ipcRegistry.registerListener('clear-app-data', async () => {
+    getPlaybackQueueStorage().resetAll();
+    await session.defaultSession.clearCache();
+    await session.defaultSession.clearStorageData();
+    await fs.promises.rm(getImpulseResponseDir(), { recursive: true, force: true });
+  });
+
+  // GPU 加速设置（需重启生效）
+  ipcRegistry.registerListener('update-disable-gpu-acceleration', (_event, disabled: boolean) => {
+    setMainAppSetting('disableGpuAcceleration', Boolean(disabled));
+  });
+
+  // 高 DPI 支持（需重启生效）
+  ipcRegistry.registerListener(
+    'update-high-dpi-settings',
+    (_event, payload: { enabled?: boolean; dpiScale?: number }) => {
+      const dpiScale = Math.min(2, Math.max(0.5, Number(payload?.dpiScale) || 1));
+      setMainAppSetting('highDpiEnabled', Boolean(payload?.enabled));
+      setMainAppSetting('dpiScale', dpiScale);
+    },
+  );
+
+  // 获取系统全部字体
+  ipcRegistry.registerHandler('get-all-fonts', async () => {
+    try {
+      const fonts = await getFonts({ disableQuoting: true });
+      return fonts;
+    } catch (error) {
+      log.error('[Fonts] 获取系统字体失败:', error);
+      return [];
+    }
+  });
+};

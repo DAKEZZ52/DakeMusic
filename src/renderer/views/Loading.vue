@@ -1,0 +1,260 @@
+<script setup lang="ts">
+defineOptions({ name: 'loading-page' });
+import { onMounted, onUnmounted, ref, watch } from 'vue';
+import { useRouter } from 'vue-router';
+import { iconTriangleAlert } from '@/icons';
+import { useDeviceStore } from '@/stores/device';
+import { useToastStore } from '@/stores/toast';
+import { ensureDevice } from '@/utils/device';
+import logger from '@/utils/logger';
+import { finishStartup, markStartup, updateStartupStatus } from '@/utils/startupTiming';
+import Button from '@/components/ui/Button.vue';
+import OverlayHeader from '@/layouts/OverlayHeader.vue';
+import type { ApiServerStatus } from '@/../shared/apiServer';
+
+const router = useRouter();
+const deviceStore = useDeviceStore();
+const toastStore = useToastStore();
+const statusMessage = ref('正在初始化音乐引擎...');
+const hasError = ref(false);
+watch(statusMessage, updateStartupStatus, { immediate: true });
+watch(hasError, (failed) => {
+  if (failed) finishStartup();
+});
+const isDeviceReady = ref(false);
+const hasCompletedStartup = ref(false);
+const canForceEnter = ref(false);
+const forceEnterHint = ref('');
+let isNavigating = false;
+
+const clearForceEnter = () => {
+  canForceEnter.value = false;
+  forceEnterHint.value = '';
+};
+
+const allowForceEnter = (hint: string) => {
+  canForceEnter.value = true;
+  forceEnterHint.value = hint;
+};
+
+const ensureDeviceReady = async () => {
+  if (isDeviceReady.value) {
+    isDeviceReady.value = true;
+    return true;
+  }
+
+  statusMessage.value = deviceStore.info?.dfid ? '正在同步设备信息...' : '正在注册设备信息...';
+
+  try {
+    await ensureDevice();
+  } catch (error) {
+    logger.warn('Loading', 'Device register failed:', error);
+    toastStore.actionFailed('注册设备');
+    return false;
+  }
+
+  if (!deviceStore.info?.dfid) {
+    toastStore.actionFailed('注册设备');
+    return false;
+  }
+
+  isDeviceReady.value = true;
+  logger.info('Loading', 'Device registered', deviceStore.info);
+  return true;
+};
+
+const navigateToHome = () => {
+  if (isNavigating) return;
+  isNavigating = true;
+  router.push('/main/home');
+};
+
+const completeStartup = async () => {
+  if (hasCompletedStartup.value) return;
+  hasCompletedStartup.value = true;
+  clearForceEnter();
+
+  // 检查播放引擎是否可用
+  statusMessage.value = '正在检查播放引擎...';
+  try {
+    const playerReady = await window.electron?.player?.available();
+    if (!playerReady) {
+      logger.error('Loading', 'player engine is not available');
+      statusMessage.value = '播放引擎初始化失败';
+      hasError.value = true;
+      allowForceEnter('仍然进入后可以打开主界面，但播放相关功能可能不可用。');
+      hasCompletedStartup.value = false;
+      return;
+    }
+    logger.info('Loading', 'player engine is available');
+  } catch (error) {
+    logger.error('Loading', 'player availability check failed:', error);
+    statusMessage.value = '播放引擎检查失败';
+    hasError.value = true;
+    allowForceEnter('仍然进入后可以打开主界面，但播放相关功能可能不可用。');
+    hasCompletedStartup.value = false;
+    return;
+  }
+
+  statusMessage.value = '引擎就绪，正在开启音乐世界...';
+  window.setTimeout(() => {
+    navigateToHome();
+  }, 200);
+};
+
+const applyStatus = async (status: ApiServerStatus) => {
+  logger.info('Loading', 'API status', status);
+
+  if (status.state === 'ready') {
+    hasError.value = false;
+    clearForceEnter();
+    try {
+      const deviceReady = await ensureDeviceReady();
+      if (!deviceReady) {
+        logger.error('Loading', 'Device init failed: device register failed');
+        statusMessage.value = '设备注册失败，部分在线功能可能无法正常使用。';
+        hasError.value = true;
+        allowForceEnter('仍然进入后可以使用主界面，但推荐、搜索等在线功能可能受影响。');
+        return;
+      }
+      await completeStartup();
+    } catch (error) {
+      logger.error('Loading', 'Device init failed:', error);
+      statusMessage.value = error instanceof Error ? error.message : String(error);
+      hasError.value = true;
+    }
+    return;
+  }
+
+  // idle 或 failed 都视为需要启动
+  statusMessage.value = status.error || '服务未就绪';
+  hasError.value = true;
+};
+
+const initStatus = async () => {
+  try {
+    let status = await window.electron.apiServer.status();
+
+    // 如果还没就绪，主动触发初始化
+    if (status.state !== 'ready') {
+      statusMessage.value = '正在初始化音乐引擎...';
+      const result = await window.electron.apiServer.start();
+      if (!result?.success) {
+        statusMessage.value = result?.error || '服务启动失败';
+        hasError.value = true;
+        return;
+      }
+      status = await window.electron.apiServer.status();
+    }
+
+    await applyStatus(status);
+  } catch (error) {
+    logger.error('Loading', 'Status init failed:', error);
+    statusMessage.value = '读取启动状态失败';
+    hasError.value = true;
+  }
+};
+
+const retryStart = async () => {
+  hasCompletedStartup.value = false;
+  hasError.value = false;
+  clearForceEnter();
+  statusMessage.value = '正在重新启动...';
+
+  // 尝试重启播放引擎
+  try {
+    await window.electron?.player?.restart();
+  } catch (error) {
+    logger.warn('Loading', 'player restart attempt failed:', error);
+  }
+
+  try {
+    const result = await window.electron.apiServer.start();
+    if (!result?.success) {
+      statusMessage.value = result?.error || '服务启动失败';
+      hasError.value = true;
+      return;
+    }
+    const status = await window.electron.apiServer.status();
+    await applyStatus(status);
+  } catch (error) {
+    logger.error('Loading', 'Retry failed:', error);
+    statusMessage.value = error instanceof Error ? error.message : String(error);
+    hasError.value = true;
+  }
+};
+
+const closeWindow = () => {
+  window.close();
+};
+
+const forceEnterApp = async () => {
+  logger.warn('Loading', 'Force entering app despite startup issue:', statusMessage.value);
+  hasCompletedStartup.value = false;
+  hasError.value = false;
+  clearForceEnter();
+  navigateToHome();
+};
+
+onMounted(async () => {
+  markStartup('loading-mounted');
+  // 提前预加载主界面相关 chunk，利用启动等待时间，缩短跳转后首屏挂载前的等待
+  void import('@/layouts/MainLayout.vue').catch(() => {});
+  void import('@/views/Home.vue').catch(() => {});
+  await initStatus();
+  markStartup('status-check-complete');
+});
+
+onUnmounted(() => {
+  // 清理（保留钩子以备将来扩展）
+});
+</script>
+
+<template>
+  <div
+    class="loading-view h-full w-full relative overflow-hidden bg-bg-main text-text-main select-none transition-colors duration-500"
+  >
+    <OverlayHeader />
+
+    <div class="absolute inset-0 bg-linear-to-b from-bg-sidebar to-bg-main opacity-50"></div>
+
+    <div
+      class="absolute -top-25 -right-25 w-75 h-75 rounded-full bg-primary/5 dark:bg-primary/10 blur-3xl"
+    ></div>
+
+    <main class="startup-main">
+      <div class="startup-mark">
+        <span class="startup-mark-echo">Dake</span>
+        <span class="startup-mark-music">Music</span>
+      </div>
+      <div v-if="!hasError" class="startup-progress">
+        <div class="startup-dots" aria-hidden="true"><i></i><i></i><i></i></div>
+        <p class="startup-status">{{ statusMessage }}</p>
+      </div>
+
+      <div v-else class="flex flex-col items-center space-y-6 px-10">
+        <div class="w-16 h-16 rounded-full bg-red-500/10 flex items-center justify-center mb-2">
+          <Icon class="text-red-500" :icon="iconTriangleAlert" width="32" height="32" />
+        </div>
+        <div class="text-center space-y-2">
+          <h2 class="text-lg font-bold text-red-500/90">
+            {{ canForceEnter ? '启动未完全就绪' : '启动失败' }}
+          </h2>
+          <p class="text-sm text-text-secondary max-w-xs">{{ statusMessage }}</p>
+          <p v-if="forceEnterHint" class="text-xs leading-5 text-text-secondary/80 max-w-xs">
+            {{ forceEnterHint }}
+          </p>
+        </div>
+        <div class="flex flex-wrap justify-center gap-4 pt-6 no-drag">
+          <Button v-if="canForceEnter" variant="primary" size="sm" @click="forceEnterApp">
+            仍然进入
+          </Button>
+          <Button variant="primary" size="sm" @click="retryStart"> 重试启动 </Button>
+          <Button variant="secondary" size="sm" @click="closeWindow"> 退出应用 </Button>
+        </div>
+      </div>
+    </main>
+
+    <footer class="startup-footer">DakeMusic • 音为你而生</footer>
+  </div>
+</template>

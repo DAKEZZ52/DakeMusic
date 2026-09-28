@@ -1,0 +1,676 @@
+name: Build EchoMusic Desktop
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-release:
+    name: Hide Incomplete Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Hide incomplete existing Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          if ! RELEASE_JSON=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" 2>/dev/null); then
+            exit 0
+          fi
+
+          if ! RELEASE_ID=$(jq -er '.id | select(type == "number")' <<< "$RELEASE_JSON"); then
+            exit 0
+          fi
+
+          for metadata in latest.yml latest-mac.yml latest-linux.yml latest-linux-arm64.yml; do
+            if ! jq -e --arg name "$metadata" '(.assets // []) | any(.name == $name)' <<< "$RELEASE_JSON" >/dev/null; then
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=true >/dev/null
+              exit 0
+            fi
+          done
+
+  build:
+    name: Build ${{ matrix.artifact_name }}
+    needs: prepare-release
+    timeout-minutes: 90
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Ad-hoc Mac builds cannot use Squirrel.Mac automatic installation.
+          # Keep src/shared/manualUpdate.ts in manual mode until Developer ID
+          # signing is configured; existing ad-hoc installs need a manual migration.
+          - os: macos-14
+            rust_target: aarch64-apple-darwin
+            electron_builder_args: '--mac --arm64 --config.mac.identity=-'
+            artifact_name: EchoMusic-macOS-arm64
+            artifact_glob: |
+              release/EchoMusic-*.zip
+              release/EchoMusic-*.dmg
+              release/latest-mac.yml
+          - os: macos-14
+            rust_target: x86_64-apple-darwin
+            electron_builder_args: '--mac --x64 --config.mac.identity=-'
+            artifact_name: EchoMusic-macOS-x64
+            artifact_glob: |
+              release/EchoMusic-*.zip
+              release/EchoMusic-*.dmg
+          - os: ubuntu-22.04
+            rust_target: ''
+            electron_builder_args: ''
+            artifact_name: EchoMusic-Linux-x64
+            artifact_glob: |
+              release/EchoMusic-*.AppImage
+              release/EchoMusic-*.deb
+              release/EchoMusic-*.pkg.tar.zst
+              release/EchoMusic-*.rpm
+              release/EchoMusic-*.tar.gz
+              release/latest-linux.yml
+          - os: ubuntu-22.04-arm
+            rust_target: ''
+            electron_builder_args: '--linux --arm64'
+            artifact_name: EchoMusic-Linux-arm64
+            artifact_glob: |
+              release/EchoMusic-*.AppImage
+              release/EchoMusic-*.deb
+              release/EchoMusic-*.pkg.tar.zst
+              release/EchoMusic-*.rpm
+              release/EchoMusic-*.tar.gz
+              release/latest-linux-arm64.yml
+          - os: windows-latest
+            rust_target: ''
+            electron_builder_args: '--win --x64'
+            artifact_name: EchoMusic-Windows-x64
+            artifact_glob: |
+              release/EchoMusic-*-Windows-Setup-x64.exe
+              release/latest.yml
+          - os: windows-11-arm
+            rust_target: ''
+            electron_builder_args: '--win --arm64'
+            artifact_name: EchoMusic-Windows-arm64
+            artifact_glob: |
+              release/EchoMusic-*-Windows-Setup-arm64.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libarchive-tools libasound2-dev libpulse-dev libpipewire-0.3-dev libgtk-3-dev libnotify-dev libnss3 libxss1 libxtst6 xdg-utils
+
+      - name: Install root dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            native/echo-audio-capture
+            native/echo-media-controls
+            native/echo-platform-adaptor
+            native/echo-audio-player
+            native/echo-sqlite-store
+
+      - name: Add Rust cross-compile target
+        if: matrix.rust_target != ''
+        run: rustup target add ${{ matrix.rust_target }}
+
+      - name: Build native addons
+        shell: bash
+        run: |
+          build_addon() {
+            local dir="$1"
+            cd "native/$dir"
+            npm install
+            if [ -n "${{ matrix.rust_target }}" ]; then
+              npx napi build --release --no-const-enum --target ${{ matrix.rust_target }}
+            else
+              npm run build
+            fi
+          }
+          pids=()
+          build_addon echo-audio-capture & pids+=("$!")
+          build_addon echo-media-controls & pids+=("$!")
+          if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
+            build_addon echo-platform-adaptor & pids+=("$!")
+          fi
+          build_addon echo-audio-player & pids+=("$!")
+          build_addon echo-sqlite-store & pids+=("$!")
+
+          status=0
+          for pid in "${pids[@]}"; do
+            wait "$pid" || status=$?
+          done
+          exit "$status"
+
+      - name: Verify macOS ffmpeg player linkage
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          addon="native/echo-audio-player/echo-audio-player.node"
+          if [ ! -f "$addon" ]; then
+            echo "ERROR: ffmpeg player addon not found: $addon"
+            exit 1
+          fi
+
+          otool -L "$addon" | tee /tmp/echo-audio-player-otool.txt
+          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv).*\.(dylib|so)' /tmp/echo-audio-player-otool.txt; then
+            echo "ERROR: ffmpeg player addon unexpectedly links to system FFmpeg/mpv libraries"
+            exit 1
+          fi
+
+      - name: Verify Linux ffmpeg player linkage
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -e
+          addon="native/echo-audio-player/echo-audio-player.node"
+          if [ ! -f "$addon" ]; then
+            echo "ERROR: ffmpeg player addon not found: $addon"
+            exit 1
+          fi
+
+          ldd "$addon" | tee /tmp/echo-audio-player-ldd.txt
+          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv)\.so' /tmp/echo-audio-player-ldd.txt; then
+            echo "ERROR: ffmpeg player addon unexpectedly links to system FFmpeg/mpv libraries"
+            exit 1
+          fi
+
+      - name: Cache server node_modules
+        uses: actions/cache@v4
+        with:
+          path: server/node_modules
+          key: ${{ runner.os }}-${{ runner.arch }}-node20-server-nm-${{ hashFiles('server/package-lock.json') }}
+
+      - name: Install server runtime dependencies
+        working-directory: server
+        shell: bash
+        run: |
+          # server 是外部子模块，其 package-lock.json 常与 package.json 不同步，
+          # 且 devDependencies(tsdown) 与 typescript@4.x 存在 peer 冲突。
+          # 运行时只需 --omit=dev 的依赖，故统一用 npm install + --legacy-peer-deps。
+          # 上一步的 pnpm install 会以 workspace 成员身份在 server 内建立符号链接结构，
+          # 必须先清除，保证 electron-builder 打包的是纯 npm 扁平结构。
+          rm -rf node_modules
+          npm install --omit=dev --no-audit --no-fund --legacy-peer-deps
+
+      - name: Remove server test files
+        working-directory: server
+        shell: bash
+        run: find module -name '*.test.js' -delete
+
+      - name: Configure Windows Defender exclusion
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: 'Add-MpPreference -ExclusionPath "$env:RUNNER_WORKSPACE"'
+
+      - name: Cache electron-builder binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron-builder
+          key: ${{ runner.os }}-electron-builder-${{ hashFiles('package.json') }}
+
+      - name: Build desktop app
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          ELECTRON_BUILDER_BINARIES_MIRROR: https://github.com/electron-userland/electron-builder-binaries/releases/download/
+        run: |
+          pnpm exec vue-tsc --noEmit && pnpm exec vite build
+          pnpm exec electron-builder ${{ matrix.electron_builder_args }} --publish never
+
+      - name: Verify packaged native addons
+        shell: bash
+        run: |
+          set -e
+          addons=(echo-audio-capture echo-media-controls echo-audio-player echo-sqlite-store)
+          if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
+            addons+=(echo-platform-adaptor)
+          fi
+          for addon in "${addons[@]}"; do
+            matches=$(find release \( \
+              -path "*/resources/native/${addon}.node" -o \
+              -path "*/Contents/Resources/native/${addon}.node" \
+            \) -type f -print)
+            if [ -z "$matches" ]; then
+              echo "ERROR: packaged native addon not found: ${addon}.node"
+              find release -maxdepth 4 -type f -name '*.node' -print
+              exit 1
+            fi
+            printf 'Packaged native addon found: %s\n' "$matches"
+          done
+
+      - name: Verify macOS media permission and signature
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -e
+          app_path=$(find release -maxdepth 2 -type d -name '*.app' -print -quit)
+          if [ -z "$app_path" ]; then
+            echo "ERROR: packaged macOS app not found"
+            exit 1
+          fi
+
+          plist="$app_path/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$plist" >/dev/null
+          /usr/libexec/PlistBuddy -c 'Print :NSAudioCaptureUsageDescription' "$plist" >/dev/null
+          codesign -d --entitlements :- "$app_path" > /tmp/echo-music-entitlements.plist
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' /tmp/echo-music-entitlements.plist >/dev/null
+          codesign --verify --deep --strict --verbose=2 "$app_path"
+
+      - name: Normalize and verify Arch Linux package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -e
+          shopt -s nullglob
+          for package_path in release/EchoMusic-*.pacman; do
+            mv "$package_path" "${package_path%.pacman}.pkg.tar.zst"
+          done
+
+          packages=(release/EchoMusic-*.pkg.tar.zst)
+          if [ ${#packages[@]} -eq 0 ]; then
+            echo "ERROR: Arch package artifact was not generated"
+            find release -maxdepth 2 -type f -print
+            exit 1
+          fi
+
+          for package_path in "${packages[@]}"; do
+            pkginfo="$(mktemp)"
+            bsdtar -xOf "$package_path" .PKGINFO > "$pkginfo"
+            if grep -Eq '^depend = (http-parser|ffmpeg|mpv)([<>= ].*)?$' "$pkginfo"; then
+              echo "ERROR: unexpected Arch dependency in $package_path"
+              grep -E '^depend = (http-parser|ffmpeg|mpv)([<>= ].*)?$' "$pkginfo"
+              exit 1
+            fi
+            if ! grep -Eq '^depend = alsa-lib([<>= ].*)?$' "$pkginfo"; then
+              echo "ERROR: Arch package is missing alsa-lib runtime dependency"
+              exit 1
+            fi
+            echo "Verified Arch package metadata: $package_path"
+          done
+
+      - name: Verify bundled Windows executable
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -e
+
+          if [ "${{ runner.arch }}" = "ARM64" ]; then
+            app_exe="release/win-arm64-unpacked/EchoMusic.exe"
+          else
+            app_exe="release/win-unpacked/EchoMusic.exe"
+          fi
+
+          if [ ! -f "$app_exe" ]; then
+            echo "ERROR: bundled app executable not found: $app_exe"
+            echo "=== release directories ==="
+            find release -maxdepth 2 -type d -print
+            echo "=== executable files ==="
+            find release -maxdepth 3 -type f -name '*.exe' -print
+            exit 1
+          fi
+
+          echo "bundled app executable found: $app_exe"
+
+      - name: Verify Windows update metadata
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          set -e
+
+          metadata="release/latest.yml"
+          if [ ! -f "$metadata" ]; then
+            echo "ERROR: Windows update metadata not found: $metadata"
+            find release -maxdepth 2 -type f -print
+            exit 1
+          fi
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const yaml = require('js-yaml');
+
+          const metadataPath = path.join('release', 'latest.yml');
+          const info = yaml.load(fs.readFileSync(metadataPath, 'utf8'));
+          const file = info && Array.isArray(info.files) ? info.files[0] : null;
+
+          if (!file || typeof file.url !== 'string' || file.url.length === 0) {
+            throw new Error('latest.yml is missing files[0].url');
+          }
+          if (typeof file.sha512 !== 'string' || file.sha512.length === 0) {
+            throw new Error('latest.yml is missing files[0].sha512');
+          }
+          if (!Number.isFinite(file.size) || file.size <= 0) {
+            throw new Error('latest.yml is missing a positive files[0].size');
+          }
+
+          const artifactPath = path.join('release', file.url);
+          if (!fs.existsSync(artifactPath)) {
+            throw new Error(`latest.yml points to a missing installer: ${artifactPath}`);
+          }
+
+          const actualSize = fs.statSync(artifactPath).size;
+          if (actualSize !== file.size) {
+            throw new Error(`latest.yml size mismatch: expected ${file.size}, got ${actualSize}`);
+          }
+
+          console.log(`Windows update metadata verified: ${file.url} (${file.size} bytes)`);
+          NODE
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    name: Publish Release Assets
+    timeout-minutes: 20
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: List downloaded artifacts
+        run: find release-artifacts -maxdepth 2 -type f | sort
+
+      - name: Extract changelog for current version
+        id: changelog
+        shell: bash
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          # 提取顶部声明（## 之前的内容，去掉标题行）
+          HEADER=$(awk '/^## \[/ { exit } !/^# / { print }' CHANGELOG.md | sed '/^$/d')
+          # 提取对应版本的内容
+          VERSION_BODY=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]")) found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          if [ -n "$HEADER" ] && [ -n "$VERSION_BODY" ]; then
+            BODY=$(printf '%s\n\n%s' "$HEADER" "$VERSION_BODY")
+          elif [ -n "$VERSION_BODY" ]; then
+            BODY="$VERSION_BODY"
+          else
+            BODY="详见 CHANGELOG.md"
+          fi
+
+          {
+            echo "BODY<<EOF"
+            echo "$BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # action-gh-release creates the Release before uploading its files. Keep it
+      # private while assets are being replaced/uploaded so electron-updater never
+      # observes a version whose latest*.yml metadata is not available yet.
+      - name: Hide existing Release during asset upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          if RELEASE_ID=$(gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" --jq '.id' 2>/dev/null); then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" -F draft=true >/dev/null
+          fi
+
+      - name: Upload assets to draft Release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**
+          body: ${{ steps.changelog.outputs.BODY }}
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          fail_on_unmatched_files: true
+          overwrite_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish completed Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_ID: ${{ steps.release.outputs.id }}
+          IS_PRERELEASE: ${{ contains(github.ref_name, '-') }}
+        run: |
+          set -e
+          gh api --method PATCH "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" \
+            -F draft=false \
+            -F prerelease="$IS_PRERELEASE" >/dev/null
+
+  notify:
+    name: Send Telegram Notification
+    if: startsWith(github.ref, 'refs/tags/') && success()
+    needs:
+      - build
+      - release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build changelog
+        shell: bash
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          CHANGELOG_SUMMARY=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]")) found=1
+              next
+            }
+            found && /^### / { section=substr($0, 5); next }
+            found && /^- / {
+              counts[section]++
+              take = (section == "新增" && picked[section] < 2) ||
+                     (section == "优化" && picked[section] < 1) ||
+                     (section == "修复" && picked[section] < 2)
+              if (take) {
+                text=substr($0, 3)
+                highlights[++highlight_count]=text
+                picked[section]++
+              }
+            }
+            END {
+              if (!found) exit
+              printf "新增 %d · 优化 %d · 修复 %d", counts["新增"], counts["优化"], counts["修复"]
+              for (i=1; i<=highlight_count; i++) printf "\n• %s", highlights[i]
+            }
+          ' CHANGELOG.md \
+            | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+
+          if [ -z "$CHANGELOG_SUMMARY" ]; then
+            CHANGELOG_SUMMARY="完整更新内容请查看 Release"
+          fi
+
+          {
+            echo "CHANGELOG_SUMMARY<<EOF"
+            echo "$CHANGELOG_SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Send Telegram message
+        shell: bash
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TOPIC_ID: ${{ secrets.TELEGRAM_TOPIC_ID }}
+        run: |
+          set -e
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram secrets are missing, skip notification."
+            exit 0
+          fi
+
+          VERSION="${GITHUB_REF_NAME}"
+          REPO="${GITHUB_REPOSITORY}"
+
+          RELEASE_URL="https://github.com/${REPO}/releases/tag/${VERSION}"
+          printf -v MESSAGE '%s\n\n%s\n%s\n\n%s' \
+            "🎉 <b>EchoMusic ${VERSION} 已发布</b>" \
+            "📋 <b>更新摘要</b>" \
+            "${CHANGELOG_SUMMARY}" \
+            "⬇️ <a href=\"${RELEASE_URL}\">下载与完整更新</a>"
+
+          PAYLOAD=$(jq -n \
+            --arg chat_id "$TELEGRAM_CHAT_ID" \
+            --arg text "$MESSAGE" \
+            --arg parse_mode "HTML" \
+            '{chat_id: $chat_id, text: $text, parse_mode: $parse_mode, disable_web_page_preview: true}')
+
+          if [ -n "$TELEGRAM_TOPIC_ID" ]; then
+            PAYLOAD=$(echo "$PAYLOAD" | jq --arg topic_id "$TELEGRAM_TOPIC_ID" '. + {message_thread_id: ($topic_id | tonumber)}')
+          fi
+
+          curl --fail-with-body -sS -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"
+
+  notify-qq:
+    name: Send QQ Group Notification
+    if: startsWith(github.ref, 'refs/tags/') && success()
+    needs:
+      - build
+      - release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build changelog
+        shell: bash
+        run: |
+          set -e
+          VERSION="${GITHUB_REF_NAME#v}"
+          CHANGELOG_SUMMARY=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if (index($0, "[" ver "]")) found=1
+              next
+            }
+            found && /^### / { section=substr($0, 5); next }
+            found && /^- / {
+              counts[section]++
+              take = (section == "新增" && picked[section] < 2) ||
+                     (section == "优化" && picked[section] < 1) ||
+                     (section == "修复" && picked[section] < 2)
+              if (take) {
+                text=substr($0, 3)
+                highlights[++highlight_count]=text
+                picked[section]++
+              }
+            }
+            END {
+              if (!found) exit
+              printf "新增 %d · 优化 %d · 修复 %d", counts["新增"], counts["优化"], counts["修复"]
+              for (i=1; i<=highlight_count; i++) printf "\n• %s", highlights[i]
+            }
+          ' CHANGELOG.md)
+
+          if [ -z "$CHANGELOG_SUMMARY" ]; then
+            CHANGELOG_SUMMARY="完整更新内容请查看 Release"
+          fi
+
+          {
+            echo "CHANGELOG_SUMMARY<<EOF"
+            echo "$CHANGELOG_SUMMARY"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Send QQ group message via OneBot API
+        shell: bash
+        env:
+          QQ_BOT_API: ${{ secrets.QQ_BOT_API }}
+          QQ_GROUP_ID: ${{ secrets.QQ_GROUP_ID }}
+          QQ_BOT_TOKEN: ${{ secrets.QQ_BOT_TOKEN }}
+        run: |
+          set -e
+          if [ -z "$QQ_BOT_API" ] || [ -z "$QQ_GROUP_ID" ]; then
+            echo "QQ Bot secrets are missing, skip QQ notification."
+            exit 0
+          fi
+
+          VERSION="${GITHUB_REF_NAME}"
+          REPO="${GITHUB_REPOSITORY}"
+
+          RELEASE_URL="https://github.com/${REPO}/releases/tag/${VERSION}"
+          MESSAGE=$(printf '🎉 EchoMusic %s 已发布\n\n📋 更新摘要\n%s\n\n⬇️ 下载与完整更新\n%s' \
+            "$VERSION" "$CHANGELOG_SUMMARY" "$RELEASE_URL")
+
+          HEADERS=(-H "Content-Type: application/json")
+          if [ -n "$QQ_BOT_TOKEN" ]; then
+            HEADERS+=(-H "Authorization: Bearer ${QQ_BOT_TOKEN}")
+          fi
+
+          PAYLOAD=$(jq -n \
+            --arg group_id "$QQ_GROUP_ID" \
+            --arg message "$MESSAGE" \
+            '{message_type: "group", group_id: $group_id, message: $message}')
+
+          curl --fail-with-body -sS -X POST "${QQ_BOT_API}/send_msg" \
+            "${HEADERS[@]}" \
+            -d "$PAYLOAD"

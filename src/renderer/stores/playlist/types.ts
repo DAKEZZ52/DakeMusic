@@ -1,0 +1,56 @@
+import type { Song } from '@/models/song';
+
+export type PlaybackQueueType =
+  | 'default'
+  | 'daily-recommend'
+  | 'style-recommend'
+  | 'playlist'
+  | 'ranking'
+  | 'album'
+  | 'artist'
+  | 'search'
+  | 'history'
+  | 'cloud'
+  | 'fm'
+  | 'listen-together'
+  | 'manual'
+  | 'purchased';
+
+export type PersonalFmMode = 'normal' | 'small' | 'peak';
+export type PersonalFmSongPoolId = 0 | 1 | 2;
+
+export interface PlaybackQueueMetaValueMap {
+  [key: string]: string | number | boolean | null | undefined;
+}
+
+export interface PlaybackQueueState {
+  id: string;
+  title: string;
+  subtitle: string;
+  coverUrl: string;
+  type: PlaybackQueueType;
+  songs: Song[];
+  songCount?: number;
+  filteredInvalidCount: number;
+  queuedNextTrackIds: string[];
+  currentTrackId: string | null;
+  /** Runtime-only revision for changes that can alter the next playback decision. */
+  playbackRevision?: number;
+  createdAt: number;
+  updatedAt: number;
+  dynamic: boolean;
+  meta: PlaybackQueueMetaValueMap;
+}
+
+export interface SetPlaybackQueueOptions {
+  queueId?: string;
+  title?: string;
+  subtitle?: string;
+  coverUrl?: string;
+  type?: PlaybackQueueType;
+  dynamic?: boolean;
+  meta?: PlaybackQueueMetaValueMap;
+  activate?: boolean;
+  /** Keep the explicit play-next group while its songs are being repositioned in this queue. */
+  preserveQueuedNext?: boolean;
+}
