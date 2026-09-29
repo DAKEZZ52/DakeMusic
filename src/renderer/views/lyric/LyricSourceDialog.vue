@@ -40,6 +40,9 @@ const previewSerial = ref(0);
 const previewLoading = ref(false);
 const isLoading = ref(false);
 const isApplying = ref(false);
+const isImportingLocal = ref(false);
+const localLyricContent = ref('');
+const localFileInput = ref<HTMLInputElement | null>(null);
 const previewLines = ref<LyricLine[]>([]);
 const previewStaticLines = ref<string[]>([]);
 const previewState = ref({
@@ -58,7 +61,15 @@ const displayedCandidates = computed(() => candidates.value);
 const selectedCandidate = computed(
   () =>
     candidates.value.find((candidate) => getLyricCandidateKey(candidate) === selectedKey.value) ??
-    null,
+    (isLocalSelected.value
+      ? {
+          id: selectedKey.value,
+          product_from: '本地歌词',
+          song: props.title || '本地歌词',
+          singer: props.artist || '',
+          duration: 0,
+        }
+      : null),
 );
 const currentCandidateKey = computed(() => lyricStore.currentCandidateKey);
 const manualCandidateKey = computed(() => {
@@ -104,6 +115,7 @@ const typeLabels = (candidate: LyricSearchCandidate) => {
   const preview = candidatePreview(candidate);
   if (candidate.product_from === '官方推荐歌词') labels.push('官方推荐');
   if (candidate.product_from === '酷狗歌词') labels.push('酷狗');
+  if (candidate.product_from === '本地歌词') labels.push('本地');
   if (preview?.hasTranslation) labels.push('翻译');
   if (preview?.hasRomanization) labels.push('音译');
   if (candidate.krctype === 1) labels.push('逐字');
@@ -116,6 +128,7 @@ const sourceLabel = (candidate: LyricSearchCandidate) => {
   if (candidate.product_from === '官方推荐歌词') return '官方推荐';
   if (candidate.product_from === 'ugc') return '用户上传';
   if (candidate.product_from === '酷狗歌词') return '酷狗歌词';
+  if (candidate.product_from === '本地歌词') return '本地歌词文件';
   return candidate.product_from || '未知来源';
 };
 
@@ -177,6 +190,20 @@ const loadPreview = async () => {
     isScrollable: false,
   };
   if (!candidate) return;
+
+  // 本地歌词直接解析预览，不走在线接口
+  if (isLocalSelected.value && localLyricContent.value) {
+    const lines = parseLrcForPreview(localLyricContent.value);
+    previewLines.value = lines;
+    previewStaticLines.value = lines.length === 0 ? getStaticLyricLines(localLyricContent.value) : [];
+    previewState.value = {
+      hasTranslation: false,
+      hasRomanization: false,
+      lineCount: lines.length || previewStaticLines.value.length,
+      isScrollable: lines.length > 0,
+    };
+    return;
+  }
 
   const serial = previewSerial.value + 1;
   previewSerial.value = serial;
@@ -242,6 +269,105 @@ const applySelected = async () => {
   }
 };
 
+// ===== 本地歌词导入 =====
+const triggerLocalFilePicker = () => {
+  localFileInput.value?.click();
+};
+
+const handleLocalFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  isImportingLocal.value = true;
+  try {
+    const text = await file.text();
+    localLyricContent.value = text;
+    // 构造一个本地歌词候选并选中
+    const localKey = `local:${normalizedHash.value}`;
+    const localCandidate: LyricSearchCandidate = {
+      id: localKey,
+      product_from: '本地歌词',
+      song: props.title || file.name.replace(/\.[^.]+$/, ''),
+      singer: props.artist || '',
+      duration: 0,
+    };
+    // 存入候选预览 map 供预览
+    const parsed = lyricStore.candidatePreviewMap[localKey];
+    if (!parsed) {
+      // 临时解析预览
+      const lines = parseLrcForPreview(text);
+      previewLines.value = lines;
+      previewStaticLines.value = lines.length === 0 ? getStaticLyricLines(text) : [];
+      previewState.value = {
+        hasTranslation: false,
+        hasRomanization: false,
+        lineCount: lines.length || previewStaticLines.value.length,
+        isScrollable: lines.length > 0,
+      };
+    }
+    selectedKey.value = localKey;
+    // 把本地候选加入候选列表（通过 store 的特殊处理）
+    (lyricStore.candidates as LyricSearchCandidate[]).unshift(localCandidate);
+    toastStore.success(`已导入本地歌词：${file.name}`);
+  } catch {
+    toastStore.actionFailed('导入本地歌词失败');
+  } finally {
+    isImportingLocal.value = false;
+    if (input) input.value = '';
+  }
+};
+
+// 简易 LRC 解析用于预览
+const parseLrcForPreview = (lrc: string): LyricLine[] => {
+  const lines: LyricLine[] = [];
+  const lineRegex = /\[(\d+):(\d+)(?:\.(\d+))?\](.*)/;
+  for (const rawLine of lrc.split(/\r?\n/)) {
+    const match = rawLine.match(lineRegex);
+    if (!match) continue;
+    const minutes = Number(match[1]);
+    const seconds = Number(match[2]);
+    const ms = match[3] ? Number(match[3].padEnd(3, '0').slice(0, 3)) : 0;
+    const time = minutes * 60 + seconds + ms / 1000;
+    const text = match[4].trim();
+    if (!text) continue;
+    const startTime = Math.round(time * 1000);
+    lines.push({
+      time,
+      text,
+      characters: [{ text, startTime, endTime: startTime + 1000, highlighted: false }],
+    });
+  }
+  return lines;
+};
+
+const applyLocalLyric = async () => {
+  if (!normalizedHash.value || !localLyricContent.value) return;
+  isApplying.value = true;
+  try {
+    const ok = await lyricStore.applyLocalLyric(normalizedHash.value, localLyricContent.value, {
+      remember: true,
+      songName: props.title || '',
+      artist: props.artist || '',
+    });
+    if (!ok) {
+      toastStore.actionFailed('应用本地歌词失败');
+      return;
+    }
+    toastStore.success('本地歌词已应用');
+    open.value = false;
+  } catch {
+    toastStore.actionFailed('应用本地歌词失败');
+  } finally {
+    isApplying.value = false;
+  }
+};
+
+const isLocalSelected = computed(() => selectedKey.value.startsWith('local:'));
+const canApply = computed(() => {
+  if (isLocalSelected.value) return Boolean(localLyricContent.value);
+  return Boolean(selectedCandidate.value);
+});
+
 const restoreAuto = async () => {
   if (!normalizedHash.value) return;
   isApplying.value = true;
@@ -300,6 +426,15 @@ watch(selectedKey, () => {
           <Icon :icon="iconRefreshCw" width="14" height="14" />
         </Button>
       </div>
+
+      <!-- 隐藏的文件选择器 -->
+      <input
+        ref="localFileInput"
+        type="file"
+        accept=".lrc,.txt"
+        style="display: none"
+        @change="handleLocalFileChange"
+      />
 
       <div class="source-layout">
         <div class="candidate-list">
@@ -460,12 +595,25 @@ watch(selectedKey, () => {
       <Button
         variant="ghost"
         size="sm"
+        :loading="isImportingLocal"
+        @click="triggerLocalFilePicker"
+      >
+        导入本地歌词
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
         :disabled="!canRestoreAuto || isApplying"
         @click="restoreAuto"
       >
         使用智能推荐
       </Button>
-      <Button :loading="isApplying" :disabled="!selectedCandidate" size="sm" @click="applySelected">
+      <Button
+        :loading="isApplying"
+        :disabled="!canApply"
+        size="sm"
+        @click="isLocalSelected ? applyLocalLyric() : applySelected()"
+      >
         应用
       </Button>
     </template>
@@ -735,6 +883,12 @@ watch(selectedKey, () => {
   color: #1a8cd8;
   background: rgba(26, 140, 216, 0.1);
   border-color: rgba(26, 140, 216, 0.25);
+}
+
+.candidate-tags .local {
+  color: #059669;
+  background: rgba(5, 150, 105, 0.1);
+  border-color: rgba(5, 150, 105, 0.25);
 }
 
 .candidate-tags .translation,

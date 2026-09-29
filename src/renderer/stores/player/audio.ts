@@ -76,7 +76,7 @@ export const createAudioManager = (
   };
 
   const setAudioEffect = (effect: AudioEffectValue) => {
-    if (state.audioEffectApplying || isSourceSwitching()) return;
+    if (state.audioEffectApplying) return;
     const nextEffect = normalizeEffect(effect);
     if (
       state.audioEffect === nextEffect &&
@@ -91,7 +91,7 @@ export const createAudioManager = (
     }
     state.audioEffectError = '';
     state.audioEffectApplying = true;
-    void refreshCurrentTrack({ seamless: true }).finally(() => {
+    void refreshCurrentTrack().finally(() => {
       state.audioEffectApplying = false;
     });
   };

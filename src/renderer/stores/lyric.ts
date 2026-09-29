@@ -403,6 +403,28 @@ const resolveLyricColor = (value: string, fallback: string): string => {
   return value || fallback;
 };
 
+
+const normalizeLrcContent = (raw: string): string => {
+  const text = String(raw ?? "").replace(/^\uFEFF/, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  const lines: string[] = [];
+  const timestampRegex = /\[(\d+):(\d+)(?:\.(\d+))?\]/g;
+  for (const rawLine of text.split("\n")) {
+    const line = rawLine.trim();
+    if (!line) continue;
+    const timestamps: Array<{ mm: string; ss: string; ms: string }> = [];
+    let match: RegExpExecArray | null;
+    timestampRegex.lastIndex = 0;
+    while ((match = timestampRegex.exec(line)) !== null) {
+      timestamps.push({ mm: match[1], ss: match[2], ms: (match[3] || "0").padEnd(2, "0").slice(0, 2) });
+    }
+    const lyricText = line.replace(/\[\d+:\d+(?:\.\d+)?\]/g, "").trim();
+    if (timestamps.length === 0) { lines.push(line); }
+    else if (timestamps.length === 1) { const t = timestamps[0]; lines.push(`[${t.mm}:${t.ss}.${t.ms}]${lyricText}`); }
+    else { for (const t of timestamps) { lines.push(`[${t.mm}:${t.ss}.${t.ms}]${lyricText}`); } }
+  }
+  return lines.join("\n");
+};
+
 const parseLyricDetailPayload = (payload: LyricDetailResponse): ParsedLyricPreview => {
   const content = String(payload.decodeContent ?? payload.lyric ?? '')
     .replace(/^\uFEFF/, '')
@@ -688,6 +710,7 @@ export const useLyricStore = defineStore('lyric', {
     autoCandidateKey: '',
     currentCandidateKey: '',
     manualLyricMap: {} as Record<string, ManualLyricSelection>,
+    localLyricMap: {} as Record<string, string>,
     // 每首歌的歌词时间偏移（毫秒），key 为歌曲 hash/id
     timeOffsetMap: {} as Record<string, number>,
   }),
@@ -1047,6 +1070,49 @@ export const useLyricStore = defineStore('lyric', {
       }
       return true;
     },
+    /**
+     * 应用本地 LRC 歌词文件内容。
+     * 用于用户手动导入 .lrc 文件，直接解析并显示，不依赖在线接口。
+     */
+    async applyLocalLyric(
+      hash: string,
+      lrcContent: string,
+      options?: { remember?: boolean; songName?: string; artist?: string },
+    ): Promise<boolean> {
+      const normalizedHash = String(hash ?? '').trim();
+      const content = normalizeLrcContent(String(lrcContent ?? ""));
+      if (!normalizedHash || !content) return false;
+
+      const localKey = `local:${normalizedHash}`;
+      this.parseLyricContent({ decodeContent: content }, normalizedHash, { detailResolved: true });
+      this.currentCandidateKey = localKey;
+
+      // 构造一个本地歌词候选，存入 manualLyricMap 以便恢复和显示
+      const localCandidate: LyricSearchCandidate = {
+        id: localKey,
+        product_from: '本地歌词',
+        song: options?.songName || '本地歌词',
+        singer: options?.artist || '',
+        duration: 0,
+      };
+      if (options?.remember) {
+        this.manualLyricMap[normalizedHash] = compactCandidate(localCandidate);
+        this.localLyricMap[normalizedHash] = content;
+      }
+
+      // 缓存结果，避免重复解析
+      const cacheKey = getLyricResultCacheKey(normalizedHash, localCandidate);
+      rememberLyricResult(cacheKey, {
+        detail: { decodeContent: content },
+        currentCandidateKey: localKey,
+      });
+
+      // 同时存入候选详情，供弹窗预览使用
+      this.candidateDetailMap[localKey] = { decodeContent: content };
+      this.candidatePreviewMap[localKey] = parseLyricDetailPayload({ decodeContent: content });
+
+      return true;
+    },
     async restoreAutoLyric(
       hash: string,
       options?: { duration?: number; albumAudioId?: string | number },
@@ -1054,6 +1120,7 @@ export const useLyricStore = defineStore('lyric', {
       const normalizedHash = String(hash ?? '').trim();
       if (!normalizedHash) return;
       delete this.manualLyricMap[normalizedHash];
+      delete this.localLyricMap[normalizedHash];
       this.currentCandidateKey = '';
       await this.fetchLyrics(normalizedHash, {
         duration: options?.duration,
@@ -1150,6 +1217,15 @@ export const useLyricStore = defineStore('lyric', {
         if (cached) {
           this.parseLyricContent(cached.detail, normalizedHash, { detailResolved: true });
           this.currentCandidateKey = cached.currentCandidateKey;
+          return;
+        }
+
+        // ===== 本地歌词优先：用户导入的 .lrc 文件直接使用，不走任何在线接口 =====
+        const localContent = this.localLyricMap[normalizedHash];
+        if (localContent && !options?.force) {
+          const localKey = `local:${normalizedHash}`;
+          this.parseLyricContent({ decodeContent: normalizeLrcContent(localContent) }, normalizedHash, { detailResolved: true });
+          this.currentCandidateKey = localKey;
           return;
         }
 
@@ -1310,6 +1386,7 @@ export const useLyricStore = defineStore('lyric', {
       'unplayedColor',
       'timeOffsetMap',
       'manualLyricMap',
+      'localLyricMap',
     ],
   },
 });

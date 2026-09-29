@@ -1,6 +1,6 @@
 {
   "name": "dake-music",
-  "version": "2.1.0",
+  "version": "2.1.2",
   "description": "DakeMusic desktop client.",
   "license": "GPL-3.0-only",
   "author": {
@@ -94,7 +94,7 @@
         "repo": "DakeMusic"
       }
     ],
-    "compression": "maximum",
+    "compression": "normal",
     "removePackageScripts": true,
     "removePackageKeywords": true,
     "npmRebuild": false,
@@ -116,6 +116,13 @@
       "!**/*.map"
     ],
     "extraResources": [
+      {
+        "from": "build/icons",
+        "to": "icons",
+        "filter": [
+          "**/*"
+        ]
+      },
       {
         "from": "native/echo-media-controls/echo-media-controls.node",
         "to": "native/echo-media-controls.node",
