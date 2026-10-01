@@ -83,15 +83,13 @@ const isActive = computed(() => playerStore.pitch !== 0 || player.playbackRate !
     <div class="space-y-4">
       <!-- 升降调（上） -->
       <div class="space-y-3">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-1.5">
-            <span class="text-[11px] font-bold opacity-50">升降调</span>
-                          <span class="text-[10px] opacity-30">原调唱不了？</span>
-          </div>
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-[11px] font-bold opacity-50 shrink-0">升降调</span>
+          <span class="text-[10px] opacity-30 text-center flex-1 leading-tight whitespace-normal">我曾是小孩，如今已成巨人</span>
           <Button
             variant="unstyled"
             size="none"
-            class="text-[13px] font-extrabold px-1.5 py-0.5 rounded-md transition-colors"
+            class="text-[13px] font-extrabold px-1.5 py-0.5 rounded-md transition-colors shrink-0"
             :class="playerStore.pitch === 0 ? 'opacity-40' : 'hover:bg-[var(--control-hover-bg)]'"
             @click="resetPitch"
             >{{ pitchDisplay }}</Button

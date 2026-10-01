@@ -101,6 +101,18 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '偏好设置' },
       },
       {
+        path: 'chatroom',
+        name: 'chatroom-list',
+        component: () => import('@/views/chatroom/ChatRoomList.vue'),
+        meta: { title: '聊天房' },
+      },
+      {
+        path: 'chatroom/room',
+        name: 'chatroom',
+        component: () => import('@/views/chatroom/ChatRoom.vue'),
+        meta: { title: '聊天房' },
+      },
+      {
         path: 'settings/plugins',
         name: 'plugin-management',
         component: () => import('@/views/PluginManagement.vue'),

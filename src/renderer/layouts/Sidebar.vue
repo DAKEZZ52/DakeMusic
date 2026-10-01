@@ -189,6 +189,22 @@ const builtinSidebarSections = [
     ],
   },
   {
+    id: 'social',
+    title: '社交',
+    order: 150,
+    collapsible: true,
+    items: [
+      {
+        id: 'chatroom',
+        key: 'chatroom',
+        title: '聊天房',
+        path: '/main/chatroom',
+        builtinIcon: 'sparkles' as const,
+        order: 10,
+      },
+    ],
+  },
+  {
     id: 'library',
     title: '我的乐库',
     order: 200,
