@@ -1,11 +1,11 @@
-# EchoMusic
+# DakeMusic
 
 <p align="center">
   <img src="build/icons/icon.png" width="128" height="128" alt="DakeMusic Logo">
 </p>
 
 <p align="center">
-  <strong>EchoMusic</strong> —— 一个专为桌面端打造的简约、精致、功能强大的第三方音乐播放器。
+  <strong>DakeMusic</strong> —— 一个专为桌面端打造的简约、精致、功能强大的第三方音乐播放器。
 </p>
 
 <p align="center">

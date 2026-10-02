@@ -112,6 +112,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/chatroom/ChatRoom.vue'),
         meta: { title: '聊天房' },
       },
+      {        path: 'chatroom/profile',        name: 'chatroom-profile',        component: () => import('@/views/chatroom/ProfilePage.vue'),        meta: { title: '个人中心' },      },
       {
         path: 'settings/plugins',
         name: 'plugin-management',

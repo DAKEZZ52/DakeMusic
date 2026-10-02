@@ -10,6 +10,8 @@ import Sidebar from './Sidebar.vue';
 import { iconChevronLeft, iconChevronRight } from '@/icons';
 import TitleBar from './TitleBar.vue';
 import PlayerBar from './PlayerBar.vue';
+import ChatRoomFloating from '@/views/chatroom/ChatRoomFloating.vue';
+
 
 const gradientRef = ref<HTMLElement | null>(null);
 // Track the resolved size, including plugin overrides in px/%/vh, for sticky slices.
@@ -241,7 +243,7 @@ watch(
       <PlayerBar />
     </div>
   </div>
-</template>
+<ChatRoomFloating /></template>
 
 <style scoped>
 .main-layout {
@@ -293,4 +295,5 @@ watch(
 .sidebar-divider-toggle:focus-visible :deep(svg) {
   opacity: 1;
 }
+
 </style>

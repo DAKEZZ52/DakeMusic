@@ -725,7 +725,7 @@ watch(
         <div class="dake-egg-popup-title">恭喜你触发，开发者彩蛋！</div>
         <div class="dake-egg-popup-text">联系开发者，请发送设备IP！</div>
         <div class="dake-egg-popup-text">路径:设置>实验>用户>设备IP</div>
-        <div class="dake-egg-popup-qq">QQ：983064062</div>
+        
         <button class="dake-egg-confirm" @click="closeDakeEgg">确定</button>
       </div>
     </div>
