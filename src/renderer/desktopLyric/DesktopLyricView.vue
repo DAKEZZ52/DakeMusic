@@ -1378,7 +1378,7 @@ onBeforeUnmount(() => {
           class="menu-btn lock-btn"
           @click.stop="toggleLyricLock"
         >
-          <Icon :icon="isLocked ? iconLockOpen : iconLock" width="20" height="20" />
+          <Icon :icon="isLocked ? iconLock : iconLockOpen" width="20" height="20" />
         </button>
         <button class="menu-btn" @click.stop="closeWindow">
           <Icon :icon="iconX" width="20" height="20" />

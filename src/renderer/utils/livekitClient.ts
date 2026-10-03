@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 语聊房模块
+ * 作者：知之Dake
+ * 文件：livekitClient.ts
+ * 描述：LiveKit 音视频客户端封装 - 房间连接/成员管理/消息收发/设备管理
+ */
 import {
   Room,
   RoomEvent,
@@ -20,12 +26,14 @@ export interface ChatMessage {
 
 export interface RoomMember {
   identity: string;
-  name: string;
+  name: string;         // 昵称（显示用）
+  account?: string;     // 登录账号（小字灰色展示，可为空）
   avatar: string;
   isMuted: boolean;
   isSpeaking: boolean;
   isLocal: boolean;
   isOwner: boolean;
+  isAdmin?: boolean;    // 房间管理员（非房主）
 }
 
 export interface LiveKitClientCallbacks {
@@ -44,6 +52,7 @@ export interface LiveKitClientCallbacks {
 export class LiveKitClient {
   private room: Room | null = null;
   private callbacks: LiveKitClientCallbacks = {};
+  private muteSyncTimer: any = null;
   private localIdentity: string = '';
   private localName: string = '';
   private ownerIdentity: string = '';
@@ -61,9 +70,14 @@ export class LiveKitClient {
     userName: string,
     options?: { ownerIdentity?: string; token?: string; identity?: string },
   ): Promise<void> {
-    // 进新房间前确保旧房间已断开，防止串房
+    // 进新房间前确保旧房间已断开，防止串房（最多等1秒，避免卡顿）
     if (this.room) {
-      try { await this.room.disconnect(); } catch {}
+      try {
+        await Promise.race([
+          this.room.disconnect(),
+          new Promise(r => setTimeout(r, 1000)),
+        ]);
+      } catch {}
       this.room = null as any;
     }
     this.localName = userName;
@@ -113,8 +127,18 @@ export class LiveKitClient {
   }
 
   async leaveRoom(): Promise<void> {
+    if (this.muteSyncTimer) { clearInterval(this.muteSyncTimer); this.muteSyncTimer = null; }
     if (this.room) {
-      this.sendSystemMessage(`${this.localName} 离开了房间`);
+      // 发完「离开了房间」再断线：否则 publishData 还没发出去连接就断了，别人收不到提示
+      // 加 150ms 超时保护，避免网络异常时退房卡顿
+      try {
+        await Promise.race([
+          this.sendSystemMessage(`${this.localName} 离开了房间`),
+          new Promise<void>((r) => setTimeout(r, 150)),
+        ]);
+      } catch (e) {
+        console.warn("[LiveKit] 发送离开消息失败 (ignorable):", e);
+      }
       try {
         await this.room.disconnect();
       } catch (e) {
@@ -127,22 +151,19 @@ export class LiveKitClient {
 
   async setMicrophoneEnabled(enabled: boolean): Promise<void> {
     if (!this.room) return;
+    const lp = this.room.localParticipant;
+    // 先尝试官方 API，失败则用底层方式兜底（兼容不同 livekit-client 版本）
     try {
-      const lp = this.room.localParticipant;
-      const hasAudio = Array.from(lp.audioTrackPublications.values()).length > 0;
-      if (!enabled && !hasAudio) return;
       await lp.setMicrophoneEnabled(enabled);
-      // 兜底：闭麦时直接禁用所有本地音频 track，防止 API 调用失败但 track 还在发送
-      if (!enabled) {
-        for (const pub of lp.audioTrackPublications.values()) {
-          const t = pub.track;
-          if (t?.mediaStreamTrack) {
-            try { t.mediaStreamTrack.enabled = false; } catch {}
-          }
-        }
-      }
     } catch (e) {
-      console.warn('[LiveKit] setMicrophoneEnabled 失败:', e);
+      console.warn('[LiveKit] setMicrophoneEnabled 失败，用底层方式兜底:', e);
+    }
+    // 无论 API 是否成功，都强制确保 track 状态正确（防止 API 报错但 track 还在发送/停止）
+    for (const pub of lp.audioTrackPublications.values()) {
+      const t = pub.track;
+      if (t?.mediaStreamTrack) {
+        try { t.mediaStreamTrack.enabled = enabled; } catch {}
+      }
     }
   }
 
@@ -163,6 +184,12 @@ export class LiveKitClient {
   private parseAvatar(metadata: string | undefined): string {
     if (!metadata) return '';
     try { return JSON.parse(metadata).avatar || ''; } catch { return ''; }
+  }
+
+  /** 从 participant.metadata 解析登录账号（后端 join 时写入） */
+  private parseAccount(metadata: string | undefined): string {
+    if (!metadata) return '';
+    try { return JSON.parse(metadata).account || ''; } catch { return ''; }
   }
 
   async sendMessage(content: string): Promise<void> {
@@ -213,6 +240,7 @@ export class LiveKitClient {
       identity: local.identity,
       name: local.name || '未知用户',
       avatar: this.parseAvatar(local.metadata),
+      account: this.parseAccount(local.metadata),
       isMuted: !local.isMicrophoneEnabled,
       isSpeaking: local.isSpeaking,
       isLocal: true,
@@ -224,6 +252,7 @@ export class LiveKitClient {
         identity: p.identity,
         name: p.name || '未知用户',
         avatar: this.parseAvatar(p.metadata),
+        account: this.parseAccount(p.metadata),
         isMuted: !p.isMicrophoneEnabled,
         isSpeaking: p.isSpeaking,
         isLocal: false,
@@ -284,35 +313,42 @@ export class LiveKitClient {
         if (!topic && args[1]?.dataPacketInfo?.topic) topic = args[1].dataPacketInfo.topic;
         const decoder = new TextDecoder();
         const data = JSON.parse(decoder.decode(payload));
-        // seats 变化广播（麦位实时同步）
-        if (topic === 'seats' || data.type === 'seats_update') {
-          this.callbacks.onSeatsUpdate?.(data.seats || []);
-          return;
-        }
         this.callbacks.onMessage?.(data as ChatMessage);
       } catch (e) {
         console.error('[LiveKit] 解析消息失败:', e);
       }
     });
 
+    // 静音状态变化
+    const onMuteChange = (participant: Participant) => {
+      if (!participant) return;
+      const isMuted = !participant.isMicrophoneEnabled;
+      this.callbacks.onMemberMuteChange?.(participant.identity, isMuted);
+    };
+    // ParticipantChanged：参与者任何属性变化（包括静音），最可靠
+    try {
+      this.room.on((RoomEvent as any).ParticipantChanged || 'participantChanged', (participant: Participant) => {
+        onMuteChange(participant);
+      });
+    } catch {}
+    // TrackMuted/TrackUnmuted 兜底
     this.room.on(RoomEvent.TrackMuted, (...args: any[]) => {
-      // 兼容不同版本参数顺序：(publication, participant) 或 (participant, publication)
-      let publication: any, participant: Participant | undefined;
-      if (args[0]?.kind !== undefined) { publication = args[0]; participant = args[1]; }
-      else { participant = args[0]; publication = args[1]; }
-      if (publication?.kind === 'audio' && participant) {
-        this.callbacks.onMemberMuteChange?.(participant.identity, true);
-      }
+      const participant = (args[1] as Participant) || args.find((a: any) => a?.identity);
+      if (participant) onMuteChange(participant);
     });
-
     this.room.on(RoomEvent.TrackUnmuted, (...args: any[]) => {
-      let publication: any, participant: Participant | undefined;
-      if (args[0]?.kind !== undefined) { publication = args[0]; participant = args[1]; }
-      else { participant = args[0]; publication = args[1]; }
-      if (publication?.kind === 'audio' && participant) {
-        this.callbacks.onMemberMuteChange?.(participant.identity, false);
-      }
+      const participant = (args[1] as Participant) || args.find((a: any) => a?.identity);
+      if (participant) onMuteChange(participant);
     });
+    // 定时同步兜底（每2秒遍历所有参与者），确保远程静音状态最终一致
+    if (this.muteSyncTimer) clearInterval(this.muteSyncTimer);
+    this.muteSyncTimer = setInterval(() => {
+      if (!this.room) return;
+      try {
+        this.room.remoteParticipants.forEach((p: RemoteParticipant) => onMuteChange(p));
+        if (this.room.localParticipant) onMuteChange(this.room.localParticipant);
+      } catch {}
+    }, 2000);
 
     this.room.on(RoomEvent.ActiveSpeakersChanged, (...args: any[]) => {
       const speakers = (args[0] || []) as Participant[];
@@ -346,10 +382,15 @@ export class LiveKitClient {
         try {
           const el = track.attach();
           el.style.display = 'none';
+          el.className = 'lk-voice-audio'; // 标记为语聊房音频，与播放器区分
           document.body.appendChild(el);
           console.log('[LiveKit] 远程音频已 attach:', participant?.name);
         } catch (e) {
           console.warn('[LiveKit] 音频 attach 失败:', e);
+        }
+        // 订阅到音频时同步一次静音状态（对方可能在订阅前就开/闭麦了）
+        if (participant?.identity) {
+          this.callbacks.onMemberMuteChange?.(participant.identity, !participant.isMicrophoneEnabled);
         }
       }
     });

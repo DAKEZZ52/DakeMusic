@@ -1,3 +1,9 @@
+<!--
+  DakeMusic 语聊房模块
+  作者：知之Dake
+  文件：ProfilePage.vue
+  描述：个人中心页 - 头像/昵称/个人资料编辑
+-->
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { useRouter } from 'vue-router';
@@ -11,6 +17,7 @@ const chatStore = useChatRoomStore();
 interface UserProfile {
   userId: number;
   name: string;
+  nickname?: string;   // 昵称（显示名，优先于 name 展示）
   avatar: string;
   age: number;
   zodiac: string;
@@ -89,7 +96,8 @@ function startEdit() {
   editBio.value = profile.value.bio;
   editPhotos.value = [...profile.value.photos];
   editAvatar.value = profile.value.avatar;
-  editName.value = profile.value.name;
+  // 编辑的是昵称（显示名），不是登录账号
+  editName.value = profile.value.nickname || profile.value.name;
   editMode.value = true;
 }
 
@@ -101,18 +109,21 @@ async function saveProfile() {
   saving.value = true;
   try {
     const result: any = await roomApi.updateProfile({
-      name: editName.value,
+      nickname: editName.value,
       avatar: editAvatar.value,
       photos: editPhotos.value,
       bio: editBio.value,
     });
-    // 如果改了名字，更新本地登录名
-    if (result?.name && result.name !== profile.value?.name) {
-      localStorage.setItem('chat_login_name', result.name);
+    // 改的是昵称：同步本地显示名（登录账号 chat_login_name 不变）
+    if (result?.nickname) {
+      if (profile.value) profile.value.nickname = result.nickname;
+      localStorage.setItem('chat_login_nickname', result.nickname);
     }
     // 同步头像到 localStorage，房间内和列表页即时生效
     if (editAvatar.value) localStorage.setItem('chatroom_avatarImage', editAvatar.value);
     else localStorage.removeItem('chatroom_avatarImage');
+    // 更新 store 里的我的头像（即使不在房间里也即时生效）
+    chatStore.myAvatar = editAvatar.value || '';
     // 如果在房间内，实时同步头像给房间内所有人
     if (chatStore.isConnected && editAvatar.value) {
       chatStore.updateMyAvatar(editAvatar.value).catch(() => {});
@@ -176,12 +187,18 @@ function removeAvatar() {
       <!-- 查看模式 -->
       <div v-if="!editMode" class="bg-[var(--control-track-bg)] rounded-2xl p-6">
         <div class="flex items-start gap-6 mb-6">
-          <div class="w-24 h-24 rounded-full overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center shrink-0">
-            <img v-if="profile.avatar" :src="profile.avatar" class="w-full h-full object-cover" />
-            <span v-else class="text-3xl">👤</span>
+          <div class="w-24 h-24 rounded-full shrink-0 p-[2px] bg-transparent border-2 border-[color:var(--border-subtle,rgba(140,140,175,0.35))] transition-colors">
+            <div class="w-full h-full rounded-full overflow-hidden bg-transparent flex items-center justify-center">
+              <img v-if="profile.avatar" :src="profile.avatar" class="w-full h-full object-cover" />
+              <svg v-else class="w-12 h-12 opacity-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+              <circle cx="12" cy="8" r="4" />
+              <path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8" />
+            </svg>
+            </div>
           </div>
           <div class="flex-1">
-            <h2 class="text-xl font-bold mb-1">{{ profile.name }}</h2>
+            <h2 class="text-xl font-bold mb-1">{{ profile.nickname || profile.name }}</h2>
+            <p class="text-xs opacity-40 mb-1">账号：{{ profile.name }}</p>
             <p class="text-xs opacity-50 mb-1">ID：{{ 999 + (profile?.userId || 0) }}</p>
             <p v-if="profile.bio" class="text-sm opacity-70">{{ profile.bio }}</p>
           </div>
@@ -213,9 +230,14 @@ function removeAvatar() {
         <div>
           <label class="block text-sm font-bold mb-2 opacity-70">头像</label>
           <div class="flex items-center gap-4">
-            <div class="w-20 h-20 rounded-full overflow-hidden bg-[var(--bg-secondary)] flex items-center justify-center">
-              <img v-if="editAvatar" :src="editAvatar" class="w-full h-full object-cover" />
-              <span v-else class="text-2xl">👤</span>
+            <div class="w-20 h-20 rounded-full shrink-0 p-[2px] bg-transparent border-2 border-[color:var(--border-subtle,rgba(140,140,175,0.35))] transition-colors">
+              <div class="w-full h-full rounded-full overflow-hidden bg-transparent flex items-center justify-center">
+                <img v-if="editAvatar" :src="editAvatar" class="w-full h-full object-cover" />
+                <svg v-else class="w-10 h-10 opacity-45" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8" />
+              </svg>
+              </div>
             </div>
             <div class="flex gap-2">
               <Button variant="outline" size="sm" @click="avatarInput?.click()">上传头像</Button>
@@ -225,9 +247,15 @@ function removeAvatar() {
           </div>
         </div>
 
+        <!-- 账号（只读，不可改） -->
+        <div class="flex items-center justify-between py-2 px-3 rounded-lg bg-[var(--bg-secondary)]">
+          <span class="text-sm opacity-70">账号</span>
+          <span class="text-sm font-mono opacity-60">{{ profile?.name }}（不可修改）</span>
+        </div>
+
         <!-- 昵称 -->
         <div>
-          <label class="block text-sm font-bold mb-2 opacity-70">昵称</label>
+          <label class="block text-sm font-bold mb-2 opacity-70">昵称 <span class="text-xs font-normal opacity-50">（房间里的显示名）</span></label>
           <input
             v-model="editName"
             type="text"

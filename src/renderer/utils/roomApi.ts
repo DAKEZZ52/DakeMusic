@@ -35,10 +35,12 @@ async function request(path: string, options: RequestOptions = {}) {
 
 export const roomApi = {
   // 注册
-  register: (name: string, password: string) =>
-    request('/api/auth/register', { method: 'POST', auth: false, body: { name, password } }),
+  /** 注册：name=账号（登录用，唯一、不可改），nickname=昵称（显示用，可重复、可改） */
+  register: (name: string, password: string, nickname?: string) =>
+    request('/api/auth/register', { method: 'POST', auth: false, body: { name, password, nickname: nickname || '' } }),
 
   // 登录
+  /** 登录：账号优先；昵称唯一时也能登（后端兜底） */
   login: (name: string, password: string) =>
     request('/api/auth/login', { method: 'POST', auth: false, body: { name, password } }),
 
@@ -46,7 +48,8 @@ export const roomApi = {
   getMe: () => request('/api/auth/me'),
 
   // 更新个人资料
-  updateProfile: (data: { avatar?: string; age?: number; zodiac?: string; photos?: string[]; bio?: string }) =>
+  /** 只改昵称等资料；账号 name 后端不接受修改 */
+  updateProfile: (data: { nickname?: string; avatar?: string; age?: number; zodiac?: string; photos?: string[]; bio?: string }) =>
     request('/api/auth/profile', { method: 'PATCH', body: data }),
   // 修改密码
   changePassword: (oldPassword: string, newPassword: string) =>
@@ -96,10 +99,4 @@ export const roomApi = {
   listAdminUsers: () => request('/api/admin/users'),
   grantAdmin: (userId: number) => request(`/api/admin/users/${userId}`, { method: 'POST' }),
   revokeAdmin: (userId: number) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
-
-  // 麦位
-  takeSeat: (roomId: string, index: number) =>
-    request(`/api/rooms/${roomId}/seats/${index}/take`, { method: 'POST' }),
-  leaveSeat: (roomId: string, index: number) =>
-    request(`/api/rooms/${roomId}/seats/${index}/leave`, { method: 'POST' }),
 };

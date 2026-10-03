@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 语聊房模块
+ * 作者：知之Dake
+ * 文件：chatRoom.ts (store)
+ * 描述：语聊房状态管理 - 房间列表/成员/消息/LiveKit 连接
+ */
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { getLiveKitClient, type RoomMember, type ChatMessage } from '@/utils/livekitClient';
@@ -9,12 +15,12 @@ export interface RoomInfo {
   description?: string;
   coverImage?: string;
   ownerName?: string;
+  ownerNickname?: string;   // 房主昵称（显示优先于 ownerName 账号）
   ownerUserId?: number;
   participantCount: number;
   isOwner?: boolean;
   isSuperAdmin?: boolean;
   hasPassword?: boolean;
-  seats?: any[];
   createdAt: number;
 }
 
@@ -25,10 +31,6 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const currentRoomDescription = ref('');
   const currentRoomCoverImage = ref('');
   const currentRoomOwnerName = ref('');
-  const seats = ref<any[]>([null, null, null, null, null]);
-  let seatProbeTimer: any = null;
-  let probeBackoff = 1000;
-  let lastSeatEventAt = 0;
   const members = ref<RoomMember[]>([]);
   const memberAvatars = ref<Record<string, string>>({});
   const messages = ref<ChatMessage[]>([]);
@@ -73,7 +75,6 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       } catch {}
     },
     onMessage: (msg) => { messages.value.push(msg); },
-    onSeatsUpdate: (newSeats) => { applySeats(newSeats, 'broadcast'); bumpSeatHeartbeat(); },
     onConnected: () => { isConnected.value = true; isConnecting.value = false; },
     onDisconnected: () => { isConnected.value = false; },
     onError: (err) => { error.value = err.message; isConnecting.value = false; },
@@ -118,7 +119,18 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     return result;
   }
 
-  function logout() {
+  async function logout() {
+    // 登出前先退出房间：否则 LiveKit 连接仍挂着，人还在房间里（悬浮窗不消失、别人还能听到）
+    if (isConnected.value || currentRoomId.value) {
+      try {
+        await leaveRoom();
+      } catch (e) {
+        console.warn('[ChatRoom] 登出前退出房间失败（可忽略）:', e);
+      }
+    }
+    // 双保险：leaveRoom 依赖 Disconnected 回调置 false，异常时可能不触发
+    isConnected.value = false;
+    isConnecting.value = false;
     localStorage.removeItem('chat_session');
     localStorage.removeItem('chat_login_name');
     localStorage.removeItem('chatroom_avatarImage');
@@ -180,8 +192,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomName.value = result.name || '';
     currentRoomDescription.value = result.description || '';
     currentRoomCoverImage.value = result.coverImage || '';
-    currentRoomOwnerName.value = result.ownerName || '';
-    seats.value = result.seats || [null, null, null, null, null];
+    // 优先显示房主昵称，没有再退回账号
+    currentRoomOwnerName.value = result.ownerNickname || result.ownerName || '';
     myIdentity.value = result.identity;
     myName.value = loginName.value || '用户';
     isOwner.value = !!result.isOwner;
@@ -195,26 +207,19 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     isMuted.value = true;
     // 进房间默认闭麦，确保不显示正在说话
     members.value.forEach(m => { if (m.isMuted) m.isSpeaking = false; });
-    // 启动麦位心跳 probe（15秒无广播事件才触发HTTP兜底，指数退避）
-    startSeatProbe();
-    bumpSeatHeartbeat();
   }
 
   async function leaveRoom() {
-    // 退出前如果在麦位上，自动下麦
-    const myIdx = mySeatIndex();
-    if (currentRoomId.value && myIdx >= 0) {
-      try { await roomApi.leaveSeat(currentRoomId.value, myIdx); } catch {}
-    }
     if (currentRoomId.value) {
       try { await roomApi.leaveRoom(currentRoomId.value); } catch {}
     }
     await client.leaveRoom();
     resetState();
+    isConnected.value = false;
   }
 
   function resetState() {
-    stopSeatProbe();
+    isConnected.value = false;
     members.value = [];
     memberAvatars.value = {};
     messages.value = [];
@@ -223,7 +228,6 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomDescription.value = '';
     currentRoomCoverImage.value = '';
     currentRoomOwnerName.value = '';
-    seats.value = [null, null, null, null, null];
     myIdentity.value = '';
     isOwner.value = false;
     isMuted.value = true;
@@ -231,11 +235,6 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   }
 
   async function toggleMute() {
-    // 没上麦时不允许开麦
-    if (isMuted.value && mySeatIndex() < 0) {
-      console.warn('[ChatRoom] 未上麦，不能开麦');
-      return;
-    }
     try {
       const newMuted = !isMuted.value;
       await client.setMicrophoneEnabled(!newMuted);
@@ -253,6 +252,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
 
   const toggleMicrophone = toggleMute;
 
+  // 点歌（开始唱）
   async function sendMessage(content: string) {
     if (!content.trim()) return;
     try { await client.sendMessage(content.trim()); }
@@ -287,94 +287,9 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
 
   function isBanned(identity: string) { return bannedUsers.value.includes(identity); }
 
-  async function takeSeat(index: number) {
-    const prev = seats.value[index];
-    // 乐观更新：立即显示自己占座，带 pending 标记
-    seats.value[index] = { identity: myIdentity.value, name: myName.value, isPending: true };
-    try {
-      const result = await roomApi.takeSeat(currentRoomId.value, index);
-      applySeats(result.seats, 'api');
-      bumpSeatHeartbeat();
-    } catch (e) {
-      // 失败回滚，避免幽灵占座
-      seats.value[index] = prev;
-      throw e;
-    }
-  }
-  async function leaveSeat(index: number) {
-    const prev = seats.value[index];
-    seats.value[index] = null; // 乐观更新
-    try {
-      const result = await roomApi.leaveSeat(currentRoomId.value, index);
-      applySeats(result.seats, 'api');
-      bumpSeatHeartbeat();
-    } catch (e) {
-      seats.value[index] = prev; // 回滚
-      throw e;
-    }
-    // 下麦后自动闭麦
-    await client.setMicrophoneEnabled(false);
-    isMuted.value = true;
-    const me = members.value.find(m => m.isLocal);
-    if (me) me.isMuted = true;
-  }
-  function mySeatIndex() {
-    for (let i = 0; i < seats.value.length; i++) {
-      if (seats.value[i] && seats.value[i].identity === myIdentity.value) return i;
-    }
-    return -1;
-  }
-
-  // 麦位状态归并：以后端为准，保留本地 pending 避免闪烁
-  function applySeats(incoming: any[], _source: string) {
-    if (!Array.isArray(incoming)) return;
-    seats.value = incoming.map((s, i) => {
-      if (s) return s;
-      const local = seats.value[i];
-      if (local?.isPending && local.identity === myIdentity.value) {
-        return { ...local, _stale: true };
-      }
-      return null;
-    });
-  }
-
-  // 麦位事件心跳：任何 seat 事件都刷新时间戳
-  function bumpSeatHeartbeat() { lastSeatEventAt = Date.now(); probeBackoff = 1000; }
-
-  // 指数退避 probe：15秒无广播事件才触发HTTP兜底拉取
-  function startSeatProbe() {
-    stopSeatProbe();
-    const tick = async () => {
-      if (!currentRoomId.value) return;
-      const silent = Date.now() - lastSeatEventAt > 15000;
-      if (!silent) { seatProbeTimer = setTimeout(tick, probeBackoff); return; }
-      try {
-        const room = await roomApi.getRoom(currentRoomId.value);
-        if (room?.seats) { applySeats(room.seats, 'probe'); bumpSeatHeartbeat(); }
-      } catch {
-        probeBackoff = Math.min(probeBackoff * 2, 15000);
-      }
-      seatProbeTimer = setTimeout(tick, probeBackoff);
-    };
-    seatProbeTimer = setTimeout(tick, probeBackoff);
-  }
-  function stopSeatProbe() {
-    if (seatProbeTimer) { clearTimeout(seatProbeTimer); seatProbeTimer = null; }
-    probeBackoff = 1000;
-  }
-
-  // 不在麦位时强制闭麦（麦下不能说话）
-  watch(seats, () => {
-    if (isConnected.value && mySeatIndex() < 0 && !isMuted.value) {
-      client.setMicrophoneEnabled(false).catch(() => {});
-      isMuted.value = true;
-      const me = members.value.find((m) => m.identity === myIdentity.value);
-      if (me) { me.isMuted = true; me.isSpeaking = false; }
-    }
-  }, { deep: true });
-
   // 换头像时调用，实时同步给房间内所有人
   async function updateMyAvatar(avatar: string) {
+    myAvatar.value = avatar;
     memberAvatars.value[myIdentity.value] = avatar;
     const me = members.value.find(m => m.identity === myIdentity.value);
     if (me) me.avatar = avatar;
@@ -399,14 +314,14 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   }
 
   return {
-    rooms, currentRoomId, currentRoomName, currentRoomDescription, currentRoomCoverImage, currentRoomOwnerName, seats, members, memberAvatars, messages,
+    rooms, currentRoomId, currentRoomName, currentRoomDescription, currentRoomCoverImage, currentRoomOwnerName, members, memberAvatars, messages,
     isConnected, isConnecting, isMuted, myIdentity, myName, myAvatar, isOwner, error,
     bannedUsers, isLoggedIn, loginName, isAdmin, adminToken,
     memberCount, isMicEnabled, localMember, sortedMessages,
     login, logout, fetchRooms, fetchMyProfile, createRoom, joinRoom, leaveRoom,
     toggleMute, toggleMicrophone, sendMessage,
     kickParticipant, muteParticipant, banParticipant, isBanned,
-    takeSeat, leaveSeat, mySeatIndex, updateMyAvatar,
+    updateMyAvatar,
     updateRoomName, adminLogin, adminDeleteRoom,
   };
 });

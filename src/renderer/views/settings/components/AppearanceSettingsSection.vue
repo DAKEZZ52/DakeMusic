@@ -153,6 +153,44 @@ const handleCustomBgUpload = (event: Event) => {
   input.value = '';
 };
 
+// DakeMusic 语聊房模块 - 作者：知之Dake
+// 描述：语聊房背景图上传与设置
+const chatroomBgInputRef = ref<HTMLInputElement | null>(null);
+const handleChatroomBgUpload = (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    toastStore.warning('请选择图片文件');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxWidth = 1920;
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressed = canvas.toDataURL('image/jpeg', 0.85);
+      settingStore.setChatroomBackgroundImage(compressed);
+      toastStore.info('语聊房背景已设置');
+    };
+    img.src = e.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+};
+
 </script>
 
 <template>
@@ -570,6 +608,67 @@ const handleCustomBgUpload = (event: Event) => {
             浅色
           </button>
         </div>
+      </div>
+    </template>
+
+    <!-- DakeMusic 语聊房模块 - 作者：知之Dake -->
+    <!-- 描述：语聊房自定义背景图设置项 -->
+    <div class="settings-divider"></div>
+    <div class="settings-item items-start">
+      <div class="space-y-3 w-full">
+        <div class="space-y-1">
+          <h3 class="font-semibold">语聊房背景图</h3>
+          <p class="text-sm text-text-secondary">上传图片作为语聊房界面背景，自动压缩以保证流畅</p>
+        </div>
+        <div v-if="settingStore.chatroomBackgroundImage" class="space-y-3">
+          <div class="text-sm text-text-secondary">当前语聊房背景</div>
+          <div
+            class="w-full h-28 rounded-xl border overflow-hidden bg-contain bg-center bg-no-repeat bg-[var(--control-muted-bg)]"
+            :style="{ backgroundImage: `url(${settingStore.chatroomBackgroundImage})` }"
+          ></div>
+          <div class="flex gap-2">
+            <button class="settings-action" type="button" @click="chatroomBgInputRef?.click()">
+              上传本地图片
+            </button>
+            <button
+              class="settings-action"
+              type="button"
+              @click="settingStore.clearChatroomBackground()"
+            >
+              恢复默认
+            </button>
+          </div>
+        </div>
+        <button v-else class="settings-action" type="button" @click="chatroomBgInputRef?.click()">
+          上传本地图片
+        </button>
+        <input
+          ref="chatroomBgInputRef"
+          type="file"
+          accept="image/*"
+          class="hidden"
+          @change="handleChatroomBgUpload"
+        />
+      </div>
+    </div>
+    <template v-if="settingStore.chatroomBackgroundImage">
+      <div class="settings-divider"></div>
+      <div class="settings-item">
+        <div class="space-y-1">
+          <h3 class="font-semibold">语聊房背景遮罩浓度</h3>
+          <p class="text-sm text-text-secondary">调整背景上方的暗色遮罩，保证文字清晰可读</p>
+        </div>
+        <Slider
+          class="w-48"
+          :model-value="settingStore.chatroomBackgroundOverlay"
+          :min="0"
+          :max="100"
+          :step="5"
+          show-value
+          value-suffix="%"
+          aria-label="语聊房背景遮罩浓度"
+          @update:model-value="settingStore.setChatroomBackgroundOverlay($event)"
+        />
       </div>
     </template>
 

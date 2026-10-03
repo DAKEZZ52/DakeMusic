@@ -1,3 +1,9 @@
+<!--
+  DakeMusic 语聊房模块
+  作者：知之Dake
+  文件：AudioDeviceSelector.vue
+  描述：音频设备选择器 - 麦克风/扬声器设备选择与音量调节
+-->
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, watch, computed } from 'vue';
 import { getLiveKitClient } from '@/utils/livekitClient';
@@ -11,6 +17,7 @@ const speakers = ref<MediaDeviceInfo[]>([]);
 const selectedMic = ref('');
 const selectedSpeaker = ref('');
 const loading = ref(false);
+const switching = ref(false); // 麦克风切换防抖
 
 const client = getLiveKitClient();
 
@@ -47,38 +54,22 @@ async function applyMic(deviceId: string) {
     const room = (client as any).room;
     if (!room) return;
     const lp = room.localParticipant;
-    const hasAudio = Array.from(lp.audioTrackPublications.values()).length > 0;
-    if (hasAudio) await lp.setMicrophoneEnabled(false);
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        audio: { deviceId: { exact: deviceId } },
-      });
-    } catch (e) {
-      console.error('[AudioDevice] 麦克风权限被拒，切换失败:', e);
-      // 权限被拒时恢复之前的麦状态（如果之前开着）
-      if (hasAudio && store.isMicEnabled) {
-        try { await lp.setMicrophoneEnabled(true); } catch {}
-      }
-      return;
+
+    // 关键：必须用 LiveKit 官方 API 换设备。
+    // 它内部会自己创建合规的 LocalAudioTrack（带 mute/unmute/on）。
+    // 千万不要自己 getUserMedia 拿原生 MediaStreamTrack 再 setTrack/publishTrack，
+    // 原生 track 没有 mute()/unmute()/on()，会把轨道"毒化"，之后任何
+    // setMicrophoneEnabled 都会报 "track.on/_a.unmute/_a.mute is not a function"。
+    if (typeof room.switchActiveDevice === 'function') {
+      await room.switchActiveDevice('audioinput', deviceId);
+    } else {
+      // 老版本 SDK 兜底：直接重开麦克风并指定设备
+      await lp.setMicrophoneEnabled(true, { deviceId: { exact: deviceId } });
     }
-    const track = stream.getAudioTracks()[0];
-    if (track) {
-      const existing = lp.audioTrackPublications.values().next().value;
-      if (existing) {
-        await existing.setTrack(track);
-      } else {
-        await lp.publishTrack(track, { source: 'microphone' as any });
-      }
-      // 切换后保持当前麦状态
-      if (store.isMicEnabled) {
-        try { await lp.setMicrophoneEnabled(true); } catch {}
-      } else {
-        // 闭麦状态下新发布的 track 默认是 unmuted，必须强制闭麦，否则会泄露声音
-        try { await lp.setMicrophoneEnabled(false); } catch {}
-        // 兜底：直接禁用 track
-        try { track.enabled = false; } catch {}
-      }
+
+    // 切完设备后，保持当前麦状态（原本闭麦就再关掉，防止切换瞬间漏音）
+    if (!store.isMicEnabled) {
+      await lp.setMicrophoneEnabled(false);
     }
   } catch (e) {
     console.error('[AudioDevice] 切换麦克风失败:', e);
@@ -87,19 +78,54 @@ async function applyMic(deviceId: string) {
 
 function applySpeaker(deviceId: string) {
   if (!deviceId) return;
-  const audioEls = document.querySelectorAll('audio');
+  // 只切换语聊房的音频元素（标记为 lk-voice-audio），不影响播放器
+  const audioEls = document.querySelectorAll('audio.lk-voice-audio');
   audioEls.forEach((el: any) => {
     if (el.setSinkId) el.setSinkId(deviceId).catch(() => {});
   });
 }
 
-function toggleMic() {
-  store.toggleMute();
+// ===== 真实麦克风开/关（核心改动）=====
+// 同步成员列表里自己的麦状态，让头像红点联动
+function syncSelfMicState(muted: boolean) {
+  try {
+    const self = (store.members || []).find((m: any) => m.isLocal);
+    if (self) self.isMuted = muted;
+  } catch {}
+  try { (store as any).isMuted = muted; } catch {}
+}
+
+async function toggleMic() {
+  if (switching.value) return;
+  switching.value = true;
+  try {
+    const next = !isMicEnabled.value; // true = 开麦，false = 闭麦
+    const room = (client as any).room;
+
+    if (room?.localParticipant) {
+      const lp = room.localParticipant;
+      // 只走 LiveKit 官方开关，不要手动改 track.enabled（会触发毒化轨道的方法调用）
+      await lp.setMicrophoneEnabled(next);
+    }
+
+    // 3. 同步 store（状态不一致时才调，避免重复翻转）
+    if (store.isMicEnabled !== next && typeof store.toggleMute === 'function') {
+      try { await store.toggleMute(); } catch {}
+    }
+
+    // 4. 同步成员列表自己的状态（头像红点 / "已闭麦"文案联动）
+    syncSelfMicState(!next);
+  } catch (e) {
+    console.error('[AudioDevice] 切换麦克风失败:', e);
+  } finally {
+    switching.value = false;
+  }
 }
 
 function toggleSystemMute() {
   isSystemMuted.value = !isSystemMuted.value;
-  const audioEls = document.querySelectorAll('audio');
+  // 只静音语聊房的音频元素，不影响播放器
+  const audioEls = document.querySelectorAll('audio.lk-voice-audio');
   audioEls.forEach((el: any) => { el.muted = isSystemMuted.value; });
 }
 
@@ -126,6 +152,7 @@ onUnmounted(() => {
         class="w-8 h-8 flex items-center justify-center shrink-0 transition-colors hover:bg-[var(--control-hover-bg)] rounded-l-full"
         :class="isMicEnabled ? 'text-[var(--color-primary)]' : 'text-red-500'"
         :title="isMicEnabled ? '闭麦' : '开麦'"
+        :disabled="switching"
         @click.stop="toggleMic"
       >
         <svg v-if="isMicEnabled" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
