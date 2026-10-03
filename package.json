@@ -1,6 +1,6 @@
 {
   "name": "dake-music",
-  "version": "2.1.5",
+  "version": "2.2.0",
   "description": "DakeMusic desktop client.",
   "license": "GPL-3.0-only",
   "author": {
@@ -294,7 +294,7 @@
       "allowElevation": true,
       "include": "build/installer.nsh",
       "buildUniversalInstaller": false,
-      "artifactName": "${productName}${env.BETA}-${version}.${ext}"
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "dmg": {
       "artifactName": "${productName}-${version}-macOS-${arch}.${ext}",
@@ -317,7 +317,7 @@
         }
       ]
     },
-    "artifactName": "${productName}${env.BETA}-${version}-${os}-${arch}.${ext}",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "asar": true
   },
   "pnpm": {
