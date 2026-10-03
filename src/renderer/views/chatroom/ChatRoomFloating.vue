@@ -8,6 +8,8 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useChatRoomStore } from '@/stores/chatRoom';
+// DakeMusic: 默认房间封面
+import defaultCover from '../../../../public/dakemusic-default-room-cover.png';
 
 const store = useChatRoomStore();
 const router = useRouter();
@@ -31,7 +33,7 @@ const showLeaveConfirm = ref(false);
 // 默认房间封面（与房间列表页、房间内页完全一致）
 const DEFAULT_COVER_KEY = '__dakemusic_default__';
 
-const DEFAULT_COVER = '/dakemusic-default-room-cover.svg';
+const DEFAULT_COVER = defaultCover;
 
 const coverSrc = computed(() => {
   const c = (store as any).currentRoomCoverImage;

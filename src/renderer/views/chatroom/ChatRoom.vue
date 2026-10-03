@@ -13,6 +13,8 @@ import { useSettingStore } from '@/stores/setting';
 import Button from '@/components/ui/Button.vue';
 import { roomApi } from '@/utils/roomApi';
 import { getActivePinia } from 'pinia';
+// DakeMusic: 默认房间封面
+import defaultCover from '../../../../public/dakemusic-default-room-cover.png';
 
 const router = useRouter();
 const store = useChatRoomStore();
@@ -28,7 +30,9 @@ const showUserProfile = ref(false);
 const viewingUser = ref<any>(null);
 const loadingUser = ref(false);
 
-async function openUserProfile(identity: string) {
+async function openUserProfile(identity?: string) {
+  // DakeMusic: 防止 identity 为 undefined 时报错
+  if (!identity) return;
   const userId = Number(identity.replace('user_', ''));
   if (!userId) return;
   loadingUser.value = true;
@@ -268,7 +272,7 @@ onUnmounted(()=>{
 // ===== 房间封面：房主没上传时，显示 DakeMusic 默认封面 =====
 const DEFAULT_COVER_KEY = '__dakemusic_default__';
 
-const DEFAULT_COVER = '/dakemusic-default-room-cover.svg';
+const DEFAULT_COVER = defaultCover;
 const roomCoverSrc = computed(() => {
   const c = (store as any).currentRoomCoverImage;
   if (!c || c === DEFAULT_COVER_KEY) return DEFAULT_COVER;
@@ -591,7 +595,9 @@ async function toggleSystemMute() {
 }
 
 const fetchedAvatars = new Set<string>();
-function memberAvatar(identity: string) {
+function memberAvatar(identity?: string) {
+  // DakeMusic: 防止 identity 为 undefined 时报错
+  if (!identity) return '';
   if (store.memberAvatars[identity]) return store.memberAvatars[identity];
   const m = store.members.find(x => x.identity === identity);
   if (m?.avatar) return m.avatar;

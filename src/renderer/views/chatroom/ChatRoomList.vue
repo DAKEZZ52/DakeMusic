@@ -11,6 +11,8 @@ import { useChatRoomStore } from '@/stores/chatRoom';
 import { useSettingStore } from '@/stores/setting';
 import { roomApi } from '@/utils/roomApi';
 import Button from '@/components/ui/Button.vue';
+// DakeMusic: 默认房间封面
+import defaultCover from '../../../../public/dakemusic-default-room-cover.png';
 
 const router = useRouter();
 const store = useChatRoomStore();
@@ -293,7 +295,7 @@ async function leaveCurrentRoom() {
 // 哨兵值：代表"用系统默认封面"。房主上传后会变成真实图片数据，默认即消失。
 const DEFAULT_COVER_KEY = '__dakemusic_default__';
 
-const DEFAULT_COVER = '/dakemusic-default-room-cover.svg';
+const DEFAULT_COVER = defaultCover;
 
 // 没有封面 / 是哨兵值 → 用默认封面；否则用房主上传的图
 function coverSrc(cover?: string): string {
