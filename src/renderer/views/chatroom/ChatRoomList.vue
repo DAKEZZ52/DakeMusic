@@ -378,12 +378,13 @@ function onEditCoverSelected(e: Event) {
 </script>
 
 <template>
-  <div class="crl-root p-6 max-w-4xl mx-auto relative min-h-[calc(100vh-120px)]">
+  <div class="crl-page relative min-h-[calc(100vh-120px)]">
     <!-- DakeMusic 语聊房模块 - 作者：知之Dake -->
-    <!-- 描述：自定义背景层 -->
+    <!-- 描述：自定义背景层 - 铺满整个内容区域 -->
     <div v-if="settingStore.chatroomBackgroundImage" class="crl-custom-bg" :style="{ backgroundImage: `url(${settingStore.chatroomBackgroundImage})` }">
       <div class="crl-custom-bg-overlay" :style="{ opacity: settingStore.chatroomBackgroundOverlay / 100 }"></div>
     </div>
+    <div class="crl-root p-6 max-w-4xl mx-auto relative">
     <!-- 未登录：登录/注册页 -->
     <div v-if="!store.isLoggedIn" class="flex items-center justify-center min-h-[60vh]">
       <div class="crl-auth w-full max-w-md max-h-[calc(100vh-180px)] overflow-y-auto flex flex-col items-center">
@@ -709,6 +710,7 @@ function onEditCoverSelected(e: Event) {
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <style scoped>
@@ -719,7 +721,6 @@ function onEditCoverSelected(e: Event) {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  border-radius: 12px;
   z-index: 0;
   pointer-events: none;
 }
@@ -727,10 +728,9 @@ function onEditCoverSelected(e: Event) {
   position: absolute;
   inset: 0;
   background: #000;
-  border-radius: 12px;
 }
 /* 确保内容在背景层之上 */
-.crl-root > *:not(.crl-custom-bg) {
+.crl-root {
   position: relative;
   z-index: 1;
 }

@@ -3,12 +3,6 @@ packages:
   - server
 
 allowBuilds:
-  electron-winstaller: set this to true or false
-  esbuild: set this to true or false
-  vue-demi: set this to true or false
-
-ignoredBuiltDependencies:
-  - electron
-  - electron-winstaller
-  - esbuild
-  - vue-demi
+  electron-winstaller: true
+  esbuild: true
+  vue-demi: true
