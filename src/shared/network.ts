@@ -104,7 +104,7 @@ export const addProxyCredentialsToUrl = (
   }
   // Chromium only authenticates HTTP(S) proxies. reqwest additionally supports
   // username/password authentication for SOCKS5; SOCKS4 credentials are not
-  // supported by either transport used by EchoMusic.
+  // supported by either transport used by DakeMusic.
   if (!['http:', 'https:', 'socks5:', 'socks5h:'].includes(url.protocol)) return proxyUrl;
   url.username = credentials.username;
   url.password = credentials.password;

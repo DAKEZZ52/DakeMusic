@@ -1,4 +1,8 @@
 <script setup lang="ts">
+// DakeMusic 关于页模块
+// 作者：知之Dake
+// 文件：AboutSettingsSection.vue
+// 描述：关于页 - 版本信息/更新检查/免责声明/作者信息
 import { computed } from 'vue';
 import { useSettingStore } from '@/stores/setting';
 import Button from '@/components/ui/Button.vue';
@@ -13,6 +17,11 @@ const settingStore = useSettingStore();
 
 const versionLabel = computed(() => settingStore.appVersion || '未知');
 const releaseChannelLabel = computed(() => (settingStore.isPrerelease ? 'Prerelease' : 'Release'));
+
+// DakeMusic: 打开 QQ 临时聊天
+function openQQChat() {
+  window.open('https://wpa.qq.com/msgrd?v=3&uin=983064062&site=DakeMusic&menu=yes', '_blank');
+}
 
 defineProps<{
   isCheckingUpdate: boolean;
@@ -66,7 +75,6 @@ defineProps<{
       </div>
     </div>
     <div class="settings-divider"></div>
-    <div class="settings-divider"></div>
     <div class="settings-item">
       <div class="space-y-1">
         <h3 class="font-semibold">免责声明</h3>
@@ -80,6 +88,22 @@ defineProps<{
         @click="onShowDisclaimer"
       >
         <Icon :icon="iconChevronRight" width="20" height="20" />
+      </Button>
+    </div>
+    <div class="settings-divider"></div>
+    <!-- DakeMusic: 作者信息 -->
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">作者信息</h3>
+        <p class="text-sm text-text-secondary">知之 | QQ: 983064062</p>
+      </div>
+      <Button
+        variant="unstyled"
+        size="none"
+        class="settings-action settings-action-primary"
+        @click="openQQChat"
+      >
+        联系作者
       </Button>
     </div>
   </SettingsSectionShell>

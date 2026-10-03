@@ -56,7 +56,7 @@ const getWaylandWindowAddress = async (win: HyprlandWindow) => {
       /^0x[\da-f]+$/i.test(entry.address)
     );
   });
-  // Prefer EchoMusic's class when several Electron windows share this PID;
+  // Prefer DakeMusic's class when several Electron windows share this PID;
   // title matching remains the final discriminator for plugin windows.
   const appCandidates = candidates.filter((client) => client.class === 'echo-music');
   const scopedCandidates = appCandidates.length > 0 ? appCandidates : candidates;

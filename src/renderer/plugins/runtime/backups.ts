@@ -167,12 +167,12 @@ export interface PluginBackupsApi {
   create: (options?: PluginBackupScopeOptions) => Promise<PluginBackupCreateResult>;
   /** Validate backup bytes and return a short-lived restore token plus its summary. */
   inspect: (data: ArrayBuffer | ArrayBufferView) => Promise<PluginBackupInspectResult>;
-  /** Restore a previously inspected backup after host confirmation, then restart EchoMusic. */
+  /** Restore a previously inspected backup after host confirmation, then restart DakeMusic. */
   restore: (
     token: string,
     options?: PluginBackupScopeOptions,
   ) => Promise<PluginBackupRestoreResult>;
-  /** Register a storage backend that is shown in EchoMusic's backup and restore UI. */
+  /** Register a storage backend that is shown in DakeMusic's backup and restore UI. */
   registerProvider: (provider: PluginBackupProvider) => () => void;
 }
 

@@ -60,7 +60,7 @@ export type SettingsBackupImportResult =
     };
 
 export interface PluginBackupScopeOptions {
-  /** Include portable EchoMusic settings. Defaults to true. */
+  /** Include portable DakeMusic settings. Defaults to true. */
   settings?: boolean;
   /** Include installed plugins and their persisted data. Defaults to true. */
   plugins?: boolean;

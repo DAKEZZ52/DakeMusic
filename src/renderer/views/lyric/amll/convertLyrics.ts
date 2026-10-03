@@ -2,7 +2,7 @@ import type { LyricLine as AmllLyricLine, LyricWord } from '@applemusic-like-lyr
 import type { LyricLine, LyricsMode } from '@/stores/lyric';
 
 /**
- * 将 EchoMusic 歌词行转换为 AMLL 的数据模型。
+ * 将 DakeMusic 歌词行转换为 AMLL 的数据模型。
  * AMLL 要求传入数组内部信息不得被修改，因此每次构建都会生成全新数组。
  *
  * 时间轴均为毫秒；主歌词逐字时间来自 characters。
