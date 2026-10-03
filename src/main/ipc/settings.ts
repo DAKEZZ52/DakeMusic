@@ -728,7 +728,7 @@ const getAppInfo = (): AppInfoResult => {
 
 export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContext) => {
   const manualMacUpdate = requiresManualMacUpdate(process.platform);
-  autoUpdater.autoDownload = false;
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = !manualMacUpdate;
   autoUpdater.logger = log;
   autoUpdater.on('login', (authInfo, callback) => {
