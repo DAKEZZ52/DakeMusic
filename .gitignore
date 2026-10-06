@@ -32,6 +32,7 @@ native/*/.napi-rs
 .vscode/*
 !.vscode/extensions.json
 .idea
+.vs/
 *.suo
 *.ntvs*
 *.njsproj
@@ -62,6 +63,9 @@ cloudflare/**/*.local.toml
 .planning
 # Backup files
 * - 副本.*
+
+# DakeMusic: 服务端本地版本副本不入库
+room-server/网站版本/
 
 # 大文件备份
 *.zip

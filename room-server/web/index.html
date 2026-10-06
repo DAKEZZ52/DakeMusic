@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DakeMusic</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- DakeMusic: LiveKit 语音 SDK，版本和客户端保持一致 -->
+  <script src="https://unpkg.com/livekit-client@2.22.3/dist/livekit-client.umd.js"></script>
+  <link rel="stylesheet" href="css/style.css?v=202610065" />
+  <style>
+  </style>
+</head>
+<body class="bg-gradient-to-br from-slate-900 to-purple-900 text-white min-h-screen">
+  <div id="app">
+    <!-- 登录页 -->
+    <div v-if="!token" class="min-h-screen flex items-center justify-center p-4">
+      <div class="w-full max-w-md bg-black/30 backdrop-blur-lg rounded-2xl p-8">
+        <h1 class="text-2xl font-bold text-center mb-6">DakeMusic</h1>
+        
+        <div class="space-y-4">
+          <input v-model="loginName" type="text" placeholder="账号" class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:border-blue-500" />
+          <input v-model="loginPassword" type="password" placeholder="密码" class="w-full px-4 py-3 rounded-lg bg-white/10 border border-white/20 focus:outline-none focus:border-blue-500" />
+          <button @click="handleLogin" class="w-full py-3 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500 hover:opacity-90 transition-opacity font-bold">
+            登录
+          </button>
+          <p class="text-center text-sm opacity-60">还没有账号？<span @click="showRegister = true" class="text-blue-400 cursor-pointer">注册</span></p>
+        </div>
+
+        <!-- 注册弹窗 -->
+        <div v-if="showRegister" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div class="w-full max-w-sm bg-gray-900 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4">注册新账号</h3>
+            <input v-model="registerName" type="text" placeholder="账号（字母开头）" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 mb-3" />
+            <input v-model="registerNickname" type="text" placeholder="昵称" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 mb-3" />
+            <input v-model="registerPassword" type="password" placeholder="密码（至少6位）" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 mb-4" />
+            <div class="flex gap-2">
+              <button @click="showRegister = false" class="flex-1 py-2 rounded-lg bg-white/10">取消</button>
+              <button @click="handleRegister" class="flex-1 py-2 rounded-lg bg-blue-500">注册</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主页面：房间列表 -->
+    <div v-else-if="!inRoom" class="min-h-screen p-4">
+      <div class="max-w-6xl mx-auto">
+        <!-- 顶部栏 -->
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
+          <h1 class="text-2xl font-bold">DakeMusic</h1>
+          <div class="flex flex-wrap gap-2">
+            <button @click="fetchRooms" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20">刷新</button>
+            <button @click="openCreateDialog = true" class="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500">+ 创建房间</button>
+            <button onclick="location.href='profile.html'" class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20">个人中心</button>
+            <button @click="handleLogout" class="px-4 py-2 rounded-lg bg-red-500/80">退出</button>
+          </div>
+        </div>
+
+        <!-- 房间列表 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div v-for="room in rooms" :key="room.id" class="bg-black/30 backdrop-blur rounded-xl overflow-hidden hover:bg-black/40 transition-colors cursor-pointer" @click="joinRoom(room)">
+            <div class="aspect-video bg-gradient-to-br from-purple-600 to-blue-600 relative">
+              <img v-if="room.coverImage" :src="room.coverImage" class="w-full h-full object-cover" />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
+              <div class="absolute bottom-3 left-3">
+                <h3 class="font-bold">{{ room.name }}</h3>
+                <p class="text-sm opacity-70">{{ room.participantCount }}人在线</p>
+              </div>
+            </div>
+            <div class="p-3">
+              <p class="text-sm opacity-60">房主：{{ room.ownerNickname }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- DakeMusic: 成员资料卡组件 -->
+        <profile-card 
+          :user="viewingUser" 
+          :visible="showProfileCard" 
+          :is-me="viewingUser.isMe || false"
+          :is-room-owner="isRoomOwner"
+          @close="showProfileCard = false"
+          @kick="kickMember"
+          @ban="banMember"
+        ></profile-card>
+
+        <!-- 创建房间弹窗 -->
+        <div v-if="openCreateDialog" class="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-50">
+          <div class="w-full max-w-md bg-gray-900 rounded-xl p-6">
+            <h3 class="text-lg font-bold mb-4">创建房间</h3>
+            <!-- DakeMusic: 房间封面上传 -->
+            <room-cover-upload :cover="newRoomCover" :is-owner="true" @update:cover="newRoomCover = $event"></room-cover-upload>
+            <input v-model="newRoomName" type="text" placeholder="房间名称" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 mb-3" />
+            <input v-model="newRoomPassword" type="text" placeholder="房间密码（可选）" class="w-full px-3 py-2 rounded-lg bg-white/10 border border-white/20 mb-4" />
+            <div class="flex gap-2">
+              <button @click="openCreateDialog = false" class="flex-1 py-2 rounded-lg bg-white/10">取消</button>
+              <button @click="handleCreateRoom" class="flex-1 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-purple-500">创建</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DakeMusic: 1v1 PK 房间内页 -->
+    <div v-else class="fixed inset-0 overflow-hidden bg-gradient-to-b from-indigo-950 via-purple-950 to-slate-950">
+      <!-- 背景霓虹光效 -->
+      <div class="absolute inset-0 pointer-events-none opacity-40">
+        <div class="absolute top-1/4 left-1/4 w-72 h-72 bg-blue-600/30 rounded-full blur-3xl"></div>
+        <div class="absolute top-1/3 right-1/4 w-72 h-72 bg-pink-600/30 rounded-full blur-3xl"></div>
+      </div>
+
+      <!-- 顶部主播信息栏 -->
+      <pk-top-bar
+        :room-name="currentRoomName"
+        :participant-count="participantCount"
+        :host="pkHost"
+        @leave="leaveRoom"
+        @report="reportRoom"
+      ></pk-top-bar>
+
+      <!-- 观众头像条 -->
+      <audience-strip
+        :audience="audienceList"
+        :participant-count="participantCount"
+      ></audience-strip>
+
+      <!-- 中间 PK 舞台 -->
+      <pk-stage
+        :blue="pkBlue"
+        :red="pkRed"
+        :my-side="myPkSide"
+        :blue-score="blueScore"
+        :red-score="redScore"
+        @click-side="clickPkSide"
+        @view-profile="viewMemberProfile"
+      ></pk-stage>
+
+      <!-- 浮动公屏消息 -->
+      <chat-overlay :messages="messages"></chat-overlay>
+
+      <!-- PK 倒计时进度条 -->
+      <pk-timer :remain="pkRemain" :total="pkTotal"></pk-timer>
+
+      <!-- DakeMusic: 备案号悬挂（备案通过后替换号码，极小半透明不影响界面） -->
+      <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener"
+         class="absolute left-3 bottom-[52px] z-10 text-[10px] text-white/40 hover:text-white/70">
+        桂ICP备XXXXXXXX号
+      </a>
+
+      <!-- 底部礼物/输入/控制栏 -->
+      <pk-bottom-bar
+        :chat="chatInput"
+        @update:chat="chatInput = $event"
+        @send="sendChat"
+        :mic-on="micOn"
+        :mic-devices="micDevices"
+        :speaker-devices="speakerDevices"
+        :selected-mic="selectedMic"
+        :selected-speaker="selectedSpeaker"
+        @toggle-mic="toggleMic"
+        @select-mic="selectMicDevice"
+        @select-speaker="selectSpeakerDevice"
+        @gift="openGift"
+      ></pk-bottom-bar>
+
+      <!-- 成员资料卡 -->
+      <profile-card
+        :user="viewingUser"
+        :visible="showProfileCard"
+        :is-me="viewingUser.isMe || false"
+        :is-room-owner="isRoomOwner"
+        @close="showProfileCard = false"
+        @kick="kickMember"
+        @ban="banMember"
+      ></profile-card>
+
+      <!-- DakeMusic: 全局轻提示 -->
+      <transition name="toast">
+        <div v-if="toastVisible"
+             class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-black/75 backdrop-blur-xl text-white text-sm px-5 py-3 rounded-xl border border-white/15 shadow-2xl max-w-[80vw] text-center">
+          {{ toastText }}
+        </div>
+      </transition>
+    </div>
+  </div>
+
+  <!-- DakeMusic: 通用组件 -->
+  <script src="js/components/ProfileCard.js?v=202610065"></script>
+  <script src="js/components/RoomActions.js?v=202610065"></script>
+  <script src="js/components/RoomCoverUpload.js?v=202610065"></script>
+  <!-- DakeMusic: 1v1 PK 房独立组件 -->
+  <script src="js/components/pk/PkTopBar.js?v=202610065"></script>
+  <script src="js/components/pk/AudienceStrip.js?v=202610065"></script>
+  <script src="js/components/pk/PkStage.js?v=202610065"></script>
+  <script src="js/components/pk/ChatOverlay.js?v=202610065"></script>
+  <script src="js/components/pk/PkTimer.js?v=202610065"></script>
+  <script src="js/components/pk/PkBottomBar.js?v=202610065"></script>
+  <!-- 主逻辑 -->
+  <script src="js/app.js?v=202610065"></script>
+</body>
+</html>

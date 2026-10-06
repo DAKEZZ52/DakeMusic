@@ -96,6 +96,22 @@ const pendingDeleteId = ref('');
 const pendingDeleteName = ref('');
 const deleting = ref(false);
 
+// DakeMusic: 刷新 loading 状态
+const refreshing = ref(false);
+async function handleRefresh() {
+  if (refreshing.value) return;
+  refreshing.value = true;
+  try {
+    // 强制跳过缓存，重新请求
+    const { clearApiCache } = await import('@/utils/roomApi');
+    clearApiCache();
+    await store.fetchRooms();
+  } finally {
+    // 最少显示 500ms 动画，让用户感觉到刷新了
+    setTimeout(() => { refreshing.value = false; }, 500);
+  }
+}
+
 // ===== 通用确认弹窗（替代原生 confirm，与删除弹窗同一套渐变样式）=====
 // message 支持 <br/> 换行；内容均为内部常量，v-html 安全
 const confirmState = ref({
@@ -325,6 +341,10 @@ async function confirmEditRoom() {
   try {
     await roomApi.updateRoom(editRoomId.value, editRoomName.value.trim(), undefined, editRoomCover.value);
     showEditDialog.value = false;
+    // DakeMusic: 如果编辑的是当前房间，同步更新 store 里的封面，悬浮窗即时生效
+    if (store.currentRoomId === editRoomId.value) {
+      store.currentRoomCoverImage = editRoomCover.value || '';
+    }
     await store.fetchRooms();
   } catch (e: any) {
     alert(e.message || '修改失败');
@@ -441,7 +461,13 @@ function onEditCoverSelected(e: Event) {
           <Button variant="outline" size="sm" class="crl-tbtn crl-tbtn-warn" :class="{ 'crl-tbtn-ghost': !store.isConnected }" :disabled="!store.isConnected" @click="leaveCurrentRoom">退出当前房间</Button>
           <Button variant="outline" size="sm" class="crl-tbtn crl-tbtn-line" @click="router.push('/main/chatroom/profile')">个人中心</Button>
           <Button variant="outline" size="sm" class="crl-tbtn crl-tbtn-line" :class="{ 'crl-tbtn-ghost': !store.isAdmin }" :disabled="!store.isAdmin" @click="openAdminPanel">管理员</Button>
-          <Button variant="outline" size="sm" class="crl-tbtn crl-tbtn-success" @click="store.fetchRooms">刷新</Button>
+          <Button variant="outline" size="sm" class="crl-tbtn crl-tbtn-success" :disabled="refreshing" @click="handleRefresh">
+            <svg v-if="refreshing" class="inline-block w-4 h-4 mr-1 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 11-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+              <path d="M21 3v5h-5" />
+            </svg>
+            {{ refreshing ? '刷新中...' : '刷新' }}
+          </Button>
           <Button size="sm" class="crl-tbtn crl-tbtn-main" @click="openCreateDialog">+ 创建房间</Button>
           <Button variant="outline" size="sm" class="crl-tbtn crl-tbtn-danger" @click="handleLogout">退出</Button>
         </div>
@@ -459,7 +485,7 @@ function onEditCoverSelected(e: Event) {
           :class="isCurrentRoom(room.id) ? 'border-green-500 shadow-[0_0_14px_rgba(34,197,94,0.28)]' : 'border-[var(--border-subtle)] hover:border-[var(--color-primary)]'"
         >
           <!-- 封面图 -->
-          <div class="aspect-square bg-[var(--bg-secondary)] overflow-hidden relative">
+          <div class="aspect-square overflow-hidden relative">
             <img :src="coverSrc(room.coverImage)" class="w-full h-full object-cover" />
             <!-- 底部渐变遮罩 -->
             <div class="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/70 to-transparent pointer-events-none"></div>
@@ -716,6 +742,7 @@ function onEditCoverSelected(e: Event) {
 </template>
 
 <style scoped>
+
 /* DakeMusic: 自定义背景层 */
 .crl-custom-bg {
   position: absolute;

@@ -12,6 +12,8 @@ import { useChatRoomStore } from '@/stores/chatRoom';
 import { useSettingStore } from '@/stores/setting';
 import Button from '@/components/ui/Button.vue';
 import { roomApi } from '@/utils/roomApi';
+// DakeMusic: 麦克风增益/开关麦统一走单例 composable（房间内与悬浮窗共用，避免多轨道冲突）
+import { useMicGain } from '@/composables/useMicGain';
 import { getActivePinia } from 'pinia';
 // DakeMusic: 默认房间封面
 import defaultCover from '../../../../public/dakemusic-default-room-cover.png';
@@ -66,6 +68,7 @@ const lyricCollapsed = ref(false);
 const lyricBox = ref<HTMLElement | null>(null);
 let lyricTimer: any = null;
 let watchBroadcastStop: (()=>void)|null = null;
+let lyricBroadcastTimer: any = null;
 
 // 远端接收的歌词同步数据
 const remoteLyricData = ref({
@@ -90,6 +93,7 @@ onMounted(()=>{
 
 onUnmounted(()=>{
   if(lyricTimer) clearInterval(lyricTimer);
+  if(lyricBroadcastTimer) clearInterval(lyricBroadcastTimer);
   if(watchBroadcastStop) watchBroadcastStop();
 })
 
@@ -248,7 +252,7 @@ onMounted(()=>{
         {deep:true}
       )
       // 兜底1秒一次广播，防止丢包
-      setInterval(()=>{
+      lyricBroadcastTimer = setInterval(()=>{
         if(isLocalSongSource.value) broadcastLyricSync();
       },1000)
     }
@@ -656,20 +660,17 @@ function onSideResizeDblClick() {
 }
 
 // ===== 音频设备：合并为单一胶囊（内联，不依赖子组件）=====
+// DakeMusic: 麦克风增益链/开关麦/输入设备统一走 useMicGain 单例（房间内与悬浮窗共用同一轨道）
+const {
+  micGainReady, adsMicId, adsMicVol, adsMuted, adsSwitching, adsMicOn,
+  adsToggleMic: gainToggleMic, adsChangeMic: gainChangeMic,
+} = useMicGain();
+
 const adsOpen = ref(false);
 const adsMics = ref<any[]>([]);
 const adsSpeakers = ref<any[]>([]);
-const adsMicId = ref('');
 const adsSpeakerId = ref('');
 const adsSpeakerVol = ref(85);
-const adsMicVol = ref(60);
-const adsSwitching = ref(false);
-// ===== 麦克风状态：单一真相源 =====
-// 之前底部按钮读 store.isMuted、成员列表读 member.isMuted，两个数据源各自为政 → 不同步
-// 现在统一为 adsMuted（true = 已闭麦），两边都读它，永不漂移
-// 初值跟随 store（store 默认 isMuted=true），避免开局就「底部开麦、列表闭麦」
-const adsMuted = ref(!!(store as any).isMuted);
-const adsMicOn = computed(() => !adsMuted.value);
 
 // 成员列表读这个：自己读真相源，其他成员读 member.isMuted
 function micMutedOf(member: any): boolean {
@@ -686,123 +687,6 @@ function toggleSpeakerMute() {
   adsApplyVol();
   adsSave();
 }
-
-// 安全获取 LiveKit room：路径/导出不对只返回 null，绝不阻断模块加载
-async function getLKRoom(): Promise<any> {
-  try {
-    const mod: any = await import('@/utils/livekitClient');
-    const fn = mod?.getLiveKitClient || mod?.default?.getLiveKitClient;
-    const client = fn ? fn() : mod?.default;
-    const room = client?.room || client?.currentRoom || null;
-    if (!room) console.warn('[ADS] 未获取到 LiveKit room（可能未连接）');
-    return room;
-  } catch (e) {
-    console.warn('[ADS] livekitClient 导入失败，麦克风增益不可用', e);
-    return null;
-  }
-}
-
-// ===== 麦克风「输入增益」：真实控制传到房间的音量 =====
-// 链路：麦克风 → AudioContext Source → GainNode → MediaStreamDestination
-//      → 用 LiveKit 官方 LocalAudioTrack 包装 → publishTrack
-// 关键：绝不能直接 publishTrack(原生 MediaStreamTrack)，必须官方类包装，
-//      否则 LiveKit 调 .mute()/.unmute()/.on() 会报 xxx is not a function
-const micGainReady = ref(false);
-let micGainCtx: any = null;
-let micGainSrc: any = null;
-let micGainNode: any = null;
-let micGainDest: any = null;
-let micRawStream: MediaStream | null = null;
-let micLkTrack: any = null;
-
-function cleanupMicGain() {
-  try { micGainSrc?.disconnect(); } catch {}
-  try { micGainNode?.disconnect(); } catch {}
-  try { micGainDest?.disconnect(); } catch {}
-  if (micRawStream) { micRawStream.getTracks().forEach((t: any) => t.stop()); micRawStream = null; }
-  try { micGainCtx?.close(); } catch {}
-  micGainCtx = micGainSrc = micGainNode = micGainDest = null;
-  micLkTrack = null;
-  micGainReady.value = false;
-}
-
-// 建立增益链并用官方类包装成 LocalAudioTrack
-async function buildGainTrack(deviceId?: string): Promise<any> {
-  const AC: any = window.AudioContext || (window as any).webkitAudioContext;
-  micGainCtx = new AC();
-  micRawStream = await navigator.mediaDevices.getUserMedia({
-    audio: deviceId ? { deviceId: { exact: deviceId } } : true
-  });
-  micGainSrc = micGainCtx.createMediaStreamSource(micRawStream);
-  micGainNode = micGainCtx.createGain();
-  micGainNode.gain.value = adsMicVol.value / 100;
-  micGainDest = micGainCtx.createMediaStreamDestination();
-  micGainSrc.connect(micGainNode);
-  micGainNode.connect(micGainDest);
-
-  // 取出处理后的原生轨道
-  const processed: any = micGainDest.stream.getAudioTracks()[0];
-
-  // 用 LiveKit 官方类包装（多版本兼容）
-  const lk: any = await import('livekit-client');
-  if (typeof lk.LocalAudioTrack === 'function') {
-    return new lk.LocalAudioTrack(processed);
-  }
-  if (typeof lk.createLocalAudioTrack === 'function') {
-    return await lk.createLocalAudioTrack(processed);
-  }
-  throw new Error('livekit-client 未提供 LocalAudioTrack');
-}
-
-// 发布带增益的麦克风轨道（替换掉当前已发布的轨道）
-async function publishGainMic(deviceId?: string): Promise<boolean> {
-  try {
-    const room: any = await getLKRoom();
-    const lp = room?.localParticipant;
-    if (!lp) return false;
-
-    const oldGain = micGainNode;
-    const track = await buildGainTrack(deviceId);
-    if (oldGain) { try { oldGain.disconnect(); } catch {} }
-
-    // 卸载旧音频轨道
-    try {
-      for (const pub of lp.audioTrackPublications.values()) {
-        const t = (pub as any).track ?? pub;
-        if (t) { try { await lp.unpublishTrack(t); } catch {} }
-      }
-    } catch {}
-
-    await lp.publishTrack(track, { source: 'microphone' });
-    micLkTrack = track;
-    micGainReady.value = true;
-    return true;
-  } catch (e) {
-    console.error('[ADS] 建立输入增益失败', e);
-    cleanupMicGain();
-    return false;
-  }
-}
-
-// 开麦前确保增益链已建立（失败则自动退回普通模式，不阻断）
-async function ensureMicGain() {
-  if (micGainReady.value) return;
-  const room: any = await getLKRoom();
-  if (!room?.localParticipant) return; // 还没进房，跳过
-  const ok = await publishGainMic(adsMicId.value || undefined);
-  if (!ok) {
-    console.warn('[ADS] 输入增益不可用，已退回普通麦克风模式');
-  }
-}
-
-// 麦克风音量：实时改 GainNode（不重新发布轨道，零风险）
-function applyMicGain() {
-  // 输入增益（传到房间的音量）
-  if (micGainNode) {
-    try { micGainNode.gain.value = adsMicVol.value / 100; } catch {}
-  }
-}
-watch(adsMicVol, applyMicGain);
 
 // ===== 设备选择记忆：下次进房自动套用，不用每次重选机架设备 =====
 const ADS_KEY = 'chatroom_ads_devices';
@@ -869,122 +753,32 @@ const adsSpeakerLabel = computed(() => {
   return adsShort(d?.label || '') || '扬声器';
 });
 
-// 从 LiveKit 回读真实麦状态（不猜），读不到返回 null
-async function readRealMuted(): Promise<boolean | null> {
+// DakeMusic: 开关麦 / 增益链 / 输入设备统一由 useMicGain 单例负责（文件顶部已解构）
+// 安全获取 LiveKit room（歌词广播等组件内逻辑使用）
+async function getLKRoom(): Promise<any> {
   try {
-    const room: any = await getLKRoom();
-    const lp = room?.localParticipant;
-    if (!lp) return null;
-    try {
-      for (const pub of lp.audioTrackPublications.values()) {
-        const p: any = pub;
-        if (typeof p?.isMuted === 'boolean') return p.isMuted;
-        const t = p?.track;
-        if (t && typeof t.isMuted === 'boolean') return t.isMuted;
-        if (t && typeof t.enabled === 'boolean') return !t.enabled;
-      }
-    } catch {}
-    if (typeof lp.isMicrophoneEnabled === 'boolean') return !lp.isMicrophoneEnabled;
-  } catch {}
-  return null;
-}
-
-// 一次写入三处：真相源 + store + 成员列表自己那条，保证底部按钮和列表永远一致
-function adsSetMuted(muted: boolean) {
-  adsMuted.value = muted;
-  const s: any = store;
-  // store 侧：优先用 setter；只有状态不一致时才翻转，绝不无脑调 toggleMute
-  try {
-    if (typeof s.setMuted === 'function') s.setMuted(muted);
-    else if (typeof s.setMicMuted === 'function') s.setMicMuted(muted);
-    else if (typeof s.setMicrophoneEnabled === 'function') s.setMicrophoneEnabled(!muted);
-    else if (s.isMuted !== muted && typeof s.toggleMute === 'function') s.toggleMute();
-  } catch {}
-  // 兜底对齐：store.toggleMute 内部有「未上麦不允许开麦」的业务约束会直接 return，
-  // 那样 store.isMuted 不翻转 → 悬浮窗（读 store.isMicEnabled）会跟房间内显示不一致。
-  // 这里直接写 ref 强制对齐，不改动 toggleMute 本身的逻辑。
-  try { if (s.isMuted !== muted) s.isMuted = muted; } catch {}
-  // 成员列表自己那条
-  try {
-    const self = (store.members || []).find((m: any) => m.isLocal);
-    if (self) self.isMuted = muted;
-  } catch {}
-}
-
-// 进房后同步一次真实状态，避免开局就出现「底部闭麦、列表开麦」
-async function adsSyncFromRoom() {
-  const real = await readRealMuted();
-  if (real !== null) adsSetMuted(real);
-}
-
-async function adsToggleMic() {
-  if (adsSwitching.value) return;
-  adsSwitching.value = true;
-  try {
-    // 注意：store 没有 mySeatIndex()，绝对不能调用，否则报 is not a function
-
-    // 1) 以 LiveKit 真实状态为准，不猜
-    const real = await readRealMuted();
-    const curMuted = real ?? adsMuted.value;
-    // setMicrophoneEnabled(x) 的 x 是「是否启用麦克风」
-    // 当前闭麦(true) → 点击要开麦 → 传 true；当前开麦(false) → 要闭麦 → 传 false
-    const wantEnabled = curMuted;
-
-    // 2) 开麦前先建立「输入增益」链路（让音量滑块真实作用于房间）
-    if (wantEnabled) {
-      try { await ensureMicGain(); } catch {}
-    }
-
-    // 3) 真实操作 LiveKit（唯一入口，不再调 store.toggleMute 造成二次翻转）
-    try {
-      const room: any = await getLKRoom();
-      const lp = room?.localParticipant;
-      if (lp && typeof lp.setMicrophoneEnabled === 'function') {
-        await lp.setMicrophoneEnabled(wantEnabled);
-      }
-    } catch (e) {
-      console.error('[ADS] LiveKit 开关麦克风失败', e);
-    }
-
-    // 4) 写入单一真相源：底部按钮 + 成员列表 + store 一次到位
-    adsSetMuted(!wantEnabled);
-
-    // 5) 复查：350ms 后读真实状态，不一致就纠正
-    setTimeout(async () => {
-      const after = await readRealMuted();
-      if (after !== null && after !== adsMuted.value) adsSetMuted(after);
-    }, 350);
-  } catch (e) {
-    console.error('[ADS] 切换麦克风失败', e);
-  } finally {
-    adsSwitching.value = false;
+    const mod: any = await import('@/utils/livekitClient');
+    const fn = mod?.getLiveKitClient || mod?.default?.getLiveKitClient;
+    const client = fn ? fn() : mod?.default;
+    return client?.room || client?.currentRoom || null;
+  } catch {
+    return null;
   }
 }
-
-// 反向同步：房主闭麦你 / 服务端回推状态时，自动同步到真相源
-watch(() => (store as any).isMuted, (v) => {
-  if (typeof v === 'boolean' && v !== adsMuted.value) {
-    adsMuted.value = v;
-    try {
-      const self = (store.members || []).find((m: any) => m.isLocal);
-      if (self) self.isMuted = v;
-    } catch {}
-  }
-});
-
+// 建立组件内别名，供模板与 onMounted 引用 —— 房间内与悬浮窗操作同一条轨道
+const adsToggleMic = gainToggleMic;
 async function adsChangeMic(id: string) {
-  try {
-    // 增益模式：换设备必须重建整条链路，否则会绕过 GainNode
-    if (micGainReady.value) {
-      const ok = await publishGainMic(id);
-      if (ok) return;
-    }
-    const room: any = await getLKRoom();
-    if (room?.switchActiveDevice) await room.switchActiveDevice('audioinput', id);
-  } catch (e) {
-    console.error('[ADS] 切换麦克风设备失败', e);
-  }
+  await gainChangeMic(id);
+  adsSave();
 }
+// 进房麦状态已在 composable 与 store 统一（默认闭麦），组件无需再回读，空函数兼容旧调用
+function adsSyncFromRoom() {}
+
+
+
+
+
+
 
 function adsChangeSpeaker(id: string) {
   document.querySelectorAll('audio.lk-voice-audio').forEach((el: any) => {
@@ -1008,7 +802,7 @@ onUnmounted(() => {
   window.removeEventListener('storage', onStorageChange);
   window.removeEventListener('beforeunload', onBeforeUnload);
   navigator.mediaDevices?.removeEventListener?.('devicechange', adsLoad);
-  cleanupMicGain();
+  // DakeMusic: 增益链由 useMicGain 单例管理，页面收起/切换不销毁（真正退房才在 store 清理）
   if (baselineTimer) { clearTimeout(baselineTimer); baselineTimer = null; }
 });
 </script>
@@ -1425,6 +1219,22 @@ onUnmounted(() => {
             </div>
             <div class="cr-profile-name">{{ viewingUser.name }}</div>
             <div class="cr-profile-id">ID：{{ viewingUser.userId ? 999 + viewingUser.userId : '-' }}</div>
+            <!-- DakeMusic: 一行展示资料标签 -->
+            <div class="cr-profile-tags">
+              <span v-if="viewingUser.age" class="cr-tag" :class="(viewingUser.gender === 'female' || viewingUser.gender === '女' || viewingUser.gender === 'F' || viewingUser.gender === 'f') ? 'age-gender-female' : 'age-gender-male'">
+                {{ viewingUser.age }}
+                <template v-if="viewingUser.gender === 'male' || viewingUser.gender === '男' || viewingUser.gender === 'M' || viewingUser.gender === 'm'">♂</template>
+                <template v-else-if="viewingUser.gender === 'female' || viewingUser.gender === '女' || viewingUser.gender === 'F' || viewingUser.gender === 'f'">♀</template>
+              </span>
+              <span v-if="viewingUser.city" class="cr-tag city">
+                <svg class="inline w-3 h-3 mr-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+                  <circle cx="12" cy="10" r="3" />
+                </svg>
+                {{ viewingUser.city }}
+              </span>
+              <span v-if="viewingUser.ip" class="cr-tag ip">IP: {{ viewingUser.ip }}</span>
+            </div>
             <div v-if="viewingUser.role" class="cr-profile-role">
               {{ viewingUser.role === 'owner' ? '👑 房主' : viewingUser.role === 'admin' ? '🛡️ 管理员' : '成员' }}
             </div>
@@ -2660,6 +2470,20 @@ onUnmounted(() => {
 .cr-av-ico.big { width: 40px; height: 40px; color: rgba(255,255,255,.45); }
 .cr-profile-name { font-size: 16px; font-weight: 700; }
 .cr-profile-id { font-size: 11px; color: #7c7c92; margin-top: 2px; }
+/* DakeMusic: 资料标签样式 */
+.cr-profile-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
+.cr-tag {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  line-height: 1.4;
+}
+.cr-tag.age-gender-male { background: linear-gradient(90deg, #3b82f6, #06b6d4); color: #fff; font-weight: 600; }
+.cr-tag.age-gender-female { background: linear-gradient(90deg, #ec4899, #f472b6); color: #fff; font-weight: 600; }
+.cr-tag.male { color: #60a5fa; }
+.cr-tag.female { color: #f472b6; }
+.cr-tag.city { color: #9ca3af; }
+.cr-tag.ip { color: #9ca3af; }
 .cr-profile-role {
   margin-top: 6px;
   padding: 2px 9px;

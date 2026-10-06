@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 播放器音频设备管理
+ * 作者：知之Dake
+ * 文件：device.ts
+ * 描述：播放器输出设备枚举、切换与设备相关播放状态管理
+ */
 import logger from '@/utils/logger';
 import type { PlayerState } from './state';
 import type { useSettingStore } from '../setting';

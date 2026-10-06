@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DakeMusic - 个人中心</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="icon" href="favicon.png">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-slate-900 to-purple-900 text-white">
+  <div id="app">
+    <!-- DakeMusic: 个人中心 -->
+    <div class="max-w-md mx-auto mt-10 p-6">
+      <div class="flex items-center justify-between mb-8">
+        <h1 class="text-2xl font-bold">个人中心</h1>
+        <button @click="goBack" class="text-sm opacity-70 hover:opacity-100">← 返回</button>
+      </div>
+
+      <!-- 头像 -->
+      <div class="text-center mb-8">
+        <div class="w-24 h-24 mx-auto rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-3xl overflow-hidden mb-3">
+          <img v-if="userInfo.avatar" :src="userInfo.avatar" class="w-full h-full object-cover" />
+          <span v-else>{{ userInfo.nickname?.[0] }}</span>
+        </div>
+        <p class="text-xl font-bold">{{ userInfo.nickname }}</p>
+        <p class="text-sm opacity-60">@{{ userInfo.name }}</p>
+      </div>
+
+      <!-- 资料表单 -->
+      <div class="space-y-4">
+        <div>
+          <label class="text-sm opacity-70 block mb-1">昵称</label>
+          <input v-model="form.nickname" type="text" class="w-full bg-white/10 rounded-lg px-4 py-2 outline-none focus:ring-2 ring-purple-500" />
+        </div>
+        <!-- 年龄 + 性别 -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="text-sm opacity-70 block mb-1">年龄</label>
+            <input v-model="form.age" type="number" min="18" max="100" class="w-full bg-white/10 rounded-lg px-4 py-2 outline-none focus:ring-2 ring-purple-500" />
+          </div>
+          <div>
+            <label class="text-sm opacity-70 block mb-1">性别</label>
+            <div class="flex gap-2 mt-1">
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input v-model="form.gender" type="radio" value="男" class="accent-blue-500" />
+                <span class="text-blue-400">♂ 男</span>
+              </label>
+              <label class="flex items-center gap-1 cursor-pointer">
+                <input v-model="form.gender" type="radio" value="女" class="accent-pink-500" />
+                <span class="text-pink-400">♀ 女</span>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div>
+          <label class="text-sm opacity-70 block mb-1">城市</label>
+          <input v-model="form.city" type="text" class="w-full bg-white/10 rounded-lg px-4 py-2 outline-none focus:ring-2 ring-purple-500" />
+        </div>
+        <div>
+          <label class="text-sm opacity-70 block mb-1">签名</label>
+          <textarea v-model="form.bio" rows="3" class="w-full bg-white/10 rounded-lg px-4 py-2 outline-none focus:ring-2 ring-purple-500"></textarea>
+        </div>
+        <div>
+          <label class="text-sm opacity-70 block mb-1">头像</label>
+          <div class="flex items-center gap-3">
+            <div class="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+              <img v-if="form.avatar" :src="form.avatar" class="w-full h-full object-cover" />
+              <span v-else class="text-2xl">📷</span>
+            </div>
+            <input type="file" accept="image/*" @change="handleAvatarUpload" class="hidden" id="avatarInput" />
+            <label for="avatarInput" class="px-4 py-2 bg-white/10 rounded-lg cursor-pointer hover:bg-white/20">
+              选择图片
+            </label>
+          </div>
+        </div>
+
+        <button @click="saveProfile" class="w-full bg-gradient-to-r from-blue-500 to-purple-500 py-3 rounded-lg font-bold">
+          保存修改
+        </button>
+      </div>
+
+      <p v-if="message" class="mt-4 text-center text-green-400">{{ message }}</p>
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+    createApp({
+      setup() {
+        const token = localStorage.getItem('chat_session');
+        const userInfo = ref({});
+        const form = ref({ nickname: '', age: 18, gender: '', city: '', bio: '', avatar: '' });
+        const message = ref('');
+
+        onMounted(async () => {
+          if (!token) { window.location.href = 'index.html'; return; }
+          try {
+            const res = await fetch('/api/auth/me', { headers: { Authorization: 'Bearer ' + token } });
+            const data = await res.json();
+            userInfo.value = data;
+            form.value = {
+              nickname: data.nickname || '',
+              age: data.age || 18,
+              gender: data.gender || '',
+              city: data.city || '',
+              bio: data.bio || '',
+              avatar: data.avatar || ''
+            };
+          } catch (e) {
+            console.error('加载用户信息失败', e);
+          }
+        });
+
+        async function saveProfile() {
+          message.value = '保存中...';
+          const res = await fetch('/api/auth/profile', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify(form.value)
+          });
+          if (res.ok) {
+            message.value = '✅ 保存成功！';
+            setTimeout(() => window.location.href = 'index.html', 1000);
+          } else {
+            message.value = '❌ 保存失败';
+          }
+        }
+
+        function goBack() { window.location.href = 'index.html'; }
+
+        function handleAvatarUpload(e) {
+          const file = e.target.files[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            // 压缩图片，避免太大
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const size = 200;
+              canvas.width = size;
+              canvas.height = size;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, size, size);
+              form.value.avatar = canvas.toDataURL('image/jpeg', 0.8);
+            };
+            img.src = ev.target.result;
+          };
+          reader.readAsDataURL(file);
+        }
+
+        return { userInfo, form, message, saveProfile, goBack, handleAvatarUpload };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

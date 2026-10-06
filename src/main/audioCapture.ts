@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 原生音频采集模块
+ * 作者：知之Dake
+ * 文件：audioCapture.ts
+ * 描述：系统声音 / 麦克风输入原生采集组件（echo-audio-capture）的加载、取用与生命周期封装
+ */
 import { app } from 'electron';
 import path from 'path';
 import log from './logger';

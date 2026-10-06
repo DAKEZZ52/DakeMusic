@@ -219,7 +219,8 @@ export const useSettingStore = defineStore('setting', {
     importBackgroundConfirmDismissed: false,
     cloudUploadBackgroundConfirmDismissed: false,
     checkPrerelease: false,
-    githubProxyUrl: '',
+    // DakeMusic: 默认开启国内加速源，提升更新下载速度
+    githubProxyUrl: 'https://mirror.ghproxy.com',
     appVersion: '',
     isPrerelease: false,
     appIsPackaged: false,

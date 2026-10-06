@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 播放器核心控制模块
+ * 作者：知之Dake
+ * 文件：controller.ts
+ * 描述：主进程播放引擎主控制器，调度音频图、播放状态、特效与频谱快照
+ */
 import { EventEmitter } from 'events';
 import { app } from 'electron';
 import fs from 'fs';

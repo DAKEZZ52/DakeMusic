@@ -1,11 +1,21 @@
-// 房间管理后端 API 封装（v2 安全版：JWT 会话鉴权）
+/**
+ * DakeMusic 语聊房模块
+ * 作者：知之Dake
+ * 文件：roomApi.ts
+ * 描述：房间管理后端 API 封装 - JWT 会话鉴权 + 内存缓存
+ */
 const API_BASE = 'http://106.52.9.146:3001';
+
+// DakeMusic: 简单内存缓存
+const cache = new Map<string, { data: any; expire: number }>();
+const CACHE_DURATION = 30 * 1000; // 30秒缓存
 
 interface RequestOptions {
   method?: string;
   body?: Record<string, unknown>;
   headers?: Record<string, string>;
   auth?: boolean;
+  cache?: boolean; // 是否缓存 GET 请求
 }
 
 function getSessionToken(): string | null {
@@ -13,6 +23,15 @@ function getSessionToken(): string | null {
 }
 
 async function request(path: string, options: RequestOptions = {}) {
+  // DakeMusic: GET 请求加缓存
+  const cacheKey = path;
+  if (!options.method || options.method === 'GET') {
+    const cached = cache.get(cacheKey);
+    if (cached && cached.expire > Date.now()) {
+      return cached.data;
+    }
+  }
+
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(options.headers || {}) };
   if (options.auth !== false) {
     const token = getSessionToken();
@@ -27,10 +46,23 @@ async function request(path: string, options: RequestOptions = {}) {
   if (!res.ok) {
     if (res.status === 401 && data.error === 'TOKEN_EXPIRED') {
       localStorage.removeItem('chat_session');
+      // 401 时清空缓存
+      cache.clear();
     }
     throw new Error(data.error || '请求失败');
   }
+
+  // DakeMusic: GET 请求写入缓存
+  if (!options.method || options.method === 'GET') {
+    cache.set(cacheKey, { data, expire: Date.now() + CACHE_DURATION });
+  }
+
   return data;
+}
+
+// DakeMusic: 手动清除缓存（更新资料后调用）
+export function clearApiCache() {
+  cache.clear();
 }
 
 export const roomApi = {
@@ -49,8 +81,13 @@ export const roomApi = {
 
   // 更新个人资料
   /** 只改昵称等资料；账号 name 后端不接受修改 */
-  updateProfile: (data: { nickname?: string; avatar?: string; age?: number; zodiac?: string; photos?: string[]; bio?: string }) =>
-    request('/api/auth/profile', { method: 'PATCH', body: data }),
+  // DakeMusic: 加上 city, gender
+  updateProfile: async (data: { nickname?: string; avatar?: string; age?: number; zodiac?: string; photos?: string[]; bio?: string; city?: string; gender?: string }) => {
+    const result = await request('/api/auth/profile', { method: 'PATCH', body: data });
+    // 更新资料后清除缓存
+    cache.clear();
+    return result;
+  },
   // 修改密码
   changePassword: (oldPassword: string, newPassword: string) =>
     request('/api/auth/change-password', { method: 'POST', body: { oldPassword, newPassword } }),

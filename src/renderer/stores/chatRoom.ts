@@ -7,6 +7,8 @@
 import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { getLiveKitClient, type RoomMember, type ChatMessage } from '@/utils/livekitClient';
+// DakeMusic: 麦克风增益链单例，房间内与悬浮窗共用，toggleMute 统一走它
+import { useMicGain } from '@/composables/useMicGain';
 import { roomApi } from '@/utils/roomApi';
 
 export interface RoomInfo {
@@ -91,6 +93,19 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
         if (muted) m.isSpeaking = false;
       }
     },
+  });
+
+  // DakeMusic: 麦克风增益链单例（房间内与悬浮窗共用同一轨道）
+  const micGain = useMicGain();
+  // composable(真相) → store：同步 isMuted 与成员列表自己那条
+  watch(micGain.adsMuted, (m) => {
+    if (isMuted.value !== m) isMuted.value = m;
+    const self = members.value.find((x) => x.isLocal);
+    if (self && self.isMuted !== m) self.isMuted = m;
+  });
+  // 服务端/房主回推 store.isMuted → composable
+  watch(isMuted, (m) => {
+    if (micGain.adsMuted.value !== m) micGain.adsMuted.value = m;
   });
 
   async function fetchMyProfile() {
@@ -214,6 +229,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       try { await roomApi.leaveRoom(currentRoomId.value); } catch {}
     }
     await client.leaveRoom();
+    // DakeMusic: 真正退房才销毁增益链（收起悬浮窗不销毁）
+    micGain.cleanupMicGain();
     resetState();
     isConnected.value = false;
   }
@@ -235,19 +252,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   }
 
   async function toggleMute() {
-    try {
-      const newMuted = !isMuted.value;
-      await client.setMicrophoneEnabled(!newMuted);
-      isMuted.value = newMuted;
-      const me = members.value.find((m) => m.identity === myIdentity.value);
-      if (me) {
-        me.isMuted = newMuted;
-        // 闭麦时强制清除说话状态
-        if (newMuted) me.isSpeaking = false;
-      }
-    } catch (e) {
-      console.error('[ChatRoom] 切换麦克风失败:', e);
-    }
+    // DakeMusic: 统一走增益链单例；adsMuted 变化后由 watch 同步 isMuted 与成员列表
+    await micGain.adsToggleMic();
   }
 
   const toggleMicrophone = toggleMute;

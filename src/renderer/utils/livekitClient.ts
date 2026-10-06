@@ -113,9 +113,9 @@ export class LiveKitClient {
 
       await this.room.localParticipant.setMicrophoneEnabled(false);
 
-      // 设置自己的 metadata（包含头像）
-      const avatar = typeof localStorage !== 'undefined' ? (localStorage.getItem('chatroom_avatarImage') || '') : '';
-      try { await this.room.localParticipant.setMetadata(JSON.stringify({ avatar })); } catch {}
+      // DakeMusic: 不再通过 LiveKit metadata 同步大头像（会导致信令报错、反复重连、语音中断）
+      // 头像统一通过后端 /api/users/:id 获取，LiveKit metadata 仅由后端在 join 时写入账号信息
+      // 保留 localStorage 头像仅本地使用，不发送到 LiveKit
 
       this.callbacks.onConnected?.();
       this.sendSystemMessage(`${userName} 加入了房间`);
@@ -167,17 +167,13 @@ export class LiveKitClient {
     }
   }
 
-  // 更新自己的 metadata（换头像时调用，实时同步给房间内所有人）
+  // DakeMusic: 更新本地头像显示，不再通过 LiveKit metadata 发送（避免超大 base64 导致重连断语音）
+  // 头像保存到后端后，其他人通过后端 API 拉取
   async updateLocalMetadata(avatar: string): Promise<void> {
     if (!this.room) return;
+    // 仅更新本地显示，不调用 LiveKit setMetadata
     const metadata = JSON.stringify({ avatar });
-    try {
-      await this.room.localParticipant.setMetadata(metadata);
-      // 主动触发本地回调，确保自己的头像立即更新（不依赖事件延迟）
-      this.callbacks.onMetadataChanged?.(this.localIdentity, metadata);
-    } catch (e) {
-      console.warn('[LiveKit] updateMetadata 失败:', e);
-    }
+    this.callbacks.onMetadataChanged?.(this.localIdentity, metadata);
   }
 
   // 从 participant metadata 解析头像

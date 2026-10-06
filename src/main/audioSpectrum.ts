@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 音频频谱模块
+ * 作者：知之Dake
+ * 文件：audioSpectrum.ts
+ * 描述：播放引擎频谱帧的订阅合并、定时轮询与按渲染窗口广播（含失效订阅清理）
+ */
 import { ipcMain, type WebContents } from 'electron';
 import {
   audioSpectrumOptionsIncludeWaveform,

@@ -1,0 +1,25 @@
+/* DakeMusic 网页版样式 / 作者：知之Dake / 文件：style.css / 描述：全局样式 */
+body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+.mic-active { box-shadow: 0 0 0 2px #22c55e, 0 0 20px rgba(34, 197, 94, 0.3); }
+.speaking { animation: pulse 1s infinite; }
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); }
+}
+.chat-msg { margin-bottom: 8px; }
+.chat-name { font-size: 12px; opacity: 0.7; margin-bottom: 2px; }
+.chat-content { font-size: 14px; }
+
+/* DakeMusic: 隐藏滚动条但保留滚动功能 */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* DakeMusic: Toast 过渡 */
+.toast-enter-active, .toast-leave-active { transition: opacity .25s, transform .25s; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translate(-50%, -60%) !important; }
+
+/* DakeMusic: 手机端全局紧凑 */
+@media (max-width: 768px) {
+  body { font-size: 14px; }
+  .p-4 { padding: 0.75rem; }
+}

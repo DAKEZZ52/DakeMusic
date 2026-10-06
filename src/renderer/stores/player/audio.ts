@@ -1,3 +1,9 @@
+/**
+ * DakeMusic 播放器音频状态管理
+ * 作者：知之Dake
+ * 文件：audio.ts
+ * 描述：播放器音量、音效、音质等音频相关状态与动作的管理工厂
+ */
 import type { PlayerState } from './state';
 import type { useSettingStore } from '../setting';
 import type { PlayerEngine } from '@/utils/player';
