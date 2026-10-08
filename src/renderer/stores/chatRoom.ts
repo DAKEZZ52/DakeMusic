@@ -43,11 +43,16 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const myName = ref('');
   const myAvatar = ref(localStorage.getItem('chatroom_avatarImage') || '');
   const isOwner = ref(false);
+  /** 全局超级管理员（Dake），进别人房间不自动上麦、不显示房主标签 */
+  const isSuperAdmin = ref(false);
+  /** DakeMusic: 根超管（环境变量写死），可任免其他超管，且自己不能被取消 */
+  const isRootSuper = ref(false);
   const error = ref('');
   const bannedUsers = ref<string[]>([]);
   const isLoggedIn = ref(!!localStorage.getItem('chat_session'));
   const loginName = ref(localStorage.getItem('chat_login_name') || '');
   const isAdmin = ref(false);
+  const myBio = ref('');
 
   const memberCount = computed(() => members.value.length);
   const isMicEnabled = computed(() => !isMuted.value);
@@ -76,7 +81,13 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
         if (m) m.avatar = avatar;
       } catch {}
     },
-    onMessage: (msg) => { messages.value.push(msg); },
+    onMessage: (msg) => {
+      // DakeMusic: 仅接受合法聊天/系统消息，座位等控制数据（kind=dakemusic-seat）绝不串到公屏
+      if (!msg || msg.kind === 'dakemusic-seat') return;
+      if (msg.type !== 'text' && msg.type !== 'system' && msg.type !== 'image') return;
+      if (msg.senderIdentity === undefined) return;
+      messages.value.push(msg);
+    },
     onConnected: () => { isConnected.value = true; isConnecting.value = false; },
     onDisconnected: () => { isConnected.value = false; },
     onError: (err) => { error.value = err.message; isConnecting.value = false; },
@@ -118,6 +129,9 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
         myAvatar.value = '';
         localStorage.removeItem('chatroom_avatarImage');
       }
+      isAdmin.value = !!me.isAdmin;
+      isRootSuper.value = !!me.isRootSuper;
+      myBio.value = me.bio || '';
     } catch (e) {
       console.error('[ChatRoom] 拉取资料失败:', e);
     }
@@ -130,6 +144,20 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     isLoggedIn.value = true;
     loginName.value = result.name;
     isAdmin.value = !!result.isAdmin;
+    isRootSuper.value = !!result.isRootSuper;
+    await fetchMyProfile();
+    return result;
+  }
+
+  // DakeMusic: peiwan 陪玩平台账号密码登录
+  async function loginPeiwan(account: string, password: string) {
+    const result = await roomApi.peiwanLogin(account, password);
+    localStorage.setItem('chat_session', result.token);
+    localStorage.setItem('chat_login_name', result.name);
+    isLoggedIn.value = true;
+    loginName.value = result.name;
+    isAdmin.value = !!result.isAdmin;
+    isRootSuper.value = !!result.isRootSuper;
     await fetchMyProfile();
     return result;
   }
@@ -152,6 +180,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     isLoggedIn.value = false;
     loginName.value = '';
     isAdmin.value = false;
+    isRootSuper.value = false;
     myAvatar.value = '';
   }
 
@@ -211,6 +240,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomOwnerName.value = result.ownerNickname || result.ownerName || '';
     myIdentity.value = result.identity;
     myName.value = loginName.value || '用户';
+    isSuperAdmin.value = !!result.isSuperAdmin;
+    // 真房主以后端 result.isOwner 为准（后端已按房间创建者判断）；超管身份单独走 isSuperAdmin
     isOwner.value = !!result.isOwner;
     await client.joinRoom(result.roomId, myName.value, {
       token: result.token,
@@ -247,6 +278,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomOwnerName.value = '';
     myIdentity.value = '';
     isOwner.value = false;
+    isSuperAdmin.value = false;
     isMuted.value = true;
     bannedUsers.value = [];
   }
@@ -259,9 +291,9 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const toggleMicrophone = toggleMute;
 
   // 点歌（开始唱）
-  async function sendMessage(content: string) {
+  async function sendMessage(content: string, type: 'text' | 'image' = 'text') {
     if (!content.trim()) return;
-    try { await client.sendMessage(content.trim()); }
+    try { await client.sendMessage(content.trim(), type); }
     catch (e) { console.error('[ChatRoom] 发送消息失败:', e); }
   }
 
@@ -321,10 +353,10 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
 
   return {
     rooms, currentRoomId, currentRoomName, currentRoomDescription, currentRoomCoverImage, currentRoomOwnerName, members, memberAvatars, messages,
-    isConnected, isConnecting, isMuted, myIdentity, myName, myAvatar, isOwner, error,
+    isConnected, isConnecting, isMuted, myIdentity, myName, myAvatar, myBio, isOwner, isSuperAdmin, isRootSuper, error,
     bannedUsers, isLoggedIn, loginName, isAdmin, adminToken,
     memberCount, isMicEnabled, localMember, sortedMessages,
-    login, logout, fetchRooms, fetchMyProfile, createRoom, joinRoom, leaveRoom,
+    login, loginPeiwan, logout, fetchRooms, fetchMyProfile, createRoom, joinRoom, leaveRoom,
     toggleMute, toggleMicrophone, sendMessage,
     kickParticipant, muteParticipant, banParticipant, isBanned,
     updateMyAvatar,

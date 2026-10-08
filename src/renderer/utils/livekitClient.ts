@@ -21,7 +21,9 @@ export interface ChatMessage {
   senderName: string;
   content: string;
   timestamp: number;
-  type: 'text' | 'system';
+  type: 'text' | 'system' | 'image';
+  /** 控制数据标识（座位/歌词等）；正常聊天消息无此字段 */
+  kind?: string;
 }
 
 export interface RoomMember {
@@ -34,6 +36,8 @@ export interface RoomMember {
   isLocal: boolean;
   isOwner: boolean;
   isAdmin?: boolean;    // 房间管理员（非房主）
+  isSuperAdmin?: boolean; // 全局超级管理员
+  isRootSuper?: boolean;  // 根超管（环境变量写死）
 }
 
 export interface LiveKitClientCallbacks {
@@ -44,6 +48,9 @@ export interface LiveKitClientCallbacks {
   onSeatsUpdate?: (seats: any[]) => void;
   onSpeakingChange?: (identity: string, speaking: boolean) => void;
   onMetadataChanged?: (identity: string, metadata: string) => void;
+  // DakeMusic: 座位管理模块专用数据通道（kind=dakemusic-seat）
+  onSeatData?: (payload: any, fromIdentity: string) => void;
+  onSeatPeerConnected?: (identity: string) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
   onError?: (error: Error) => void;
@@ -188,7 +195,17 @@ export class LiveKitClient {
     try { return JSON.parse(metadata).account || ''; } catch { return ''; }
   }
 
-  async sendMessage(content: string): Promise<void> {
+  private parseIsAdmin(metadata: string | undefined): boolean {
+    if (!metadata) return false;
+    try { return !!JSON.parse(metadata).isAdmin; } catch { return false; }
+  }
+
+  private parseIsRootSuper(metadata: string | undefined): boolean {
+    if (!metadata) return false;
+    try { return !!JSON.parse(metadata).isRootSuper; } catch { return false; }
+  }
+
+  async sendMessage(content: string, type: 'text' | 'image' = 'text'): Promise<void> {
     if (!this.room) return;
 
     const message: ChatMessage = {
@@ -197,7 +214,7 @@ export class LiveKitClient {
       senderName: this.localName,
       content,
       timestamp: Date.now(),
-      type: 'text',
+      type,
     };
 
     const encoder = new TextEncoder();
@@ -226,6 +243,22 @@ export class LiveKitClient {
     await this.room.localParticipant.publishData(data, { reliable: true });
   }
 
+  /**
+   * DakeMusic: 座位协议数据广播（kind=dakemusic-seat，与聊天消息区分）
+   * @param payload 座位协议消息（内部会自动加 kind）
+   * @param destinationIdentities 传 identity 列表则单播给指定成员（如房主给新成员同步座位快照）
+   */
+  async publishSeatData(payload: any, destinationIdentities?: string[]): Promise<void> {
+    if (!this.room) return;
+    const envelope = { ...payload, kind: 'dakemusic-seat' };
+    const data = new TextEncoder().encode(JSON.stringify(envelope));
+    const opts: any = { reliable: true };
+    if (destinationIdentities?.length) {
+      opts.destinationIdentities = destinationIdentities;
+    }
+    await this.room.localParticipant.publishData(data, opts);
+  }
+
   getMembers(): RoomMember[] {
     if (!this.room) return [];
 
@@ -241,6 +274,8 @@ export class LiveKitClient {
       isSpeaking: local.isSpeaking,
       isLocal: true,
       isOwner: local.identity === this.ownerIdentity,
+      isAdmin: this.parseIsAdmin(local.metadata),
+      isRootSuper: this.parseIsRootSuper(local.metadata),
     });
 
     this.room.remoteParticipants.forEach((p: RemoteParticipant) => {
@@ -253,6 +288,8 @@ export class LiveKitClient {
         isSpeaking: p.isSpeaking,
         isLocal: false,
         isOwner: p.identity === this.ownerIdentity,
+        isAdmin: this.parseIsAdmin(p.metadata),
+        isRootSuper: this.parseIsRootSuper(p.metadata),
       });
     });
 
@@ -276,6 +313,7 @@ export class LiveKitClient {
 
     this.room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       console.log('[LiveKit] 用户加入:', participant.name);
+      this.callbacks.onSeatPeerConnected?.(participant.identity);
       this.callbacks.onMemberJoin?.({
         identity: participant.identity,
         name: participant.name || '未知用户',
@@ -307,8 +345,18 @@ export class LiveKitClient {
         // topic 可能在第4个参数，或在 participant 的 dataPacketInfo 里
         let topic: string | undefined = args[3];
         if (!topic && args[1]?.dataPacketInfo?.topic) topic = args[1].dataPacketInfo.topic;
+        const fromIdentity: string = args[1]?.identity || '';
         const decoder = new TextDecoder();
         const data = JSON.parse(decoder.decode(payload));
+        // DakeMusic: 座位协议消息交给座位模块，不当聊天消息
+        if (data && data.kind === 'dakemusic-seat') {
+          this.callbacks.onSeatData?.(data, fromIdentity);
+          return;
+        }
+        // DakeMusic: 歌词同步是控制数据（由 ChatRoom 独立监听处理），绝不进聊天公屏
+        if (data && (data.kind === 'dakemusic-lyric' || data.type === 'lyric-sync')) {
+          return;
+        }
         this.callbacks.onMessage?.(data as ChatMessage);
       } catch (e) {
         console.error('[LiveKit] 解析消息失败:', e);

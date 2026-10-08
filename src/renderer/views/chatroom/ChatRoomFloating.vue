@@ -69,6 +69,14 @@ watch(() => store.isLoggedIn, (ok) => {
   if (store.isConnected) hardLeave();
 });
 
+// DakeMusic: 每次新进入房间，悬浮窗默认收起成小圆钮，不展开
+watch(() => store.isConnected, (connected, old) => {
+  if (connected && !old) {
+    collapsed.value = true;
+    try { localStorage.setItem('chatroom_float_collapsed', '1'); } catch {}
+  }
+});
+
 // 悬浮窗尺寸（与模板保持一致，用于边界收敛）
 const CARD_W = 300;
 const CARD_H = 104;

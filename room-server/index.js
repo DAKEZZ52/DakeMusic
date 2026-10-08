@@ -32,6 +32,8 @@ const DB_FILE = process.env.DB_FILE || './users.db';
 const LK_WS_URL = process.env.LK_WS_URL;
 const LK_HTTP_URL = process.env.LK_HTTP_URL;
 const ROOM_EMPTY_TTL = Number(process.env.ROOM_EMPTY_TTL || 6 * 60 * 60 * 1000);
+// DakeMusic: 陪玩平台(peiwan/FastAdmin)对接 - 回调地址，部署 peiwan 后填入
+const PEIWAN_API_BASE = (process.env.PEIWAN_API_BASE || '').replace(/\/$/, '');
 const CORS_ORIGINS = (process.env.CORS_ORIGINS || 'app://.,http://localhost:5173')
   .split(',').map(s => s.trim()).filter(Boolean);
 const PORT = Number(process.env.PORT || 3001);
@@ -88,6 +90,12 @@ if (!cols.includes('gender')) {
 if (!cols.includes('city')) {
   db.exec('ALTER TABLE users ADD COLUMN city TEXT DEFAULT \'\'');
 }
+// DakeMusic: 关联 peiwan 用户 ID（未对接时为 NULL）
+if (!cols.includes('peiwan_uid')) {
+  db.exec('ALTER TABLE users ADD COLUMN peiwan_uid INTEGER DEFAULT NULL');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_peiwan ON users(peiwan_uid) WHERE peiwan_uid IS NOT NULL');
+  logger.info('db.migrate', { added: 'peiwan_uid' });
+}
 
 // 启动时把 SUPER_ADMIN_NAMES 里的用户自动设为管理员
 if (SUPER_ADMIN_NAMES.length) {
@@ -100,6 +108,9 @@ if (SUPER_ADMIN_NAMES.length) {
 
 const stmtFindUser = db.prepare('SELECT * FROM users WHERE name = ?');
 const stmtFindUserById = db.prepare('SELECT * FROM users WHERE id = ?');
+const stmtFindByPeiwan = db.prepare('SELECT * FROM users WHERE peiwan_uid = ?');
+const stmtUpsertPeiwan = db.prepare('INSERT INTO users (name, nickname, avatar, peiwan_uid, password_hash, created_at) VALUES (?, ?, ?, ?, \'peiwan\', ?)');
+const stmtSyncPeiwanProfile = db.prepare('UPDATE users SET nickname = ?, avatar = ? WHERE id = ?');
 const stmtCreateUser = db.prepare('INSERT INTO users (name, nickname, password_hash, created_at) VALUES (?, ?, ?, ?)');
 const stmtUpdateProfile = db.prepare('UPDATE users SET avatar = ?, age = ?, zodiac = ?, photos = ?, bio = ?, nickname = ?, gender = ?, city = ? WHERE id = ?');
 const stmtUpdateNickname = db.prepare('UPDATE users SET nickname = ? WHERE id = ?');
@@ -185,10 +196,15 @@ function isSuperAdmin(user) {
     try {
       const u = stmtFindUserById.get(user.userId);
       if (u?.is_admin) return true;
-      if (u && SUPER_ADMIN_NAMES.includes(displayName(u))) return true;
+      if (u && SUPER_ADMIN_NAMES.includes(u.name)) return true;
     } catch {}
   }
   return SUPER_ADMIN_NAMES.includes(user.name);
+}
+
+// DakeMusic: 根超管（环境变量里写死的，永远不能被取消）
+function isRootSuperAccount(name) {
+  return !!name && SUPER_ADMIN_NAMES.includes(name);
 }
 
 function requireOwner(req, res, next) {
@@ -269,7 +285,68 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
     nickname: displayName(user),
     avatar: user.avatar || '',
     isAdmin: !!user.is_admin,
+    isRootSuper: isRootSuperAccount(user.name),
   });
+});
+
+// ===== DakeMusic: peiwan 账号密码登录（陪玩平台对接）=====
+// 客户端传 peiwan 账号密码，本服务转发到 peiwan /api/user/login 验证，再按 peiwan user_id 映射本地用户
+app.post('/api/auth/peiwan-login', authLimiter, async (req, res) => {
+  if (!PEIWAN_API_BASE) return res.status(503).json({ error: '陪玩平台未配置(PEIWAN_API_BASE)' });
+  const { account, password } = req.body || {};
+  if (!account || !password) return res.status(400).json({ error: '账号和密码必填' });
+  try {
+    // 1) 转发 peiwan 登录
+    const loginRes = await fetch(`${PEIWAN_API_BASE}/api/user/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ account: String(account), password: String(password) }),
+    });
+    const loginText = await loginRes.text();
+    let loginJson;
+    try { loginJson = JSON.parse(loginText); } catch { return res.status(502).json({ error: '陪玩平台响应异常' }); }
+    if (loginJson.code !== 1) {
+      logger.warn('peiwan.login_fail', { reqId: req.id, account });
+      return res.status(401).json({ error: loginJson.msg || '账号或密码错误' });
+    }
+    // FastAdmin 把 token 放在响应头 token
+    const peiwanToken = loginRes.headers.get('token') || loginRes.headers.get('Token');
+    if (!peiwanToken) return res.status(502).json({ error: '陪玩平台未返回登录凭证' });
+
+    // 2) 用 token 拉完整用户资料
+    const infoRes = await fetch(`${PEIWAN_API_BASE}/api/user/index`, {
+      headers: { 'token': peiwanToken },
+    });
+    const infoJson = await infoRes.json();
+    if (infoJson.code !== 1) return res.status(401).json({ error: '陪玩平台登录态失效' });
+    const pu = infoJson.data || {};
+    const peiwanUid = Number(pu.id);
+    if (!peiwanUid) return res.status(502).json({ error: '陪玩平台用户信息缺失' });
+
+    // 3) 本地按 peiwan_uid 映射/创建
+    let user = stmtFindByPeiwan.get(peiwanUid);
+    const nick = String(pu.nickname || pu.username || `用户${peiwanUid}`).slice(0, 20);
+    const avatar = String(pu.avatar || '').slice(0, 3000000);
+    if (!user) {
+      const r = stmtUpsertPeiwan.run(`peiwan_${peiwanUid}`, nick, avatar, peiwanUid, Date.now());
+      user = stmtFindUserById.get(r.lastInsertRowid);
+    } else {
+      stmtSyncPeiwanProfile.run(nick, avatar, user.id);
+      user.nickname = nick; user.avatar = avatar;
+    }
+
+    const token = signSession(user);
+    logger.info('peiwan.login', { reqId: req.id, localUserId: user.id, peiwanUid, nick });
+    res.json({
+      token, userId: user.id,
+      name: user.name, nickname: nick, avatar,
+      isAdmin: !!user.is_admin,
+      fromPeiwan: true,
+    });
+  } catch (e) {
+    logger.error('peiwan.login_error', { reqId: req.id, err: e.message });
+    res.status(502).json({ error: '无法连接陪玩平台' });
+  }
 });
 
 // ===== 获取当前用户信息 =====
@@ -288,6 +365,7 @@ app.get('/api/auth/me', authSession, (req, res) => {
     gender: user.gender || '',
     city: user.city || '',
     isAdmin: !!user.is_admin,
+    isRootSuper: isRootSuperAccount(user.name),
     createdAt: user.created_at,
   });
 });
@@ -364,7 +442,71 @@ app.get('/api/users/:id', (req, res) => {
     bio: user.bio || '',
     gender: user.gender || '',
     city: user.city || '',
+    isAdmin: !!user.is_admin,
+    isRootSuper: isRootSuperAccount(user.name),
   });
+});
+
+// ===== DakeMusic: 根超管任免超管 =====
+// 只有根超管（环境变量 SUPER_ADMIN_NAMES 里的账号）能调；根超管账号不能被取消
+app.post('/api/users/:id/super-admin', authSession, (req, res) => {
+  const me = currentDbUser(req);
+  if (!me || !isRootSuperAccount(me.name)) {
+    return res.status(403).json({ error: '仅根超管可任免超管' });
+  }
+  const target = stmtFindUserById.get(Number(req.params.id));
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  const { isAdmin } = req.body || {};
+  const next = !!isAdmin;
+  if (!next && isRootSuperAccount(target.name)) {
+    return res.status(400).json({ error: '根超管不能被取消' });
+  }
+  db.prepare('UPDATE users SET is_admin = ? WHERE id = ?').run(next ? 1 : 0, target.id);
+  logger.info('admin.grant_revoke', { reqId: req.id, by: me.name, target: target.name, isAdmin: next });
+  res.json({ ok: true, userId: target.id, isAdmin: next });
+});
+
+// ===== DakeMusic: 管理员面板 - 列出所有用户（仅超管可访问）=====
+app.get('/api/admin/users', authSession, (req, res) => {
+  const me = currentDbUser(req);
+  if (!me || !isRootSuperAccount(me.name)) {
+    return res.status(403).json({ error: '仅根超管可访问' });
+  }
+  const rows = db.prepare('SELECT id, name, nickname, avatar, is_admin, created_at FROM users ORDER BY id DESC').all();
+  res.json({
+    list: rows.map(u => ({
+      id: u.id,
+      name: u.name,
+      nickname: displayName(u),
+      avatar: u.avatar || '',
+      isAdmin: !!u.is_admin,
+      isRootSuper: isRootSuperAccount(u.name),
+      createdAt: u.created_at,
+    })),
+  });
+});
+
+// 设为房间管理员
+app.post('/api/admin/users/:id', authSession, (req, res) => {
+  const me = currentDbUser(req);
+  if (!me || !isRootSuperAccount(me.name)) return res.status(403).json({ error: '仅根超管可操作' });
+  const target = stmtFindUserById.get(Number(req.params.id));
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(target.id);
+  logger.info('admin.panel_grant', { reqId: req.id, by: me.name, target: target.name });
+  res.json({ ok: true });
+});
+
+// 取消房间管理员
+app.delete('/api/admin/users/:id', authSession, (req, res) => {
+  const me = currentDbUser(req);
+  if (!me || !isRootSuperAccount(me.name)) return res.status(403).json({ error: '仅根超管可操作' });
+  const target = stmtFindUserById.get(Number(req.params.id));
+  if (!target) return res.status(404).json({ error: '用户不存在' });
+  if (isRootSuperAccount(target.name)) return res.status(400).json({ error: '根超管不能被取消' });
+  db.prepare('UPDATE users SET is_admin = 0 WHERE id = ?').run(target.id);
+  logger.info('admin.panel_revoke', { reqId: req.id, by: me.name, target: target.name });
+  res.json({ ok: true });
 });
 
 function safeJsonParse(str, fallback) {
@@ -478,10 +620,17 @@ app.post('/api/rooms/:id/join', authSession, async (req, res) => {
   const isOwner = room.ownerUserId === req.user.userId ||
     (!room.ownerUserId && (room.ownerName === req.user.name || room.ownerNickname === myNick));
   const superAdmin = isSuperAdmin(req.user);
+  const dbMe = currentDbUser(req);
 
   const at = new AccessToken(API_KEY, API_SECRET, {
     identity, name: myNick, ttl: '2h',
-    metadata: JSON.stringify({ account: myAccount, userId: req.user.userId, nickname: myNick }),
+    metadata: JSON.stringify({
+      account: myAccount,
+      userId: req.user.userId,
+      nickname: myNick,
+      isAdmin: !!(dbMe && dbMe.is_admin),
+      isRootSuper: isRootSuperAccount(dbMe?.name || ''),
+    }),
   });
   at.addGrant({ room: room.id, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
 

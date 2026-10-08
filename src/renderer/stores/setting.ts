@@ -208,6 +208,7 @@ export const useSettingStore = defineStore('setting', {
     silentUpdate: true,
     autoCheckUpdate: true,
     enableStartupSound: true,
+    startupSoundId: 'zhenzhu',
     // 自定义背景图
     customBackgroundImage: '',
     customBackgroundOverlay: 40,

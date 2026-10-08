@@ -11,6 +11,10 @@ import SettingsSectionShell from './SettingsSectionShell.vue';
 import { closeBehaviorOptions, sectionTitles } from '../constants';
 
 const settingStore = useSettingStore();
+const startupSoundOptions = [
+  { label: '珍猪', value: 'zhenzhu' },
+  { label: '啊苏', value: 'asu' },
+];
 const platform = window.electron?.platform;
 const isWindows = computed(() => platform === 'win32');
 const supportsCustomWindowControls = computed(() => platform === 'win32' || platform === 'linux');
@@ -142,6 +146,18 @@ const supportsCustomWindowControls = computed(() => platform === 'win32' || plat
       </div>
       <Switch v-model="settingStore.enableStartupSound" />
     </div>
+    <div v-if="settingStore.enableStartupSound" class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">启动音效</h3>
+        <p class="text-sm text-text-secondary">选择启动时播放的音效</p>
+      </div>
+      <Select
+        class="w-20 shrink-0"
+        :model-value="settingStore.startupSoundId"
+        :options="startupSoundOptions"
+        @update:model-value="settingStore.startupSoundId = $event as string"
+      />
+    </div>
     <div class="settings-divider"></div>
     <div class="settings-item">
       <div class="space-y-1">
@@ -157,3 +173,15 @@ const supportsCustomWindowControls = computed(() => platform === 'win32' || plat
 </template>
 
 <style scoped src="../settingsSection.css"></style>
+<style scoped>
+.startup-sound-select {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(255,255,255,.06);
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.startup-sound-select:focus { outline: none; border-color: #8a5cff; }
+</style>

@@ -42,7 +42,14 @@ async function request(path: string, options: RequestOptions = {}) {
     method: options.method,
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  const data = await res.json();
+  const text = await res.text();
+  let data: any;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    // 后端返回了非 JSON（比如 Nginx 限流 "Too many requests"、502 等）
+    throw new Error(`服务器错误 (${res.status}): ${text.slice(0, 120)}`);
+  }
   if (!res.ok) {
     if (res.status === 401 && data.error === 'TOKEN_EXPIRED') {
       localStorage.removeItem('chat_session');
@@ -75,6 +82,10 @@ export const roomApi = {
   /** 登录：账号优先；昵称唯一时也能登（后端兜底） */
   login: (name: string, password: string) =>
     request('/api/auth/login', { method: 'POST', auth: false, body: { name, password } }),
+
+  // DakeMusic: peiwan 陪玩平台账号密码登录
+  peiwanLogin: (account: string, password: string) =>
+    request('/api/auth/peiwan-login', { method: 'POST', auth: false, body: { account, password } }),
 
   // 当前用户信息
   getMe: () => request('/api/auth/me'),
@@ -136,4 +147,8 @@ export const roomApi = {
   listAdminUsers: () => request('/api/admin/users'),
   grantAdmin: (userId: number) => request(`/api/admin/users/${userId}`, { method: 'POST' }),
   revokeAdmin: (userId: number) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
+
+  // DakeMusic: 根超管任免超管（仅环境变量里的根超管可调用）
+  setSuperAdmin: (userId: number, isAdmin: boolean) =>
+    request(`/api/users/${userId}/super-admin`, { method: 'POST', body: { isAdmin } }),
 };

@@ -30,23 +30,35 @@ const isLoggingIn = ref(false);
 
 async function handleAuth() {
   if (!loginNameInput.value.trim() || !loginPasswordInput.value) {
-    loginError.value = '昵称和密码必填';
+    loginError.value = '账号和密码必填';
     return;
-  }
-  if (authMode.value === 'register') {
-    if (loginPasswordInput.value.length < 6) { loginError.value = '密码至少6位'; return; }
-    if (loginPasswordInput.value !== loginConfirmPassword.value) { loginError.value = '两次密码不一致'; return; }
   }
   isLoggingIn.value = true;
   loginError.value = '';
   try {
     if (authMode.value === 'register') {
-      await roomApi.register(loginNameInput.value.trim(), loginPasswordInput.value, loginNicknameInput.value.trim());
+      // 注册：先调 register，成功后自动登录
+      if (loginPasswordInput.value !== loginConfirmPassword.value) {
+        loginError.value = '两次密码不一致';
+        return;
+      }
+      await roomApi.register(
+        loginNameInput.value.trim(),
+        loginPasswordInput.value,
+        loginNicknameInput.value.trim() || undefined,
+      );
+      await store.login(loginNameInput.value.trim(), loginPasswordInput.value);
+    } else {
+      // DakeMusic: 优先走 peiwan 登录；peiwan 未部署/接口不存在/任何失败都自动回退到老账号登录
+      try {
+        await store.loginPeiwan(loginNameInput.value.trim(), loginPasswordInput.value);
+      } catch {
+        await store.login(loginNameInput.value.trim(), loginPasswordInput.value);
+      }
     }
-    await store.login(loginNameInput.value.trim(), loginPasswordInput.value);
     await store.fetchRooms();
   } catch (e: any) {
-    loginError.value = e.message || (authMode.value === 'register' ? '注册失败' : '登录失败');
+    loginError.value = e.message || '操作失败';
   } finally {
     isLoggingIn.value = false;
   }
@@ -577,10 +589,10 @@ function onEditCoverSelected(e: Event) {
               </button>
               <template v-if="room.isOwner || room.isSuperAdmin">
                 <button class="w-9 h-9 flex items-center justify-center rounded-lg bg-gradient-to-r from-[#8a5cff] to-[#00beff] text-white hover:opacity-90 transition-opacity" @click="openEditDialog(room)" title="编辑">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
                 </button>
                 <button class="w-9 h-9 flex items-center justify-center rounded-lg bg-red-500 text-white hover:opacity-90 transition-opacity" @click="handleDeleteRoom(room.id, room.name)" title="删除">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                 </button>
               </template>
             </div>

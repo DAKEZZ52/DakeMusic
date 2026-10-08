@@ -11,6 +11,8 @@ import { roomApi } from '@/utils/roomApi';
 import { useChatRoomStore } from '@/stores/chatRoom';
 import { useSettingStore } from '@/stores/setting';
 import Button from '@/components/ui/Button.vue';
+import { AURAL_SKINS, getMyAuralId, setMyAuralId } from '@/seatManager/auralSkins';
+import { SEAT_FRAMES, getMySeatFrameId, setMySeatFrameId } from '@/seatManager/seatFrames';
 
 const router = useRouter();
 const chatStore = useChatRoomStore();
@@ -40,6 +42,35 @@ const editBio = ref('');
 const editPhotos = ref<string[]>([]);
 const editAvatar = ref('');
 const editName = ref('');
+
+// DakeMusic: 麦位说话声波皮肤
+const showAuralPicker = ref(false);
+const myAuralId = ref(getMyAuralId());
+const tempAuralId = ref(getMyAuralId());
+function pickAural(id: string) {
+  tempAuralId.value = id;
+}
+function confirmAural() {
+  myAuralId.value = tempAuralId.value;
+  setMyAuralId(tempAuralId.value);
+  showAuralPicker.value = false;
+  // DakeMusic: 通知房间内即时刷新声波皮肤
+  window.dispatchEvent(new CustomEvent('dakemusic-aural-changed', { detail: tempAuralId.value }));
+}
+
+// DakeMusic: 麦位框皮肤
+const showFramePicker = ref(false);
+const myFrameId = ref(getMySeatFrameId());
+const tempFrameId = ref(getMySeatFrameId());
+function pickFrame(id: string) {
+  tempFrameId.value = id;
+}
+function confirmFrame() {
+  myFrameId.value = tempFrameId.value;
+  setMySeatFrameId(tempFrameId.value);
+  showFramePicker.value = false;
+  window.dispatchEvent(new CustomEvent('dakemusic-frame-changed', { detail: tempFrameId.value }));
+}
 // DakeMusic: 新增资料编辑
 const editAge = ref(0);
 const editCity = ref('');
@@ -252,6 +283,13 @@ async function saveProfile() {
     if (chatStore.isConnected && editAvatar.value) {
       chatStore.updateMyAvatar(editAvatar.value).catch(() => {});
     }
+    // DakeMusic: 同步新的签名/昵称到自己坐的麦位上，全员可见
+    (chatStore as any).myBio = editBio.value || '';
+    if (chatStore.isConnected) {
+      import('@/seatManager/useSeatManager').then(m => {
+        m.useSeatManager().refreshMySeat().catch(() => {});
+      });
+    }
     await loadProfile();
     editMode.value = false;
   } catch (e: any) {
@@ -327,12 +365,12 @@ function removeAvatar() {
           <div class="flex-1">
             <h2 class="text-xl font-bold mb-1">{{ profile.nickname || profile.name }}</h2>
             <!-- DakeMusic: 一行展示资料标签，类似社交App -->
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 mt-1.5">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5">
               <span class="text-xs opacity-50">ID: {{ 999 + (profile?.userId || 0) }}</span>
-              <span v-if="profile.age" :class="['flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded', (profile.gender === 'female' || profile.gender === '女') ? 'bg-gradient-to-r from-pink-500/30 to-pink-400/30 text-pink-300' : 'bg-gradient-to-r from-blue-500/30 to-cyan-500/30 text-blue-300']">
-                {{ profile.age }}
-                <template v-if="profile.gender === 'male' || profile.gender === '男'">♂</template>
-                <template v-else-if="profile.gender === 'female' || profile.gender === '女'">♀</template>
+              <span :class="['flex items-center gap-0.5 text-xs px-2 py-0.5 rounded-full font-semibold', (profile.gender === 'female' || profile.gender === '女' || profile.gender === 'F') ? 'bg-gradient-to-r from-pink-500 to-pink-400 text-white' : 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white']">
+                {{ profile.age || 18 }}
+                <template v-if="!profile.gender || profile.gender === 'male' || profile.gender === '男' || profile.gender === 'M'">♂</template>
+                <template v-else>♀</template>
               </span>
               <span v-if="profile.city" class="flex items-center gap-1 text-xs opacity-70">
                 <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -348,7 +386,65 @@ function removeAvatar() {
             <p class="text-xs opacity-40 mt-1">账号：{{ profile.name }}</p>
             <p v-if="profile.bio" class="text-sm opacity-70 mt-2">{{ profile.bio }}</p>
           </div>
-          <Button size="sm" @click="startEdit">编辑资料</Button>
+          <div class="flex gap-2">
+            <Button size="sm" @click="showAuralPicker = true">麦位声波</Button>
+            <Button size="sm" @click="showFramePicker = true">头像框</Button>
+            <Button size="sm" @click="startEdit">编辑资料</Button>
+          </div>
+        </div>
+
+        <!-- DakeMusic: 麦位声波选择弹窗 -->
+        <div v-if="showAuralPicker" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showAuralPicker = false">
+          <div class="w-[420px] max-h-[80vh] rounded-2xl p-5 flex flex-col" style="background: linear-gradient(150deg, rgba(38,30,66,.97), rgba(22,22,40,.97)); border: 1px solid rgba(255,255,255,.12);">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[15px] font-bold text-white">选择麦位声波</span>
+              <button class="text-white/50 hover:text-white text-xl leading-none" @click="showAuralPicker = false">×</button>
+            </div>
+            <div class="grid grid-cols-4 gap-2 overflow-y-auto pr-1">
+              <div
+                v-for="b in AURAL_SKINS"
+                :key="b.id"
+                class="flex flex-col items-center gap-1 p-2 rounded-xl cursor-pointer border transition-all"
+                :class="b.id === tempAuralId ? 'border-purple-400 bg-purple-500/20' : 'border-transparent hover:bg-white/5'"
+                @click="pickAural(b.id)"
+              >
+                <img v-if="b.url" :src="b.url" :alt="b.name" class="w-12 h-11 object-contain" />
+                <div v-else class="w-12 h-11 flex items-center justify-center text-white/30 text-xs">默认</div>
+                <span class="text-[10px] text-white/70 text-center leading-tight">{{ b.name }}</span>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-4 pt-3 border-t border-white/10">
+              <button class="flex-1 h-9 rounded-xl text-[13px] font-semibold text-white/70 bg-white/5 hover:bg-white/10" @click="showAuralPicker = false">取消</button>
+              <button class="flex-1 h-9 rounded-xl text-[13px] font-semibold text-white bg-gradient-to-r from-[#8a5cff] to-[#00beff]" @click="confirmAural">确定</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DakeMusic: 麦位框选择弹窗 -->
+        <div v-if="showFramePicker" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" @click.self="showFramePicker = false">
+          <div class="w-[360px] rounded-2xl p-5 flex flex-col" style="background: linear-gradient(150deg, rgba(38,30,66,.97), rgba(22,22,40,.97)); border: 1px solid rgba(255,255,255,.12);">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-[15px] font-bold text-white">选择头像框</span>
+              <button class="text-white/50 hover:text-white text-xl leading-none" @click="showFramePicker = false">×</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2 overflow-y-auto pr-1" style="max-height: 50vh;">
+              <div
+                v-for="b in SEAT_FRAMES"
+                :key="b.id"
+                class="flex flex-col items-center gap-1 p-2 rounded-xl cursor-pointer border transition-all"
+                :class="b.id === tempFrameId ? 'border-purple-400 bg-purple-500/20' : 'border-transparent hover:bg-white/5'"
+                @click="pickFrame(b.id)"
+              >
+                <img v-if="b.url" :src="b.url" :alt="b.name" class="w-16 h-14 object-contain" />
+                <div v-else class="w-16 h-14 flex items-center justify-center text-white/30 text-xs">无</div>
+                <span class="text-[10px] text-white/70 text-center leading-tight">{{ b.name }}</span>
+              </div>
+            </div>
+            <div class="flex gap-2 mt-4 pt-3 border-t border-white/10">
+              <button class="flex-1 h-9 rounded-xl text-[13px] font-semibold text-white/70 bg-white/5 hover:bg-white/10" @click="showFramePicker = false">取消</button>
+              <button class="flex-1 h-9 rounded-xl text-[13px] font-semibold text-white bg-gradient-to-r from-[#8a5cff] to-[#00beff]" @click="confirmFrame">确定</button>
+            </div>
+          </div>
         </div>
 
         <!-- 图片墙 -->

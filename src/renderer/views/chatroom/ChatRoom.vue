@@ -12,6 +12,8 @@ import { useChatRoomStore } from '@/stores/chatRoom';
 import { useSettingStore } from '@/stores/setting';
 import Button from '@/components/ui/Button.vue';
 import { roomApi } from '@/utils/roomApi';
+import SeatStage from '@/seatManager/SeatStage.vue';
+import { useSeatManager } from '@/seatManager/useSeatManager';
 // DakeMusic: 麦克风增益/开关麦统一走单例 composable（房间内与悬浮窗共用，避免多轨道冲突）
 import { useMicGain } from '@/composables/useMicGain';
 import { getActivePinia } from 'pinia';
@@ -20,6 +22,23 @@ import defaultCover from '../../../../public/dakemusic-default-room-cover.png';
 
 const router = useRouter();
 const store = useChatRoomStore();
+// DakeMusic: 跳语聊房个人中心
+function goToProfileEdit() {
+  showUserProfile.value = false;
+  router.push('/main/chatroom/profile');
+}
+// DakeMusic: 切换对唱/语聊模式
+const currentSeatMode = ref<'normal' | 'duet'>('normal');
+function toggleSeatMode() {
+  const next = currentSeatMode.value === 'normal' ? 'duet' : 'normal';
+  currentSeatMode.value = next;
+  window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: next }));
+}
+function onSeatModeChanged(e: Event) {
+  currentSeatMode.value = (e as CustomEvent).detail as 'normal' | 'duet';
+}
+onMounted(() => window.addEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
+onUnmounted(() => window.removeEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
 // DakeMusic: 设置 store（用于自定义背景）
 const settingStore = useSettingStore();
 
@@ -42,14 +61,22 @@ async function openUserProfile(identity?: string) {
   showUserProfile.value = true;
   try {
     viewingUser.value = await roomApi.getUser(userId);
+    viewingUser.value.identity = identity;
   } catch (e) {
     viewingUser.value = { error: '加载失败' };
   } finally {
     loadingUser.value = false;
   }
 }
+// DakeMusic: 资料卡图片墙 - 应用内点击放大预览
+const previewPhotoUrl = ref('');
 function openPhoto(url: string) {
-  window.open(url, '_blank');
+  previewPhotoUrl.value = url;
+}
+// DakeMusic: 房主设置/取消管理员
+async function toggleAdmin(u: any) {
+  if (!u?.identity) return;
+  await setAdmin(u.identity, !isAdminOf(u.identity));
 }
 const showEmojiPicker = ref(false);
 const isSystemMuted = ref(false);
@@ -205,6 +232,7 @@ async function broadcastLyricSync(){
     const room = await getLKRoom();
     if(!room?.localParticipant) return;
     const payload = JSON.stringify({
+      kind: 'dakemusic-lyric',
       type:'lyric-sync',
       lines: lyricStore.lines,
       currentIndex: lyricStore.currentIndex,
@@ -258,6 +286,9 @@ onMounted(()=>{
     }
   })
 })
+
+// DakeMusic: 根超管进房间播入场特效
+setTimeout(() => { playRootEntry(); }, 800);
 
 // 卸载：移除事件监听
 onUnmounted(()=>{
@@ -331,6 +362,14 @@ async function runConfirm() {
 const isRoomOwner = computed(() => store.isOwner);
 const isAdmin = computed(() => store.isOwner || store.isAdmin);
 
+// DakeMusic: 根超管入场特效
+const rootEntryShow = ref(false);
+function playRootEntry() {
+  if (!store.isRootSuper) return;
+  rootEntryShow.value = true;
+  setTimeout(() => { rootEntryShow.value = false; }, 4000);
+}
+
 // 当前正在说话的成员（取第一个 isSpeaking 的）
 const currentSpeaker = computed(() => {
   const list = store.members || [];
@@ -389,6 +428,31 @@ async function adminKickMember() {
   askConfirm('踢出成员', `确定要踢出「${m.name}」吗？<br/>踢出后 TA 需要重新加入。`, async () => {
     await store.kickParticipant(m.identity);
   }, '确定踢出');
+}
+// DakeMusic: 房主在右键菜单里随时开启/关闭管理员
+async function adminToggleAdmin() {
+  const m = contextMenu.value.member;
+  if (!m) return;
+  await setAdmin(m.identity, !isAdminOf(m.identity));
+  closeContextMenu();
+}
+
+// DakeMusic: 根超管任免超管（仅环境变量里的根超管可见此项）
+async function adminToggleSuper() {
+  const m = contextMenu.value.member;
+  if (!m || !m.userId) return;
+  // 拉最新资料判断当前是否超管
+  const profile = await roomApi.getUser(m.userId).catch(() => null);
+  const cur = !!profile?.isAdmin;
+  try {
+    await roomApi.setSuperAdmin(m.userId, !cur);
+    // 本地成员列表同步：member.isSuperAdmin 由 LiveKit metadata 刷新；这里直接更新本地缓存
+    m.isSuperAdmin = !cur;
+    alert(!cur ? `已将 ${m.name} 设为超管` : `已取消 ${m.name} 的超管`);
+  } catch (e: any) {
+    alert(e.message || '操作失败');
+  }
+  closeContextMenu();
 }
 
 const sortedMessages = computed(() => store.sortedMessages);
@@ -536,9 +600,8 @@ onMounted(() => {
 });
 
 function onBeforeUnload() {
-  if (store.isConnected && store.currentRoomId) {
-    store.leaveRoom().catch(() => {});
-  }
+  // DakeMusic: 关闭客户端不再自动退出房间，断开 LiveKit 连接即可
+  // （服务端 6 小时无人后自动清房）
 }
 
 watch(() => store.isConnected, (connected) => {
@@ -569,8 +632,71 @@ async function sendMessage() {
   }
 }
 
+// DakeMusic: 发送图片到公屏（本地压缩成小图，base64 随消息广播，无需上传接口）
+const imageInput = ref<HTMLInputElement | null>(null);
+const sendingImage = ref(false);
+
+/** 压缩图片为 base64，逐级降尺寸/质量，直到 JSON 体积在 LiveKit 消息限制内（<13KB） */
+async function compressToBase64(file: File): Promise<string> {
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result as string);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const im = new Image();
+    im.onload = () => resolve(im);
+    im.onerror = reject;
+    im.src = dataUrl;
+  });
+  const nw = img.naturalWidth || 800;
+  const nh = img.naturalHeight || 800;
+  const steps: Array<[number, number]> = [[600, 0.55], [450, 0.5], [360, 0.45], [280, 0.4]];
+  let last = '';
+  for (const [maxSide, q] of steps) {
+    let w = nw, h = nh;
+    if (w > maxSide || h > maxSide) {
+      const r = Math.min(maxSide / w, maxSide / h);
+      w = Math.round(w * r);
+      h = Math.round(h * r);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    last = canvas.toDataURL('image/jpeg', q);
+    if (last.length < 13000) return last;
+  }
+  return last;
+}
+
+async function onImageSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { pushNotice('请选择图片文件'); return; }
+  if (file.size > 5 * 1024 * 1024) { pushNotice('图片不能超过 5MB'); return; }
+  sendingImage.value = true;
+  try {
+    const dataUrl = await compressToBase64(file);
+    await store.sendMessage(dataUrl, 'image');
+  } catch (err) {
+    pushNotice('图片发送失败，请重试');
+  } finally {
+    sendingImage.value = false;
+  }
+}
+
 async function toggleMic() {
-  // 注意：store 没有 mySeatIndex()，不要调用它
+  // DakeMusic: 麦下（没上麦）不能开麦，只能发文字消息
+  if (!isOnSeat.value) {
+    pushNotice('先申请上麦后才能说话');
+    return;
+  }
   // 统一走 adsToggleMic（单一真相源），避免两处逻辑各写一套导致状态漂移
   await adsToggleMic();
 }
@@ -659,12 +785,51 @@ function onSideResizeDblClick() {
   localStorage.setItem('chatroom_sideW', '260');
 }
 
+// ===== 左侧栏可收起 =====
+const sideCollapsed = ref(localStorage.getItem('chatroom_sideCollapsed') === '1');
+function toggleSide() {
+  sideCollapsed.value = !sideCollapsed.value;
+  localStorage.setItem('chatroom_sideCollapsed', sideCollapsed.value ? '1' : '0');
+}
+
+// ===== 右侧聊天栏宽度：可拖拽 =====
+const chatW = ref(Number(localStorage.getItem('chatroom_chatW') || 312));
+const chatDragging = ref(false);
+function onChatResizeStart(e: MouseEvent) {
+  chatDragging.value = true;
+  e.preventDefault();
+  const startX = e.clientX;
+  const startW = chatW.value;
+  const onMove = (ev: MouseEvent) => {
+    // 向右拖变窄，向左拖变宽
+    const w = startW - (ev.clientX - startX);
+    chatW.value = Math.min(480, Math.max(240, w));
+  };
+  const onUp = () => {
+    chatDragging.value = false;
+    localStorage.setItem('chatroom_chatW', String(Math.round(chatW.value)));
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+  };
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
 // ===== 音频设备：合并为单一胶囊（内联，不依赖子组件）=====
 // DakeMusic: 麦克风增益链/开关麦/输入设备统一走 useMicGain 单例（房间内与悬浮窗共用同一轨道）
 const {
   micGainReady, adsMicId, adsMicVol, adsMuted, adsSwitching, adsMicOn,
   adsToggleMic: gainToggleMic, adsChangeMic: gainChangeMic,
 } = useMicGain();
+
+// DakeMusic: 座位状态（麦下禁麦）——与 SeatStage 共用同一份模块级状态
+const { isOnSeat, isAdminOf, setAdmin } = useSeatManager();
+// 离开座位时如果麦还开着，自动闭麦（麦下强制静音，只能发文字消息）
+watch(isOnSeat, on => {
+  if (!on && !adsMuted.value) {
+    gainToggleMic();
+  }
+});
 
 const adsOpen = ref(false);
 const adsMics = ref<any[]>([]);
@@ -677,6 +842,8 @@ function micMutedOf(member: any): boolean {
   if (member?.isLocal) return adsMuted.value;
   return !!member?.isMuted;
 }
+
+// 中央座位舞台已抽到独立模块 src/renderer/seatManager/SeatStage.vue（6 小座位直接坐，大主座需申请）
 
 // 输出静音：只控制「你听到房间里别人的声音」，不影响你的麦克风输入
 // 注意：这里不是监听(sidetone)。监听会把自己的麦克风声回放到耳机，
@@ -809,10 +976,24 @@ onUnmounted(() => {
 
 <template>
 <div class="cr-root">
+  <!-- DakeMusic: 根超管入场特效 -->
+  <Transition name="entry-fade">
+    <div v-if="rootEntryShow" class="cr-root-entry">
+      <img src="https://img-play.daidaiyuyin.com/img/dabe091d1c79e8f6b55f1aa3ebd2ff7d.gif" alt="入场特效" class="cr-root-entry-img" />
+    </div>
+  </Transition>
+
   <!-- DakeMusic 语聊房模块 - 作者：知之Dake -->
   <!-- 描述：自定义背景层 -->
   <div v-if="settingStore.chatroomBackgroundImage" class="cr-custom-bg" :style="{ backgroundImage: `url(${settingStore.chatroomBackgroundImage})` }">
     <div class="cr-custom-bg-overlay" :style="{ opacity: settingStore.chatroomBackgroundOverlay / 100 }"></div>
+  </div>
+  <!-- DakeMusic: 内置星空极光背景（无自定义背景时显示，纯 CSS） -->
+  <div v-if="!settingStore.chatroomBackgroundImage" class="cr-aurora">
+    <div class="cr-stars cr-stars-1"></div>
+    <div class="cr-stars cr-stars-2"></div>
+    <div class="cr-aurora-band b1"></div>
+    <div class="cr-aurora-band b2"></div>
   </div>
   <!-- 顶部栏 -->
   <div class="cr-topbar">
@@ -827,34 +1008,53 @@ onUnmounted(() => {
         <span class="cr-status-dot"></span>
         <span>语音已连接</span>
       </div>
+      <button class="cr-exit" title="退出房间" @click="askLeaveRoom">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+        <span>退出</span>
+      </button>
   </div>
   <!-- 主体 -->
   <div class="cr-body">
     <!-- 左侧：房间信息 + 公告 + 成员 -->
-    <aside class="cr-side" :class="{ resizing: sideDragging }" :style="{ width: sideW + 'px' }">
+    <aside class="cr-side" :class="{ resizing: sideDragging, collapsed: sideCollapsed }" :style="{ width: sideCollapsed ? '0px' : sideW + 'px' }">
+      <!-- 收起侧栏按钮 -->
+      <button class="cr-side-fold" title="收起侧栏" @click="toggleSide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
       <!-- 房间卡片 -->
       <div class="cr-room-card">
         <div class="cr-room-cover">
           <img :src="roomCoverSrc" alt="房间封面" />
         </div>
         <div class="cr-room-meta">
-          <div class="cr-room-name">{{ store.currentRoomName }}</div>
+          <div class="cr-room-name-row">
+            <div class="cr-room-name">{{ store.currentRoomName }}</div>
+            <button v-if="isAdmin" class="cr-mode-btn" @click="toggleSeatMode">
+              {{ currentSeatMode === 'duet' ? '正常' : '对唱' }}
+            </button>
+          </div>
           <div class="cr-room-owner">房主：{{ store.currentRoomOwnerName || '未知' }}</div>
         </div>
       </div>
       <!-- 公告 -->
       <div class="cr-notice">
         <div class="cr-notice-head">
-          <span>📢 房间公告</span>
+          <span class="flex items-center gap-1.5">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+              <path d="M3 10v4a1 1 0 0 0 1 1h3l5 4V5L7 9H4a1 1 0 0 0-1 1z" fill="#fbbf24" stroke="#f59e0b" stroke-width="1" stroke-linejoin="round"/>
+              <path d="M16 8a5 5 0 0 1 0 8" stroke="#f59e0b" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+            房间公告
+          </span>
           <button v-if="isRoomOwner" class="cr-notice-edit" @click="openAnnouncementEdit">编辑</button>
         </div>
         <div v-if="roomAnnouncement" class="cr-notice-text">{{ roomAnnouncement }}</div>
         <div v-else class="cr-notice-empty">{{ isRoomOwner ? '点击编辑设置公告' : '暂无公告' }}</div>
       </div>
-      <!-- 成员 -->
+      <!-- DakeMusic: 成员列表（左侧栏） -->
       <div class="cr-member-head">
-        <span>成员 ({{ store.memberCount }})</span>
-        
+        <span>成员</span>
+        <span class="cr-member-tip">{{ store.members.length }} 人在线</span>
       </div>
       <div class="cr-member-list">
         <div
@@ -862,11 +1062,10 @@ onUnmounted(() => {
           :key="member.identity"
           class="cr-member"
           :class="{
-            'is-active': contextMenu.show && contextMenu.member?.identity === member.identity,
-            'is-owner': member.isOwner,
-            'is-admin': member.isAdmin && !member.isOwner,
             'is-banned': store.isBanned(member.identity),
-            'is-speaking': member.isSpeaking
+            'is-owner': member.isOwner,
+            'is-admin': member.isAdmin,
+            'is-local': member.isLocal
           }"
           @click.stop="openUserProfile(member.identity)"
           @contextmenu="onMemberContextMenu($event, member)"
@@ -875,58 +1074,44 @@ onUnmounted(() => {
             <div
               class="cr-avatar"
               :class="{
-                'is-speaking': member.isSpeaking,
                 'role-owner': member.isOwner,
-                'role-admin': member.isAdmin && !member.isOwner,
                 'is-banned': store.isBanned(member.identity)
               }"
             >
               <img v-if="memberAvatar(member.identity)" :src="memberAvatar(member.identity)" />
-              <svg v-else class="cr-av-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8"/></svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8"/></svg>
             </div>
-            <span class="cr-mic-badge" :class="micMutedOf(member) ? 'off' : 'on'">
-              <svg v-if="micMutedOf(member)" viewBox="0 0 24 24" fill="currentColor"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-              <svg v-else viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 2.99-1.34 2.99-3L15 5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/></svg>
-            </span>
           </div>
           <div class="cr-member-info">
             <div class="cr-member-name">
               <span class="truncate">{{ member.name }}</span>
-              <span v-if="member.isOwner" class="cr-badge owner" title="房主"><i>👑</i>房主</span>
-              <span v-else-if="member.isAdmin" class="cr-badge admin" title="管理员"><i>🛡️</i>管理</span>
-              <span v-if="member.isLocal" class="cr-badge me">我</span>
-              <span v-if="store.isBanned(member.identity)" class="cr-badge ban" title="已被禁言"><i>🚫</i>禁言</span>
-            </div>
-            <div class="cr-member-state">
-              <span v-if="member.isSpeaking" class="speaking"><span class="cr-wave"><i></i><i></i><i></i><i></i></span>正在说话</span>
-              <span v-else-if="store.isBanned(member.identity)" class="banned">🚫 已禁言</span>
-              <span v-else>{{ micMutedOf(member) ? '已闭麦' : '已开麦' }}</span>
+              <span v-if="member.isRootSuper" class="cr-badge rootsuper-icon" title="根超管">
+                <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5 16L3 6l5.5 4L12 4l3.5 6L21 6l-2 10H5zm0 2h14v2H5v-2z"/></svg>
+              </span>
+              <span v-else-if="member.isSuperAdmin" class="cr-badge super-icon" title="超级管理员">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/></svg>
+              </span>
+              <span v-if="member.isOwner" class="cr-badge owner"><i>房主</i></span>
+              <span v-if="member.isAdmin" class="cr-badge admin-icon" title="管理员">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z"/><path d="M9 11.5l2 2 4-4"/></svg>
+              </span>
+              <span v-if="member.isLocal" class="cr-badge me"><i>我</i></span>
+              <span v-if="store.isBanned(member.identity)" class="cr-badge ban"><i>禁言</i></span>
             </div>
           </div>
-          <!-- hover 快捷管理（仅管理员对他人可见） -->
-          <button
-            v-if="isAdmin && !member.isLocal"
-            class="cr-member-more"
-            title="管理该成员"
-            @click.stop="onMemberContextMenu($event, member)"
-          >
-            <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>
-          </button>
         </div>
       </div>
     </aside>
-    <!-- 拖拽调宽手柄 -->
-    <div
-      class="cr-side-resizer"
-      :class="{ active: sideDragging }"
-      title="拖动调整宽度（双击恢复默认）"
-      @mousedown="onSideResizeStart"
-      @dblclick="onSideResizeDblClick"
-    ></div>
-    <!-- 右侧：聊天舞台 -->
+    <!-- 侧栏收起时的展开按钮 -->
+    <button v-if="sideCollapsed" class="cr-side-unfold" title="展开侧栏" @click="toggleSide">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+    </button>
+    <!-- 中央：成员圆形舞台 + 歌词 -->
     <section class="cr-stage">
-      <!-- 歌词大框 -->
-      <div class="cr-lyric">
+      <!-- DakeMusic: 座位舞台（独立模块 src/renderer/seatManager：6 小座位直接坐，大主座需向房主申请） -->
+      <SeatStage @view-profile="openUserProfile" />
+      <!-- 歌词大框（仅对唱模式显示） -->
+      <div v-if="currentSeatMode === 'duet'" class="cr-lyric">
         <div class="cr-lyric-head">
           <div class="cr-lyric-title">
             <svg class="cr-lyric-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>
@@ -957,7 +1142,17 @@ onUnmounted(() => {
           </div>
         </div>
       </div>
-      <div ref="chatContainer" class="cr-scroll">
+    </section>
+    <!-- 右侧聊天栏拖拽调宽手柄 -->
+    <div
+      class="cr-chat-resizer"
+      :class="{ active: chatDragging }"
+      title="拖动调整聊天宽度"
+      @mousedown="onChatResizeStart"
+    ></div>
+    <!-- DakeMusic: 右侧公屏聊天 -->
+    <aside class="cr-chat" :class="{ chatResizing: chatDragging }" :style="{ width: chatW + 'px' }">
+      <div ref="chatContainer" class="cr-scroll cr-chat-scroll">
         <!-- 进出房间提示：钉在聊天区顶部，不参与排序也不滚动 -->
         <div v-if="localNotices.length" class="cr-top-notice">
           <span class="cr-system">{{ localNotices[localNotices.length - 1].content }}</span>
@@ -985,7 +1180,10 @@ onUnmounted(() => {
                   <span class="cr-msg-name" @click="openUserProfile(msg.senderIdentity)">{{ msg.senderName }}</span>
                   <span class="cr-msg-time">{{ formatTime(msg.timestamp) }}</span>
                 </div>
-                <div class="cr-bubble">{{ msg.content }}</div>
+                <div v-if="msg.type === 'image'" class="cr-bubble cr-bubble-img">
+                  <img :src="msg.content" @click="previewPhotoUrl = msg.content" />
+                </div>
+                <div v-else class="cr-bubble">{{ msg.content }}</div>
               </div>
             </div>
           </div>
@@ -996,60 +1194,90 @@ onUnmounted(() => {
           <div class="cr-skeleton s3"></div>
         </div>
       </div>
-      <!-- 正在说话的人：浮动头像标识 -->
-      <div v-if="currentSpeaker" class="speaking-badge">
-        <div class="speaking-badge-avatar">
-          <img v-if="speakerAvatar(currentSpeaker.identity)" :src="speakerAvatar(currentSpeaker.identity)" />
-          <svg v-else class="cr-av-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8"/></svg>
-        </div>
-        <div class="speaking-badge-info">
-          <div class="speaking-badge-name">{{ currentSpeaker.name }}</div>
-          <div class="speaking-badge-wave"><i></i><i></i><i></i><i></i></div>
+      <!-- DakeMusic: 输入框归位右侧公屏底部 -->
+      <div class="cr-input-wrap">
+        <button
+          class="cr-clear-btn"
+          :class="{ 'is-disabled': !hasAnyMessage }"
+          title="清屏（清空本地聊天显示）"
+          @click="clearScreen"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+        </button>
+        <input
+          ref="messageInputEl"
+          v-model="messageInput"
+          type="text"
+          placeholder="来点虎狼之词..."
+          class="cr-input"
+          @keydown.enter.exact.prevent="sendMessage"
+        />
+        <button class="cr-emoji-btn" title="发送图片" :disabled="sendingImage" @click="imageInput?.click()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+        </button>
+        <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="onImageSelected" />
+        <button class="cr-emoji-btn" title="表情" @click="showEmojiPicker = !showEmojiPicker">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+        </button>
+        <button class="cr-send" @click="sendMessage">发送</button>
+        <div v-if="showEmojiPicker" class="cr-emoji-mask" @click="showEmojiPicker = false"></div>
+        <div v-if="showEmojiPicker" class="cr-emoji-panel">
+          <button
+            v-for="emoji in emojiList"
+            :key="emoji"
+            class="cr-emoji-item"
+            @click="insertEmoji(emoji)"
+          >{{ emoji }}</button>
         </div>
       </div>
-    </section>
+    </aside>
   </div>
-  <!-- 底部控制栏 -->
-  <div class="cr-bottom">
-    <!-- 左下：麦克风 / 音量 / 耳机监听 / 设置 -->
+  <!-- DakeMusic: 底部居中悬浮控制胶囊（居中区域对齐中央舞台列） -->
+  <div class="cr-bottom" :style="{ paddingLeft: (sideCollapsed ? 14 : sideW + 14) + 'px', paddingRight: chatW + 'px' }">
     <div class="cr-bar">
-      <button
-        class="cr-bar-btn"
-        :class="adsMicOn ? 'on' : 'off'"
-        :title="adsMicOn ? '闭麦' : '开麦'"
-        :disabled="adsSwitching"
-        @click.stop="adsToggleMic"
-      >
-        <svg v-if="adsMicOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-      </button>
-      <!-- 耳机：静音 / 恢复房间声音。不是监听，不影响你的麦克风输入 -->
-      <button
-        class="cr-bar-btn"
-        :class="adsSpeakerMuted ? 'off' : 'on'"
-        :title="adsSpeakerMuted ? '恢复房间声音' : '静音:不听王八念经'"
-        @click.stop="toggleSpeakerMute"
-      >
-        <svg v-if="!adsSpeakerMuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
-        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
-      </button>
-      <!-- 常驻音量条：麦克风 + 扬声器，不用点开，随时可拖 -->
-      <div class="cr-vol-inline" @click.stop>
-        <svg class="cr-vol-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M19 11h-2v2c0 2.76-2.24 5-5 5s-5-2.24-5-5v-2H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92v-2z"/></svg>
-        <input
-          type="range" min="0" max="100" v-model.number="adsMicVol"
-          class="cr-pop-range uni" :style="{ '--vol': adsMicVol + '%' }"
-          title="麦克风:大声发啊，这么大声"
-        />
-        <span class="cr-vol-val">{{ adsMicVol }}</span>
-        <span class="cr-vol-sep"></span>
-        <svg class="cr-vol-ico" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-        <input
-          type="range" min="0" max="100" v-model.number="adsSpeakerVol"
-          class="cr-pop-range uni" :style="{ '--vol': adsSpeakerMuted ? '0%' : adsSpeakerVol + '%' }"
-          title="扬声器：你是蚊子亲戚啊？"
-        />
-        <span class="cr-vol-val">{{ adsSpeakerMuted ? 0 : adsSpeakerVol }}</span>
+      <!-- 麦克风按钮 + 悬停弹出小音量条 -->
+      <div class="cr-bar-group">
+        <button
+          class="cr-bar-btn"
+          :class="[(adsMicOn && isOnSeat) ? 'on' : 'off', !isOnSeat ? 'is-offseat' : '']"
+          :title="!isOnSeat ? '先申请上麦才能说话' : (adsMicOn ? '闭麦' : '开麦')"
+          :disabled="adsSwitching"
+          @click.stop="toggleMic"
+        >
+          <svg v-if="adsMicOn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        </button>
+        <div class="cr-vol-pop" @click.stop>
+          <span class="cr-vol-pop-label">麦</span>
+          <input
+            type="range" min="0" max="100" v-model.number="adsMicVol"
+            class="cr-pop-range mini" :style="{ '--vol': adsMicVol + '%' }"
+            title="麦克风音量"
+          />
+          <span class="cr-vol-val">{{ adsMicVol }}</span>
+        </div>
+      </div>
+      <!-- 扬声器：静音 / 恢复房间声音。不是监听，不影响你的麦克风输入 -->
+      <div class="cr-bar-group">
+        <button
+          class="cr-bar-btn"
+          :class="adsSpeakerMuted ? 'off' : 'on'"
+          :title="adsSpeakerMuted ? '恢复房间声音' : '静音:不听王八念经'"
+          @click.stop="toggleSpeakerMute"
+        >
+          <svg v-if="!adsSpeakerMuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/></svg>
+          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/><line x1="2" y1="2" x2="22" y2="22"/></svg>
+        </button>
+        <div class="cr-vol-pop" @click.stop>
+          <span class="cr-vol-pop-label">声</span>
+          <input
+            type="range" min="0" max="100" v-model.number="adsSpeakerVol"
+            class="cr-pop-range mini" :style="{ '--vol': adsSpeakerMuted ? '0%' : adsSpeakerVol + '%' }"
+            :disabled="adsSpeakerMuted"
+            title="扬声器音量"
+          />
+          <span class="cr-vol-val">{{ adsSpeakerMuted ? 0 : adsSpeakerVol }}</span>
+        </div>
       </div>
       <button class="cr-bar-btn" title="音频设置" @click.stop="() => { adsOpen = true; adsLoad(); }">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -1104,38 +1332,6 @@ onUnmounted(() => {
           </div>
         </div>
       </Teleport>
-    <div class="cr-input-wrap">
-      <button
-        class="cr-clear-btn"
-        :class="{ 'is-disabled': !hasAnyMessage }"
-        title="清屏（清空本地聊天显示）"
-        @click="clearScreen"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-      </button>
-      <input
-        ref="messageInputEl"
-        v-model="messageInput"
-        type="text"
-        placeholder="来点虎狼之词..."
-        class="cr-input"
-        @keydown.enter.exact.prevent="sendMessage"
-      />
-      <button class="cr-emoji-btn" title="表情" @click="showEmojiPicker = !showEmojiPicker">
-        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
-      </button>
-      <button class="cr-send" @click="sendMessage">发送</button>
-      <div v-if="showEmojiPicker" class="cr-emoji-mask" @click="showEmojiPicker = false"></div>
-      <div v-if="showEmojiPicker" class="cr-emoji-panel">
-        <button
-          v-for="emoji in emojiList"
-          :key="emoji"
-          class="cr-emoji-item"
-          @click="insertEmoji(emoji)"
-        >{{ emoji }}</button>
-      </div>
-    </div>
-    <button class="cr-exit" @click="askLeaveRoom">退出房间</button>
   </div>
   <!-- 右键管理菜单 -->
   <Teleport to="body">
@@ -1147,6 +1343,20 @@ onUnmounted(() => {
         </button>
         <button class="cr-menu-item" @click="adminToggleBan">
           {{ store.isBanned(contextMenu.member?.identity) ? '解除禁言' : '禁言' }}
+        </button>
+        <button
+          v-if="store.isOwner && contextMenu.member?.identity !== store.myIdentity"
+          class="cr-menu-item"
+          @click="adminToggleAdmin"
+        >
+          {{ isAdminOf(contextMenu.member?.identity) ? '取消管理员' : '设为管理员' }}
+        </button>
+        <button
+          v-if="store.isRootSuper && contextMenu.member?.identity !== store.myIdentity"
+          class="cr-menu-item"
+          @click="adminToggleSuper"
+        >
+          {{ contextMenu.member?.isSuperAdmin ? '取消超管' : '设为超管' }}
         </button>
         <div class="cr-menu-sep"></div>
         <button class="cr-menu-item danger" @click="adminKickMember">踢出房间</button>
@@ -1204,15 +1414,13 @@ onUnmounted(() => {
   <!-- 用户资料弹窗 -->
   <Teleport to="body">
     <div v-if="showUserProfile" class="cr-modal-mask" @click.self="showUserProfile = false">
-      <div class="cr-modal">
-        <div class="cr-modal-head">
-          <span>用户资料</span>
-          <button class="cr-modal-close" @click="showUserProfile = false">×</button>
-        </div>
+      <div class="cr-modal cr-profile-modal">
+        <button class="cr-modal-close cr-profile-close" @click="showUserProfile = false">×</button>
         <div v-if="loadingUser" class="cr-modal-body center">加载中...</div>
         <div v-else-if="viewingUser?.error" class="cr-modal-body center err">{{ viewingUser.error }}</div>
         <div v-else-if="viewingUser" class="cr-modal-body">
-          <div class="cr-profile-top">
+          <div class="cr-profile-top" :style="viewingUser.avatar ? { backgroundImage: `url(${viewingUser.avatar})` } : {}">
+            <div class="cr-profile-top-mask"></div>
             <div class="cr-profile-avatar">
               <img v-if="viewingUser.avatar" :src="viewingUser.avatar" />
               <svg v-else class="cr-av-ico big" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8"/></svg>
@@ -1256,7 +1464,16 @@ onUnmounted(() => {
               </div>
             </div>
           </div>
+          <!-- DakeMusic: 个人主页按钮（看自己资料时显示，点了进编辑） -->
+          <div v-if="viewingUser.identity === store.myIdentity" class="cr-profile-actions" style="margin-top: 12px;">
+            <button class="cr-act primary" @click="goToProfileEdit">
+              个人主页
+            </button>
+          </div>
           <div v-if="isAdmin && viewingUser.identity && viewingUser.identity !== store.myIdentity" class="cr-profile-actions">
+            <button v-if="store.isOwner" class="cr-act" @click="toggleAdmin(viewingUser)">
+              {{ isAdminOf(viewingUser.identity) ? '取消管理员' : '设为管理员' }}
+            </button>
             <button class="cr-act" @click="() => { store.muteParticipant(viewingUser.identity, !viewingUser.isMuted); }">
               {{ viewingUser.isMuted ? '开麦' : '闭麦' }}
             </button>
@@ -1270,21 +1487,15 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
+
+    <!-- DakeMusic: 资料卡图片墙 - 应用内放大预览 -->
+    <div v-if="previewPhotoUrl" class="cr-photo-viewer" @click="previewPhotoUrl = ''">
+      <img :src="previewPhotoUrl" />
+      <button class="cr-photo-viewer-close" @click.stop="previewPhotoUrl = ''" title="关闭">×</button>
+    </div>
   </Teleport>
 </div>
 </template>
-
-
-
-/* 所有业务层提升层级 */
-.cr-topbar,
-.cr-body,
-.cr-bottom {
-  position: relative;
-  z-index: 1;
-}
-
-
 
 <style scoped>
 .cr-root {
@@ -1311,6 +1522,74 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   background: #000;
+}
+/* DakeMusic: 内置星空极光背景 */
+.cr-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.cr-stars {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+}
+.cr-stars-1 {
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, #ffffff, transparent),
+    radial-gradient(1px 1px at 80px 120px, #cfe8ff, transparent),
+    radial-gradient(1.6px 1.6px at 160px 70px, #ffffff, transparent),
+    radial-gradient(1px 1px at 240px 200px, #e6d6ff, transparent),
+    radial-gradient(1px 1px at 320px 40px, #ffffff, transparent),
+    radial-gradient(1.2px 1.2px at 120px 230px, #bfe0ff, transparent);
+  background-size: 360px 260px;
+  animation: cr-twinkle 4.5s ease-in-out infinite;
+}
+.cr-stars-2 {
+  background-image:
+    radial-gradient(1px 1px at 60px 90px, #ffffff, transparent),
+    radial-gradient(1.6px 1.6px at 200px 160px, #bfe0ff, transparent),
+    radial-gradient(1px 1px at 300px 120px, #ffffff, transparent),
+    radial-gradient(1px 1px at 40px 200px, #f0e6ff, transparent);
+  background-size: 420px 320px;
+  animation: cr-twinkle 7s ease-in-out infinite 1.5s;
+}
+@keyframes cr-twinkle {
+  0%, 100% { opacity: .45; }
+  50%      { opacity: 1; }
+}
+.cr-aurora-band {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(64px);
+}
+.cr-aurora-band.b1 {
+  width: 170%; height: 58%;
+  top: -18%; left: -35%;
+  transform: rotate(-18deg);
+  background: linear-gradient(100deg,
+    transparent 8%,
+    rgba(0, 205, 255, .34) 34%,
+    rgba(124, 92, 255, .42) 60%,
+    transparent 88%);
+  animation: cr-aurora-breath 13s ease-in-out infinite;
+}
+.cr-aurora-band.b2 {
+  width: 130%; height: 46%;
+  bottom: -22%; right: -22%;
+  transform: rotate(15deg);
+  background: linear-gradient(80deg,
+    transparent 14%,
+    rgba(255, 96, 178, .20) 44%,
+    rgba(86, 140, 255, .30) 70%,
+    transparent 92%);
+  animation: cr-aurora-breath 17s ease-in-out infinite reverse;
+}
+@keyframes cr-aurora-breath {
+  0%, 100% { opacity: .42; }
+  50%      { opacity: .72; }
 }
 .cr-root::before,
 .cr-root::after {
@@ -1398,8 +1677,40 @@ onUnmounted(() => {
   background: rgba(255,255,255,0.045);
   backdrop-filter: blur(20px);
   overflow: hidden;
+  position: relative;
+  transition: width .2s ease;
 }
 .cr-side.resizing { transition: none; user-select: none; }
+.cr-side.collapsed { border-right: none; }
+/* 收起侧栏按钮 */
+.cr-side-fold {
+  position: absolute;
+  right: 4px; top: 50%;
+  transform: translateY(-50%);
+  width: 18px; height: 42px;
+  border: none; border-radius: 8px;
+  background: rgba(255,255,255,.08);
+  color: #cfd0e0;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 6;
+  transition: background .15s;
+}
+.cr-side-fold:hover { background: rgba(138,92,255,.35); color: #fff; }
+.cr-side-fold svg { width: 12px; height: 12px; }
+/* 侧栏收起后的展开按钮 */
+.cr-side-unfold {
+  flex-shrink: 0;
+  width: 14px;
+  border: none; cursor: pointer;
+  background: rgba(255,255,255,.04);
+  color: #8a8aa0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+  z-index: 5;
+}
+.cr-side-unfold:hover { background: rgba(138,92,255,.3); color: #fff; }
+.cr-side-unfold svg { width: 11px; height: 11px; }
 /* 拖拽调宽手柄 */
 .cr-side-resizer {
   width: 5px;
@@ -1443,6 +1754,19 @@ onUnmounted(() => {
 .cr-room-cover img { width: 100%; height: 100%; object-fit: cover; }
 .cr-room-meta { min-width: 0; flex: 1; }
 .cr-room-name { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-room-name-row { display: flex; align-items: center; gap: 8px; }
+.cr-mode-btn {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px; border-radius: 10px;
+  font-size: 11px; color: #fff;
+  background: rgba(138,92,255,.3);
+  border: 1px solid rgba(138,92,255,.5);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cr-mode-btn:hover { background: rgba(138,92,255,.5); }
+.cr-mode-btn.primary { background: linear-gradient(90deg, #8a5cff, #00beff); border-color: transparent; }
+.cr-mode-btns { display: flex; gap: 4px; }
 .cr-room-owner { font-size: 12px; opacity: .45; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .cr-notice {
@@ -1555,6 +1879,27 @@ onUnmounted(() => {
   background: linear-gradient(135deg, rgba(88,166,255,.22), rgba(60,120,255,.16));
   box-shadow: inset 0 0 0 1px rgba(120,180,255,.5), 0 0 8px rgba(88,166,255,.26);
 }
+.cr-badge.admin-icon {
+  padding: 2px;
+  color: #7cc4ff;
+  background: linear-gradient(135deg, rgba(88,166,255,.22), rgba(60,120,255,.16));
+  box-shadow: inset 0 0 0 1px rgba(120,180,255,.5), 0 0 8px rgba(88,166,255,.26);
+}
+.cr-badge.admin-icon svg { width: 11px; height: 11px; }
+.cr-badge.super-icon {
+  padding: 2px;
+  color: #c4b5fd;
+  background: linear-gradient(135deg, rgba(168,85,247,.22), rgba(99,102,241,.16));
+  box-shadow: inset 0 0 0 1px rgba(168,85,247,.5), 0 0 8px rgba(168,85,247,.3);
+}
+.cr-badge.super-icon svg { width: 11px; height: 11px; }
+.cr-badge.rootsuper-icon {
+  padding: 2px;
+  color: #fbbf24;
+  background: linear-gradient(135deg, rgba(251,191,36,.28), rgba(245,158,11,.2));
+  box-shadow: inset 0 0 0 1px rgba(251,191,36,.6), 0 0 10px rgba(251,191,36,.45);
+}
+.cr-badge.rootsuper-icon svg { width: 11px; height: 11px; }
 .cr-badge.me {
   color: #c9c9dc;
   background: rgba(255,255,255,.09);
@@ -1629,20 +1974,61 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding-bottom: 72px;
 }
+
+/* ===== DakeMusic: 右侧公屏栏 ===== */
+.cr-chat {
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  background: rgba(255,255,255,.045);
+  backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255,255,255,.08);
+  overflow: hidden;
+  transition: width .2s ease;
+}
+.cr-chat.chatResizing { transition: none; }
+/* 右栏拖拽调宽手柄 */
+.cr-chat-resizer {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  transition: background .15s;
+  z-index: 5;
+}
+.cr-chat-resizer::after {
+  content: '';
+  position: absolute;
+  right: 2px; top: 0; bottom: 0;
+  width: 1px;
+  background: rgba(255,255,255,0.10);
+}
+.cr-chat-resizer:hover::after,
+.cr-chat-resizer.active::after { background: rgba(138,92,255,.9); }
+.cr-chat-scroll { flex: 1; }
 
 /* ===== 歌词大框 ===== */
 .cr-lyric {
   position: relative;
-  flex-shrink: 0;
-  margin: 12px 16px 0;
+  flex: 1;
+  min-height: 180px;
+  max-height: 40vh;
+  margin: 0 16px 14px;
   padding: 11px 14px 10px;
   border-radius: 16px;
-  background: linear-gradient(160deg, rgba(32,28,62,.55), rgba(15,15,32,.55));
-  border: 1px solid rgba(255,255,255,.09);
-  box-shadow: 0 10px 26px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.05);
+  background: transparent;
+  border: none;
+  box-shadow: none;
   overflow: hidden;
-  backdrop-filter: blur(12px);
+  backdrop-filter: none;
+  display: flex;
+  flex-direction: column;
 }
 .cr-lyric::before {
   content: '';
@@ -1653,12 +2039,12 @@ onUnmounted(() => {
 }
 .cr-lyric-head {
   position: relative;
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: center;
   gap: 10px; margin-bottom: 6px;
 }
 .cr-lyric-title {
   display: flex; align-items: center; gap: 7px;
-  min-width: 0; flex: 1;
+  min-width: 0;
 }
 .cr-lyric-ico { width: 15px; height: 15px; color: #8ab4ff; flex-shrink: 0; opacity: .9; }
 .cr-lyric-song {
@@ -1679,7 +2065,10 @@ onUnmounted(() => {
 .cr-lyric-live i:nth-child(3) { height: 7px;  animation-delay: .36s; }
 @keyframes crLyricBar { 0%,100% { transform: scaleY(.45); } 50% { transform: scaleY(1); } }
 .cr-lyric-btn {
-  flex-shrink: 0;
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   width: 22px; height: 22px; border-radius: 8px;
   border: none; cursor: pointer;
   background: rgba(255,255,255,.07);
@@ -1691,8 +2080,7 @@ onUnmounted(() => {
 .cr-lyric-btn svg { width: 14px; height: 14px; }
 .cr-lyric-body {
   position: relative;
-  min-height: 150px;
-  max-height: 200px;
+  flex: 1;
   overflow-y: auto;
   padding: 10px 4px 8px;
   text-align: center;
@@ -1703,9 +2091,9 @@ onUnmounted(() => {
 .cr-lyric-body::-webkit-scrollbar-thumb { background: rgba(255,255,255,.16); border-radius: 999px; }
 .cr-lyric-body::-webkit-scrollbar-track { background: transparent; }
 .cr-lyric-line {
-  font-size: 14px;
-  line-height: 1.95;
-  padding: 5px 8px;
+  font-size: 13px;
+  line-height: 2.6;
+  padding: 8px 12px;
   color: rgba(220,222,240,.34);
   transition: color .25s, transform .25s, font-size .25s;
   word-break: break-word;
@@ -1713,8 +2101,8 @@ onUnmounted(() => {
 .cr-lyric-line.near { color: rgba(220,222,240,.6); }
 .cr-lyric-line.active {
   color: #fff;
-  font-size: 17px;
-  font-weight: 600;
+  font-size: 20px;
+  font-weight: 700;
   transform: scale(1.02);
   background: linear-gradient(90deg, transparent, rgba(138,92,255,.16), transparent);
   border-radius: 8px;
@@ -1943,15 +2331,26 @@ onUnmounted(() => {
   box-shadow: 0 2px 12px rgba(0,0,0,.22);
 }
 .cr-row.other .cr-bubble {
-  background: rgba(255,255,255,0.095);
+  background: rgba(255,255,255,0.10);
   border: 1px solid rgba(255,255,255,0.10);
-  border-radius: 14px 14px 14px 4px;
+  border-radius: 18px 18px 18px 5px;
 }
 .cr-row.mine .cr-bubble {
-  background: linear-gradient(135deg, rgba(138,92,255,.55), rgba(88,101,242,.48));
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 14px 14px 4px 14px;
+  background: linear-gradient(135deg, rgba(56,132,255,.62), rgba(120,92,255,.58));
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 18px 18px 5px 18px;
   color: #fff;
+}
+.cr-bubble-img {
+  padding: 4px;
+  cursor: zoom-in;
+}
+.cr-bubble-img img {
+  max-width: 180px;
+  max-height: 180px;
+  border-radius: 12px;
+  display: block;
+  object-fit: cover;
 }
 
 /* 空状态 */
@@ -1981,21 +2380,26 @@ onUnmounted(() => {
 
 /* 底部栏 */
 .cr-bottom {
-  position: relative;
-  z-index: 3;
+  position: absolute;
+  left: 0; right: 0; bottom: 16px;
+  z-index: 6;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 9px 14px;
-  background: rgba(255,255,255,0.055);
-  backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255,255,255,0.10);
+  justify-content: center;
+  pointer-events: none;
 }
 .cr-bar {
+  pointer-events: auto;
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(22,20,44,.6);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 14px 36px rgba(8,6,24,.55), inset 0 1px 0 rgba(255,255,255,.08);
+  backdrop-filter: blur(26px);
 }
 .cr-bar-btn {
   width: 32px; height: 32px;
@@ -2020,6 +2424,13 @@ onUnmounted(() => {
   border-color: rgba(255,77,109,.45);
   color: #ff4d6d;
   box-shadow: 0 0 10px rgba(255,77,109,.35);
+}
+.cr-bar-btn.is-offseat {
+  background: rgba(255,255,255,.04);
+  border-color: rgba(255,255,255,.08);
+  color: #5c5c72;
+  box-shadow: none;
+  opacity: .6;
 }
 .cr-bar-vol {
   display: flex; align-items: center; gap: 6px;
@@ -2049,26 +2460,78 @@ onUnmounted(() => {
   background: #fff; border: 2px solid #ff4d6d; cursor: pointer;
 }
 
-/* 耳机音量：向右弹性展开的面板（非弹窗） */
-/* 常驻音量条胶囊：麦克风 + 扬声器，随时可拖，不再藏进弹出面板 */
-.cr-vol-inline {
-  display: flex; align-items: center; gap: 8px;
-  height: 32px; padding: 0 12px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+/* 音量条并入按钮：每个按钮 hover 时向上弹出小音量条 */
+.cr-bar-group {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.cr-vol-pop {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 10px;
+  background: rgba(22,20,44,.94);
+  border: 1px solid rgba(255,255,255,.14);
+  box-shadow: 0 8px 22px rgba(8,6,24,.55);
+  backdrop-filter: blur(20px);
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+  z-index: 20;
+}
+.cr-vol-pop::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: rgba(22,20,44,.94);
+}
+/* 透明桥接块：填满面板与按钮之间的 10px 间隙，鼠标穿过间隙时 hover 不丢失 */
+.cr-vol-pop::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  height: 12px;
+  background: transparent;
+}
+.cr-bar-group:hover .cr-vol-pop,
+.cr-vol-pop:hover {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: auto;
+}
+.cr-vol-pop-label {
+  font-size: 10px;
+  color: #9aa0c0;
   flex-shrink: 0;
 }
-.cr-vol-inline:hover { background: rgba(255, 255, 255, 0.09); }
-.cr-vol-sep {
-  width: 1px; height: 14px; flex-shrink: 0;
-  background: rgba(255, 255, 255, 0.13);
-}
-.cr-vol-ico { width: 14px; height: 14px; color: #a9a9c0; flex-shrink: 0; }
 .cr-vol-val {
-  font-size: 10px; color: #8b8ba6; width: 20px;
+  font-size: 10px; color: #9aa0c0; width: 20px;
   text-align: right; flex-shrink: 0; font-variant-numeric: tabular-nums;
 }
+.cr-pop-range.mini {
+  width: 68px;
+  height: 3px;
+}
+.cr-pop-range.mini::-webkit-slider-thumb {
+  width: 11px; height: 11px;
+  border-width: 2px;
+}
+.cr-pop-range.mini:disabled { opacity: .4; cursor: not-allowed; }
+
+/* 常驻音量条胶囊（已废弃：音量条已并入按钮 hover 面板） */
+.cr-vol-inline { display: none; }
 
 /* 统一配色滑块：紫蓝渐变，已填充部分按 --vol 百分比着色 */
 .cr-pop-range {
@@ -2145,52 +2608,48 @@ onUnmounted(() => {
   50%      { transform: scaleY(1);  }
 }
 .cr-clear-btn {
-  position: absolute;
-  left: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  background: transparent;
+  background: rgba(255,255,255,0.06);
   color: #8f8fa6;
   cursor: pointer;
   transition: all 0.16s ease;
-  z-index: 2;
-  flex-shrink: 0;
 }
 .cr-clear-btn svg { width: 14px; height: 14px; }
 .cr-clear-btn:hover {
   background: rgba(255, 77, 109, 0.18);
   color: #ff4d6d;
-  transform: translateY(-50%) scale(1.08);
 }
 .cr-clear-btn.is-disabled {
   opacity: 0.3;
   cursor: not-allowed;
 }
 .cr-clear-btn.is-disabled:hover {
-  background: transparent;
+  background: rgba(255,255,255,0.06);
   color: #8f8fa6;
-  transform: translateY(-50%);
 }
 .cr-input-wrap {
   position: relative;
   flex: none;
-  width: 300px;
-  margin-left: auto;
+  width: 100%;
   display: flex;
   align-items: center;
   gap: 6px;
+  padding: 10px 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  background: rgba(20,18,40,0.35);
+  backdrop-filter: blur(18px);
 }
 .cr-input {
   flex: 1;
   min-width: 0;
-  padding: 7px 13px 7px 34px;
+  padding: 7px 13px;
   border-radius: 999px;
   font-size: 12.5px;
   color: #ececf1;
@@ -2230,15 +2689,22 @@ onUnmounted(() => {
 .cr-send:hover { filter: brightness(1.1); box-shadow: 0 3px 14px rgba(109,92,255,.5); }
 .cr-exit {
   flex-shrink: 0;
-  padding: 7px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
-  color: #fff;
-  background: #ef4444;
+  color: #ffd7dd;
+  background: rgba(220,38,38,.55);
+  border: 1px solid rgba(255,120,140,.35);
+  cursor: pointer;
+  backdrop-filter: blur(12px);
   transition: all .18s;
 }
-.cr-exit:hover { background: #dc2626; }
+.cr-exit svg { width: 12px; height: 12px; }
+.cr-exit:hover { background: rgba(220,38,38,.9); color: #fff; border-color: rgba(255,150,165,.6); }
 
 /* ===== 退出房间确认弹窗 ===== */
 .cr-leave-mask {
@@ -2454,22 +2920,57 @@ onUnmounted(() => {
 }
 .cr-count { flex: 1; font-size: 11px; opacity: .4; }
 
-.cr-profile-top { display: flex; flex-direction: column; align-items: center; margin-bottom: 14px; }
+.cr-profile-modal { overflow: hidden; padding: 0 !important; }
+.cr-profile-modal .cr-modal-body { padding: 0 20px 20px; }
+.cr-profile-close {
+  position: absolute; top: 10px; right: 12px;
+  z-index: 10; color: rgba(255,255,255,.9); font-size: 20px;
+}
+.cr-profile-top {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  margin: 0 -20px 16px;
+  padding: 36px 20px 16px;
+  background: linear-gradient(160deg, #a8e6cf 0%, #88d8b0 40%, #56c596 100%);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+.cr-profile-top-mask {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,.35);
+  backdrop-filter: blur(20px);
+  z-index: 0;
+}
+.cr-profile-top > .cr-profile-avatar,
+.cr-profile-top > .cr-profile-name,
+.cr-profile-top > .cr-profile-tags,
+.cr-profile-top > .cr-profile-role { position: relative; z-index: 1; }
 .cr-profile-avatar {
-  width: 72px; height: 72px;
+  width: 88px; height: 88px;
   border-radius: 50%;
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   background: #111315;
   font-size: 24px; font-weight: 700;
   margin-bottom: 8px;
+  border: 3px solid rgba(255,255,255,.8);
+  box-shadow: 0 4px 16px rgba(0,0,0,.15);
 }
 .cr-profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
 /* 默认头像：线性用户矢量图标 */
 .cr-av-ico { width: 18px; height: 18px; color: rgba(255,255,255,.62); flex-shrink: 0; }
-.cr-av-ico.big { width: 40px; height: 40px; color: rgba(255,255,255,.45); }
-.cr-profile-name { font-size: 16px; font-weight: 700; }
-.cr-profile-id { font-size: 11px; color: #7c7c92; margin-top: 2px; }
+.cr-av-ico.big { width: 44px; height: 44px; color: rgba(255,255,255,.45); }
+.cr-profile-name { font-size: 18px; font-weight: 800; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.cr-profile-id {
+  position: absolute; top: 10px; left: 12px;
+  font-size: 11px; color: #fff;
+  background: rgba(0,0,0,.3);
+  padding: 2px 8px; border-radius: 8px;
+  z-index: 2;
+}
 /* DakeMusic: 资料标签样式 */
 .cr-profile-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; justify-content: center; }
 .cr-tag {
@@ -2482,8 +2983,8 @@ onUnmounted(() => {
 .cr-tag.age-gender-female { background: linear-gradient(90deg, #ec4899, #f472b6); color: #fff; font-weight: 600; }
 .cr-tag.male { color: #60a5fa; }
 .cr-tag.female { color: #f472b6; }
-.cr-tag.city { color: #9ca3af; }
-.cr-tag.ip { color: #9ca3af; }
+.cr-tag.city { color: #fff; background: rgba(255,255,255,.15); }
+.cr-tag.ip { color: #fff; background: rgba(255,255,255,.15); }
 .cr-profile-role {
   margin-top: 6px;
   padding: 2px 9px;
@@ -2503,8 +3004,32 @@ onUnmounted(() => {
   cursor: pointer;
   transition: opacity .16s;
 }
-.cr-photo:hover { opacity: .8; }
+.cr-photo:hover { opacity: .8; cursor: zoom-in; }
 .cr-photo img { width: 100%; height: 100%; object-fit: cover; }
+
+/* DakeMusic: 图片墙放大预览 */
+.cr-photo-viewer {
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(0,0,0,.88);
+  display: flex; align-items: center; justify-content: center;
+  cursor: zoom-out;
+}
+.cr-photo-viewer img {
+  max-width: 88vw; max-height: 86vh;
+  border-radius: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+  object-fit: contain;
+}
+.cr-photo-viewer-close {
+  position: absolute; top: 20px; right: 24px;
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,.15);
+  color: #fff; font-size: 22px; line-height: 1;
+  cursor: pointer;
+}
+.cr-photo-viewer-close:hover { background: rgba(255,255,255,.28); }
 .cr-profile-actions {
   display: flex; gap: 8px;
   margin-top: 14px;
@@ -2524,6 +3049,8 @@ onUnmounted(() => {
 .cr-act:hover { background: rgba(255,255,255,0.12); }
 .cr-act.danger { color: #ff6b81; background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.3); }
 .cr-act.danger:hover { background: rgba(239,68,68,.28); }
+.cr-act.primary { background: linear-gradient(90deg, #8a5cff, #00beff); color: #fff; border-color: transparent; font-weight: 600; }
+.cr-act.primary:hover { opacity: .9; }
 
 /* ===== 音频设备：单一胶囊 ===== */
 .ads-one {
@@ -2645,4 +3172,29 @@ onUnmounted(() => {
   color: #7c7c92;
   text-align: center;
 }
+
+/* DakeMusic: 根超管入场特效 */
+.cr-root-entry {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.cr-root-entry-img {
+  width: 360px;
+  height: 360px;
+  object-fit: contain;
+  animation: root-entry-fly 4s ease-out forwards;
+}
+@keyframes root-entry-fly {
+  0%   { transform: scale(0.3) translateY(80px); opacity: 0; }
+  20%  { transform: scale(1) translateY(0); opacity: 1; }
+  70%  { transform: scale(1.05) translateY(0); opacity: 1; }
+  100% { transform: scale(1.2) translateY(-60px); opacity: 0; }
+}
+.entry-fade-enter-active, .entry-fade-leave-active { transition: opacity .4s; }
+.entry-fade-enter-from, .entry-fade-leave-to { opacity: 0; }
 </style>

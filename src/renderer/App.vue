@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { setupStartupPluginUpdateCheck } from '@/stores/pluginUpdates';
 import startupSoundUrl from '/zhenzhu/startup.wav?url';
+import startupSoundAsuUrl from '/zhenzhu/asu.mp3?url';
 import TooltipScope from '@/components/ui/TooltipScope.vue';
 import SettingsDialog from '@/components/app/SettingsDialog.vue';
 import {
@@ -76,33 +77,13 @@ const snowColors = ['#ff4d4d', '#ff6b6b', '#e60000', '#ff1a1a', '#ff8080', '#cc0
 
 // 检查远程开关
 const checkEggEnabled = async (): Promise<boolean> => {
-  try {
-    const res = await fetch(`${EGG_WORKER_URL}/status`, { method: "GET" });
-    const data = await res.json();
-    return data.enabled !== false;
-  } catch {
-    // 网络不通时默认开启，不影响本地彩蛋
-    return true;
-  }
+  // 禁用远程检查，避免网络超时报错
+  return true;
 };
 
 // 上报触发记录
 const reportEggTrigger = async () => {
-  try {
-    const deviceId = await (window as any).eggApi?.getDeviceId();
-    if (!deviceId) return;
-    await fetch(`${EGG_WORKER_URL}/trigger`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        deviceId,
-        triggerTime: new Date().toISOString()
-      })
-    });
-    console.log("🌐 彩蛋触发已上报，设备ID：", deviceId);
-  } catch (err) {
-    console.warn("🌐 彩蛋上报失败（离线/网络异常），不影响播放", err);
-  }
+  // 禁用远程上报，避免网络超时报错
 };
 
 const triggerDakeEgg = async () => {
@@ -341,7 +322,7 @@ const flushPendingShareTarget = () => {
 };
 
 const playStartupSound = async () => {
-  const soundUrl = startupSoundUrl;
+  const soundUrl = settings.startupSoundId === 'asu' ? startupSoundAsuUrl : startupSoundUrl;
   const audio = new Audio();
   audio.volume = 0.9;
   audio.preload = 'auto';
