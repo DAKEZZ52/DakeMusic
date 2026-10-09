@@ -130,8 +130,8 @@ export const roomApi = {
   banParticipant: (roomId: string, targetIdentity: string, banned: boolean) =>
     request(`/api/rooms/${roomId}/ban`, { method: 'POST', body: { targetIdentity, banned } }),
 
-  updateRoom: (roomId: string, name?: string, description?: string, coverImage?: string, remove?: boolean) =>
-    request(`/api/rooms/${roomId}`, { method: remove ? 'DELETE' : 'PATCH', body: { name, description, coverImage } }),
+  updateRoom: (roomId: string, name?: string, description?: string, coverImage?: string, remove?: boolean, seatMode?: 'normal' | 'duet') =>
+    request(`/api/rooms/${roomId}`, { method: remove ? 'DELETE' : 'PATCH', body: { name, description, coverImage, seatMode } }),
 
   adminLogin: (password: string) =>
     request('/api/admin/login', { method: 'POST', auth: false, body: { password } }),

@@ -14,6 +14,8 @@ import Button from '@/components/ui/Button.vue';
 import { roomApi } from '@/utils/roomApi';
 import SeatStage from '@/seatManager/SeatStage.vue';
 import { useSeatManager } from '@/seatManager/useSeatManager';
+import { getSeatFrameUrl, getMySeatFrameId } from '@/seatManager/seatFrames';
+import { getAuralUrl, getMyAuralId } from '@/seatManager/auralSkins';
 // DakeMusic: 麦克风增益/开关麦统一走单例 composable（房间内与悬浮窗共用，避免多轨道冲突）
 import { useMicGain } from '@/composables/useMicGain';
 import { getActivePinia } from 'pinia';
@@ -29,14 +31,43 @@ function goToProfileEdit() {
 }
 // DakeMusic: 切换对唱/语聊模式
 const currentSeatMode = ref<'normal' | 'duet'>('normal');
-function toggleSeatMode() {
+
+// 房主切换座位模式：本地切 + 通知服务器持久化 + LiveKit 广播给房内所有人
+async function toggleSeatMode() {
   const next = currentSeatMode.value === 'normal' ? 'duet' : 'normal';
   currentSeatMode.value = next;
+  store.currentRoomSeatMode = next;
   window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: next }));
+  // 持久化到服务器（房主才能调 PATCH，requireOwner 会拦非房主）
+  if (store.currentRoomId) {
+    try { await roomApi.updateRoom(store.currentRoomId, undefined, undefined, undefined, false, next); }
+    catch (e) { console.warn('[seatMode] 持久化失败:', e); }
+  }
+  // LiveKit 数据通道广播给房内其他用户
+  try {
+    const lkRoom = await getLKRoom();
+    if (lkRoom?.localParticipant) {
+      const payload = JSON.stringify({ kind: 'dakemusic-seat-mode', mode: next, time: Date.now() });
+      const buf = new TextEncoder().encode(payload);
+      await lkRoom.localParticipant.publishData(buf, { reliable: true });
+    }
+  } catch (e) { console.warn('[seatMode] 广播失败:', e); }
 }
+
 function onSeatModeChanged(e: Event) {
   currentSeatMode.value = (e as CustomEvent).detail as 'normal' | 'duet';
 }
+
+// 从服务器同步过来的座位模式（其他房主广播 / 进房初始化）
+function applySeatModeFromRemote(mode: 'normal' | 'duet') {
+  if (currentSeatMode.value === mode) return;
+  currentSeatMode.value = mode;
+  store.currentRoomSeatMode = mode;
+  window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: mode }));
+}
+// DakeMusic: 进房时用服务器返回的房间座位模式初始化（否则新用户永远看到 normal）
+currentSeatMode.value = store.currentRoomSeatMode === 'duet' ? 'duet' : 'normal';
+window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: currentSeatMode.value }));
 onMounted(() => window.addEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
 onUnmounted(() => window.removeEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
 // DakeMusic: 设置 store（用于自定义背景）
@@ -258,12 +289,53 @@ function onRoomDataReceived(data: Uint8Array){
       remoteLyricData.value.songTitle = obj.songTitle ?? '';
       remoteLyricData.value.songArtist = obj.songArtist ?? '';
       remoteLyricData.value.timestamp = obj.time ?? 0;
+    } else if(obj.kind === 'dakemusic-seat-mode' && (obj.mode === 'normal' || obj.mode === 'duet')){
+      // DakeMusic: 房主切换对唱/普通模式，房内其他人同步
+      applySeatModeFromRemote(obj.mode);
+    } else if(obj.kind === 'dakemusic-user-style' && obj.identity){
+      // DakeMusic: 某用户广播自己的麦位框/声波皮肤
+      store.userStyles[obj.identity] = {
+        frameUrl: obj.frameUrl || '',
+        auralUrl: obj.auralUrl || '',
+      };
     }
   }catch(e){
     /*忽略其他消息*/
   }
 }
 
+// DakeMusic: 广播自己的麦位框/声波皮肤给房内所有人
+async function broadcastMyStyle(){
+  try {
+    const lkRoom = await getLKRoom();
+    if(!lkRoom?.localParticipant || !store.myIdentity) return;
+    const payload = JSON.stringify({
+      kind: 'dakemusic-user-style',
+      identity: store.myIdentity,
+      frameUrl: getSeatFrameUrl(getMySeatFrameId()) || '',
+      auralUrl: getAuralUrl(getMyAuralId()) || '',
+      time: Date.now(),
+    });
+    const buf = new TextEncoder().encode(payload);
+    await lkRoom.localParticipant.publishData(buf, { reliable: true });
+  } catch(e){ console.warn('[broadcastMyStyle] failed', e); }
+}
+
+// 监听本窗口选框/选声波事件，变化后立即广播
+function onLocalStyleChanged(){ broadcastMyStyle(); }
+
+
+// DakeMusic: 有新人进房，立刻把自己的框/声波/当前座位模式广播给他，他不用等下次切换
+async function onNewParticipant(){
+  try {
+    await broadcastMyStyle();
+    const lkRoom = await getLKRoom();
+    if (lkRoom?.localParticipant) {
+      const payload = JSON.stringify({ kind: 'dakemusic-seat-mode', mode: currentSeatMode.value, time: Date.now() });
+      await lkRoom.localParticipant.publishData(new TextEncoder().encode(payload), { reliable: true });
+    }
+  } catch(e){}
+}
 
 // 挂载：注册监听；房主开启定时广播
 onMounted(()=>{
@@ -271,6 +343,12 @@ onMounted(()=>{
   roomPromise.then(room=>{
     if(!room) return;
     room.on('dataReceived', onRoomDataReceived);
+    room.on('participantConnected', onNewParticipant);
+
+    // DakeMusic: 进房后等其他人都连上，广播一次自己的麦位框/声波；同时监听本地选装扮变化
+    setTimeout(()=>{ broadcastMyStyle(); }, 1500);
+    window.addEventListener('dakemusic-frame-changed', onLocalStyleChanged);
+    window.addEventListener('dakemusic-aural-changed', onLocalStyleChanged);
 
     // 只有房主开启监听 + 定时推送歌词
     if(isLocalSongSource.value){
@@ -296,8 +374,11 @@ onUnmounted(()=>{
   roomPromise.then(room=>{
     if(room){
       room.off('dataReceived', onRoomDataReceived);
+      room.off('participantConnected', onNewParticipant);
     }
   })
+  window.removeEventListener('dakemusic-frame-changed', onLocalStyleChanged);
+  window.removeEventListener('dakemusic-aural-changed', onLocalStyleChanged);
 })
 /* =============== 歌词面板 END =============== */
 
@@ -362,12 +443,12 @@ async function runConfirm() {
 const isRoomOwner = computed(() => store.isOwner);
 const isAdmin = computed(() => store.isOwner || store.isAdmin);
 
-// DakeMusic: 根超管入场特效
+// DakeMusic: 根超管入场特效（全屏龙视频过场）
 const rootEntryShow = ref(false);
 function playRootEntry() {
   if (!store.isRootSuper) return;
   rootEntryShow.value = true;
-  setTimeout(() => { rootEntryShow.value = false; }, 4000);
+  setTimeout(() => { rootEntryShow.value = false; }, 10000);
 }
 
 // 当前正在说话的成员（取第一个 isSpeaking 的）
@@ -976,10 +1057,10 @@ onUnmounted(() => {
 
 <template>
 <div class="cr-root">
-  <!-- DakeMusic: 根超管入场特效 -->
+  <!-- DakeMusic: 根超管入场特效（龙 GIF） -->
   <Transition name="entry-fade">
-    <div v-if="rootEntryShow" class="cr-root-entry">
-      <img src="https://img-play.daidaiyuyin.com/img/dabe091d1c79e8f6b55f1aa3ebd2ff7d.gif" alt="入场特效" class="cr-root-entry-img" />
+    <div v-if="rootEntryShow" class="cr-root-entry-full">
+      <img src="@/assets/entry_dragon.gif" class="cr-root-entry-gif" alt="" />
     </div>
   </Transition>
 
@@ -3173,27 +3254,48 @@ onUnmounted(() => {
   text-align: center;
 }
 
-/* DakeMusic: 根超管入场特效 */
-.cr-root-entry {
+/* DakeMusic: 根超管入场特效（龙 GIF） */
+.cr-root-entry-full {
   position: fixed;
   inset: 0;
   z-index: 9999;
+  overflow: hidden;
+  pointer-events: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  pointer-events: none;
 }
-.cr-root-entry-img {
-  width: 360px;
-  height: 360px;
-  object-fit: contain;
-  animation: root-entry-fly 4s ease-out forwards;
+.cr-root-entry-gif {
+  width: 480px;
+  max-width: 80vw;
+  max-height: 70vh;
 }
-@keyframes root-entry-fly {
-  0%   { transform: scale(0.3) translateY(80px); opacity: 0; }
-  20%  { transform: scale(1) translateY(0); opacity: 1; }
-  70%  { transform: scale(1.05) translateY(0); opacity: 1; }
-  100% { transform: scale(1.2) translateY(-60px); opacity: 0; }
+.cr-root-entry-name {
+  position: relative;
+  font-size: 64px;
+  font-weight: 900;
+  letter-spacing: 8px;
+  background: linear-gradient(180deg, #fff5d6 0%, #ffd873 40%, #b8860b 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: 0 0 40px rgba(255, 200, 80, 0.6);
+  animation: king-name-in 1.2s ease-out;
+}
+.cr-root-entry-sub {
+  position: absolute;
+  bottom: 12%;
+  font-size: 22px;
+  font-weight: 400;
+  letter-spacing: 12px;
+  color: rgba(255, 220, 150, 0.9);
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+  animation: king-name-in 1.5s ease-out;
+}
+@keyframes king-name-in {
+  0%   { opacity: 0; transform: scale(1.6); filter: blur(8px); }
+  40%  { opacity: 1; transform: scale(1); filter: blur(0); }
+  100% { opacity: 1; transform: scale(1); }
 }
 .entry-fade-enter-active, .entry-fade-leave-active { transition: opacity .4s; }
 .entry-fade-enter-from, .entry-fade-leave-to { opacity: 0; }

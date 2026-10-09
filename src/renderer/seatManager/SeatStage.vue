@@ -51,9 +51,18 @@ const duetSmallSeats = computed(() => smallSeats.value.slice(1, 5));
 
 // DakeMusic: 我的麦位说话声波皮肤
 const myAuralUrl = ref(getAuralUrl(getMyAuralId()));
+// DakeMusic: 把自己的 style 同时写入 store.userStyles[myIdentity]，自己看自己立刻生效
+function syncMyStyleToStore() {
+  if (!store.myIdentity) return;
+  store.userStyles[store.myIdentity] = {
+    frameUrl: myFrameUrl.value || '',
+    auralUrl: myAuralUrl.value || '',
+  };
+}
 function onAuralChanged(e: Event) {
   const id = (e as CustomEvent).detail as string;
   myAuralUrl.value = getAuralUrl(id);
+  syncMyStyleToStore();
 }
 onMounted(() => window.addEventListener('dakemusic-aural-changed', onAuralChanged));
 onUnmounted(() => window.removeEventListener('dakemusic-aural-changed', onAuralChanged));
@@ -63,9 +72,12 @@ const myFrameUrl = ref(getSeatFrameUrl(getMySeatFrameId()));
 function onFrameChanged(e: Event) {
   const id = (e as CustomEvent).detail as string;
   myFrameUrl.value = getSeatFrameUrl(id);
+  syncMyStyleToStore();
 }
 onMounted(() => window.addEventListener('dakemusic-frame-changed', onFrameChanged));
 onUnmounted(() => window.removeEventListener('dakemusic-frame-changed', onFrameChanged));
+// DakeMusic: 进房后立刻把自己 style 写进 store，自己看自己的框/声波立即生效
+onMounted(() => { setTimeout(syncMyStyleToStore, 0); });
 
 // DakeMusic: 监听外部切换模式
 function onSetMode(e: Event) {
@@ -114,6 +126,17 @@ function micOffOf(identity?: string) {
 }
 function speakingOf(identity?: string) {
   return !!memberOf(identity)?.isSpeaking;
+}
+
+// DakeMusic: 根据 occupant.identity 查房内同步过来的麦位框/声波 URL，返回该麦位的 CSS 变量
+function seatStyleOf(identity?: string) {
+  if (!identity) return {};
+  const s = store.userStyles[identity];
+  if (!s) return {};
+  const vars: Record<string, string> = {};
+  if (s.frameUrl) vars['--frame-url'] = `url('${s.frameUrl}')`;
+  if (s.auralUrl) vars['--aural-url'] = `url('${s.auralUrl}')`;
+  return vars;
 }
 
 // 点击主座：空→房主直接坐/非房主申请；我→离开；别人→看资料
@@ -172,6 +195,7 @@ function onSmallClick(seatId: string) {
           'is-owner': !!mainSeat?.occupant?.isOwner,
           'is-pending': !store.isOwner && myRequestState === 'pending'
         }"
+        :style="seatStyleOf(mainSeat?.occupant?.identity)"
         @click="onMainClick"
         @contextmenu.prevent
       >
@@ -236,6 +260,7 @@ function onSmallClick(seatId: string) {
           'is-empty': !seat.occupant,
           'is-owner': !!seat.occupant?.isOwner
         }"
+        :style="seatStyleOf(seat.occupant?.identity)"
         @click="onSmallClick(seat.id)"
         @contextmenu.prevent
       >
@@ -376,12 +401,12 @@ function onSmallClick(seatId: string) {
   width: 100%; height: 100%;
   object-fit: cover; border-radius: 50%;
 }
-/* DakeMusic: 麦位框 - 围绕头像的圆形装饰，盖在头像上面 */
-.seat.is-mine .seat-avatar::after {
+/* DakeMusic: 麦位框 - 围绕头像的圆形装饰，盖在头像上面；URL 由 LiveKit 数据通道按 occupant.identity 同步 */
+.seat .seat-avatar::after {
   content: '';
   position: absolute;
   inset: -48%;
-  background: var(--my-frame-url, none) center/contain no-repeat;
+  background: var(--frame-url, none) center/contain no-repeat;
   pointer-events: none;
   z-index: 2;
 }
@@ -400,7 +425,7 @@ function onSmallClick(seatId: string) {
   content: '';
   position: absolute;
   inset: -27px;
-  background: var(--my-aural-url, url('/seat/speaking-ring.webp')) center/contain no-repeat;
+  background: var(--aural-url, url('/seat/speaking-ring.webp')) center/contain no-repeat;
   pointer-events: none;
   z-index: -1;
 }

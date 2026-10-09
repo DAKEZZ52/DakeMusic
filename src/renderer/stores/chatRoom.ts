@@ -33,6 +33,10 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const currentRoomDescription = ref('');
   const currentRoomCoverImage = ref('');
   const currentRoomOwnerName = ref('');
+  // DakeMusic: 房间座位模式（normal=9宫格 / duet=对唱2麦位），由房主切换，服务器广播
+  const currentRoomSeatMode = ref<'normal' | 'duet'>('normal');
+  // DakeMusic: 房内每个人的麦位框/声波皮肤 URL（identity -> {frameUrl, auralUrl}），通过 LiveKit 数据通道同步
+  const userStyles = ref<Record<string, { frameUrl: string; auralUrl: string }>>({});
   const members = ref<RoomMember[]>([]);
   const memberAvatars = ref<Record<string, string>>({});
   const messages = ref<ChatMessage[]>([]);
@@ -238,6 +242,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomCoverImage.value = result.coverImage || '';
     // 优先显示房主昵称，没有再退回账号
     currentRoomOwnerName.value = result.ownerNickname || result.ownerName || '';
+    // DakeMusic: 房间座位模式（对唱/普通）
+    currentRoomSeatMode.value = result.seatMode === 'duet' ? 'duet' : 'normal';
     myIdentity.value = result.identity;
     myName.value = loginName.value || '用户';
     isSuperAdmin.value = !!result.isSuperAdmin;
@@ -276,6 +282,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomDescription.value = '';
     currentRoomCoverImage.value = '';
     currentRoomOwnerName.value = '';
+    currentRoomSeatMode.value = 'normal';
+    userStyles.value = {};
     myIdentity.value = '';
     isOwner.value = false;
     isSuperAdmin.value = false;
@@ -352,7 +360,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   }
 
   return {
-    rooms, currentRoomId, currentRoomName, currentRoomDescription, currentRoomCoverImage, currentRoomOwnerName, members, memberAvatars, messages,
+    rooms, currentRoomId, currentRoomName, currentRoomDescription, currentRoomCoverImage, currentRoomOwnerName, currentRoomSeatMode, userStyles, members, memberAvatars, messages,
     isConnected, isConnecting, isMuted, myIdentity, myName, myAvatar, myBio, isOwner, isSuperAdmin, isRootSuper, error,
     bannedUsers, isLoggedIn, loginName, isAdmin, adminToken,
     memberCount, isMicEnabled, localMember, sortedMessages,

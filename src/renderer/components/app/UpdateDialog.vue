@@ -174,6 +174,14 @@ const handleClose = () => updateStore.closeDialog();
           下载中
         </Button>
         <Button v-else variant="primary" size="sm" @click="handleDownload"> 立即更新 </Button>
+        <Button
+          v-if="checkResult?.status === 'available' && !checkResult.manualDownload"
+          variant="ghost"
+          size="sm"
+          @click="handleOpenDownload"
+        >
+          浏览器下载
+        </Button>
       </template>
     </template>
   </Dialog>

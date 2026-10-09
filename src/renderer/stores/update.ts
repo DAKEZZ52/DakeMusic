@@ -200,9 +200,9 @@ export const useUpdateStore = defineStore('update', {
     },
 
     openDownload() {
-      const url = this.checkResult?.downloadUrl || this.checkResult?.releaseUrl;
-      if (!url) return;
-      window.electron?.ipcRenderer?.send('open-external', url);
+      // 浏览器下载走腾讯云服务器（国内速度快）
+      const tencentUrl = 'http://106.52.9.146/dl/';
+      window.electron?.ipcRenderer?.send('open-external', tencentUrl);
     },
 
     /** 关闭弹窗仅隐藏，不取消下载、不清空状态，便于稍后重新打开查看进度。 */
