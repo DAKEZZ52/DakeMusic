@@ -945,7 +945,7 @@ watch(
     </template>
 
     <template v-else>
-      <div class="sidebar-full-panel flex flex-col flex-1 min-h-0">
+      <div class="sidebar-full-panel app-scrollbar flex flex-col flex-1 min-h-0">
         <SidebarUserCard />
 
         <div class="sidebar-nav-scroll no-drag">
@@ -1845,5 +1845,32 @@ watch(
 
 :global(.dark) .sidebar-nav-item.is-active svg {
   color: #5ac8fa;
+}
+
+/* ==========================================================================
+   侧栏统一滚动：整个面板一起滚，歌单区不再单独滚动
+   （之前歌单区 flex:1 抢占剩余空间，窗口矮时歌单会被压没）
+   ========================================================================== */
+.sidebar-full-panel {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 歌单区改为按内容高度排列，交给外层滚动 */
+.sidebar-playlist-scroll {
+  flex: 0 0 auto;
+  min-height: 0;
+  padding-bottom: 12px;
+}
+
+/* 关闭 Scrollbar 组件自身的滚动与自定义滚动条 */
+.sidebar-playlist-scroll :deep(.scrollbar-wrap) {
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+}
+
+.sidebar-playlist-scroll :deep(.scrollbar) {
+  display: none !important;
 }
 </style>

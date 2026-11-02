@@ -1190,3 +1190,14 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
   border-radius: 8px;
 }
 
+
+/* 歌单区头部：面板加了滚动条后宽度变窄，禁止标签换行 */
+.sidebar-playlist-header {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+.sidebar-playlist-header .sidebar-playlist-tab {
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
