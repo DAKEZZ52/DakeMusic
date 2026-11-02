@@ -39,9 +39,10 @@ REMOTE_DL = '/var/www/dkyy/dl/index.html'
 # 各版本一句话简介（与下载页 JS 中的 DESC 保持一致）
 DESC = {
     '2.4.6': 'UI布局轻量改动 / 迷你播放器「唱歌模式」',
-    '2.4.4': '新增下载系统 / 人声分离五模型 / 分离调性',
-    '2.4.3': '房间点歌台 / 自动领取每日 VIP',
 }
+
+# 下载页历史卡片只展示该版本及之后（更早的安装包仍留在服务器，只是不再列在页面上）
+HISTORY_FROM = '2.4.6'
 
 # 各版本完整更新日志（用于首页 changelog；未配置的版本保留原条目并提示）
 CHANGELOG = {
@@ -49,12 +50,6 @@ CHANGELOG = {
         'UI布局轻量改动，播放控制优化',
         '迷你播放器升级为「唱歌模式」：支持原声/伴奏一键切换、升降调调节，支持键盘快捷键（空格播放暂停、←→切歌、↑↓升降调）',
         '各位反馈的BUG基本修复',
-    ],
-    '2.4.4': [
-        '新增下载系统：多任务队列、断点续传、失败重试',
-        '新增人声分离五模型（Inst_HQ_3 / Inst_Main / Inst_HQ_5 / Voc_FT / KARA）',
-        '新增分离调性：原调 + C~B 共 12 个调性',
-        '修复分离输出的 WAV 文件损坏问题',
     ],
 }
 
@@ -111,7 +106,10 @@ def latest_exe():
         raise RuntimeError('dl 目录未发现任何 exe')
     exes.sort(key=lambda x: (x['ver']['major'], x['ver']['minor'], x['ver']['patch'],
                              -x['ver']['beta']), reverse=True)
-    return exes[0], exes[1:]
+    # DakeMusic: 历史卡片只保留 HISTORY_FROM 及之后的版本
+    floor = parse_ver(HISTORY_FROM)
+    history = [e for e in exes[1:] if floor is None or cmp_ver(e['ver'], floor) <= 0]
+    return exes[0], history
 
 
 def inject_home(path, latest):
