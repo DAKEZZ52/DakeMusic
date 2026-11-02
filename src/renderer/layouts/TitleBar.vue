@@ -569,7 +569,7 @@ onUnmounted(() => {
         >
           <RefreshIcon
             width="24"
-            height="24"
+            height="26"
             class="text-text-main opacity-60 group-hover:opacity-100 transition-opacity"
           />
         </Button>
@@ -915,7 +915,7 @@ onUnmounted(() => {
   max-width: 360px;
   margin: 0 auto;
   /* 整体右移：窗口窄时自动减小偏移，避免挤压右侧按钮 */
-  transform: translateX(clamp(0px, 3.4vw, 44px));
+  transform: translateX(clamp(0px, 6.4vw, 60px));
   position: relative;
   display: flex;
   align-items: center;
@@ -929,6 +929,8 @@ onUnmounted(() => {
   gap: 4px;
   position: relative;
   z-index: 10;
+  
+  
 }
 .titlebar-window-actions {
   height: 100%;
@@ -1327,5 +1329,11 @@ onUnmounted(() => {
 .task-text-action:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+/* 只让动作按钮组靠右（不影响窗口最小化/关闭按钮） */
+.titlebar-primary-actions {
+  /* 动作按钮组整体右移（数值调这里；窗口窄时会挤压右侧，建议不超过 200px） */
+  margin-left: 160px;
 }
 </style>
