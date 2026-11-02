@@ -914,6 +914,8 @@ onUnmounted(() => {
   flex: 0 1 360px;
   max-width: 360px;
   margin: 0 auto;
+  /* 整体右移：窗口窄时自动减小偏移，避免挤压右侧按钮 */
+  transform: translateX(clamp(0px, 3.4vw, 44px));
   position: relative;
   display: flex;
   align-items: center;
