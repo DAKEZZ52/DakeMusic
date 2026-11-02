@@ -32,7 +32,8 @@ defineProps<{ action: ResolvedTitlebarAction; badge?: boolean }>();
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  color: var(--color-text-main);
+  /* 图标调暗：主文字色降到 62% */
+  color: color-mix(in srgb, var(--color-text-main) 62%, transparent);
   transition:
     background-color 0.12s,
     color 0.12s;
@@ -41,11 +42,6 @@ defineProps<{ action: ResolvedTitlebarAction; badge?: boolean }>();
   background: var(--control-hover-bg);
   color: var(--color-text-main);
 }
-/* 图标描边加粗（Tabler 默认 2；数值越大越粗） */
-.titlebar-action :deep(svg) {
-  stroke-width: 2.6;
-}
-
 .action-badge {
   position: absolute;
   top: 5px;

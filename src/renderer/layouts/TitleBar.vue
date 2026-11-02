@@ -952,8 +952,12 @@ onUnmounted(() => {
   background: var(--control-muted-bg);
   padding: 0 4px 0 10px;
   transition: all 0.2s ease;
-  border: 1px solid transparent;
+      /* 描边加粗：1px 透明 -> 1.5px 可见发丝线 */
+  border: 1.0px solid color-mix(in srgb, var(--text-main) 100%, transparent);
 }
+.tb-search-input-wrap:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--text-main) 20%, transparent);
+} 
 
 .tb-search-input-wrap:focus-within {
   background: var(--control-muted-bg);
