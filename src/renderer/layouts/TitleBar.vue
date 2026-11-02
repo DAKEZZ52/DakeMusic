@@ -569,7 +569,7 @@ onUnmounted(() => {
         >
           <RefreshIcon
             width="24"
-            height="26"
+            height="24"
             class="text-text-main opacity-60 group-hover:opacity-100 transition-opacity"
           />
         </Button>
@@ -911,8 +911,8 @@ onUnmounted(() => {
 
 /* 搜索区域：居中 */
 .tb-search {
-  flex: 0 1 430px;
-  max-width: 430px;
+  flex: 0 1 360px;
+  max-width: 360px;
   margin: 0 auto;
   position: relative;
   display: flex;
@@ -927,8 +927,6 @@ onUnmounted(() => {
   gap: 4px;
   position: relative;
   z-index: 10;
-  
-  
 }
 .titlebar-window-actions {
   height: 100%;
@@ -954,12 +952,7 @@ onUnmounted(() => {
   background: var(--control-muted-bg);
   padding: 0 4px 0 10px;
   transition: all 0.2s ease;
-  /* 描边加粗：1px 透明 -> 1.5px 可见发丝线 */
-  border: 1.5px solid color-mix(in srgb, var(--text-main) 15%, transparent);
-}
-
-.tb-search-input-wrap:hover:not(:focus-within) {
-  border-color: color-mix(in srgb, var(--text-main) 24%, transparent);
+  border: 1px solid transparent;
 }
 
 .tb-search-input-wrap:focus-within {
@@ -1332,11 +1325,5 @@ onUnmounted(() => {
 .task-text-action:disabled {
   opacity: 0.4;
   cursor: default;
-}
-
-/* 只让动作按钮组靠右（不影响窗口最小化/关闭按钮） */
-.titlebar-primary-actions {
-  /* 动作按钮组整体右移（数值调这里；窗口窄时会挤压右侧，建议不超过 200px） */
-  margin-left: 0;
 }
 </style>
