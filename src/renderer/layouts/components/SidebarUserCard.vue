@@ -44,7 +44,7 @@ const navigateToProfile = () => {
 </script>
 
 <template>
-  <div class="px-4 pb-4 shrink-0 no-drag">
+  <div class="sidebar-user-card px-4 pb-4 shrink-0 no-drag">
     <div
       class="user-info-card flex items-center overflow-hidden bg-bg-info-card border border-[var(--border-subtle)] rounded-[20px] p-1 transition-all duration-200"
     >
