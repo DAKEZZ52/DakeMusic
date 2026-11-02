@@ -41,6 +41,11 @@ defineProps<{ action: ResolvedTitlebarAction; badge?: boolean }>();
   background: var(--control-hover-bg);
   color: var(--color-text-main);
 }
+/* 图标描边加粗（Tabler 默认 2；数值越大越粗） */
+.titlebar-action :deep(svg) {
+  stroke-width: 2.6;
+}
+
 .action-badge {
   position: absolute;
   top: 5px;
