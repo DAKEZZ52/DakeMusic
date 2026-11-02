@@ -37,6 +37,8 @@ import {
   iconSearch,
   iconMicrophone,
   iconClipboardList,
+  iconMessageCircle,
+  iconScissors,
 } from '@/icons';
 
 const route = useRoute();
@@ -141,7 +143,7 @@ const registerBuiltinActions = () => {
     id: 'recognize',
     title: '听歌识曲',
     icon: iconMicrophone,
-    defaultPlacement: 'toolbar',
+    defaultPlacement: 'more',
     order: 10,
     onClick: async () => {
       await router.push({ name: 'recognize' });
@@ -151,9 +153,30 @@ const registerBuiltinActions = () => {
     id: 'tasks',
     title: '任务中心',
     icon: iconClipboardList,
-    defaultPlacement: 'toolbar',
+    defaultPlacement: 'more',
     order: 20,
     onClick: toggleTaskPanel,
+  });
+  builtinApi.register({
+    id: 'chatroom',
+    title: 'Chat Room',
+    icon: iconMessageCircle,
+    defaultPlacement: 'more',
+    order: 30,
+    onClick: async () => {
+      await router.push({ path: '/main/chatroom' });
+    },
+  });
+
+  builtinApi.register({
+    id: 'separator',
+    title: '人声分离',
+    icon: iconScissors,
+    defaultPlacement: 'more',
+    order: 50,
+    onClick: async () => {
+      await router.push({ path: '/main/separator' });
+    },
   });
 };
 

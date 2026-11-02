@@ -81,7 +81,7 @@ const emit = defineEmits<{
       </Button>
       <div class="sidebar-section-action-slot">
         <Popover
-          v-if="isLoggedIn && activeTab === 0"
+          v-if="isLoggedIn"
           :open="showCreateMenu"
           trigger="click"
           side="bottom"
@@ -98,6 +98,7 @@ const emit = defineEmits<{
               type="button"
               class="sidebar-section-action sidebar-icon-btn"
               tooltip="添加歌单"
+              :disabled="activeTab !== 0"
             >
               <Icon :icon="iconPlus" width="12" height="12" />
             </Button>
