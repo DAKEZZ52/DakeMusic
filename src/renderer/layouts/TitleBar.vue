@@ -911,8 +911,8 @@ onUnmounted(() => {
 
 /* 搜索区域：居中 */
 .tb-search {
-  flex: 0 1 360px;
-  max-width: 360px;
+  flex: 0 1 430px;
+  max-width: 430px;
   margin: 0 auto;
   position: relative;
   display: flex;
@@ -954,7 +954,12 @@ onUnmounted(() => {
   background: var(--control-muted-bg);
   padding: 0 4px 0 10px;
   transition: all 0.2s ease;
-  border: 1px solid transparent;
+  /* 描边加粗：1px 透明 -> 1.5px 可见发丝线 */
+  border: 1.5px solid color-mix(in srgb, var(--text-main) 15%, transparent);
+}
+
+.tb-search-input-wrap:hover:not(:focus-within) {
+  border-color: color-mix(in srgb, var(--text-main) 24%, transparent);
 }
 
 .tb-search-input-wrap:focus-within {
