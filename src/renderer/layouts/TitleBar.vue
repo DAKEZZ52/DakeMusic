@@ -914,8 +914,6 @@ onUnmounted(() => {
   flex: 0 1 360px;
   max-width: 360px;
   margin: 0 auto;
-  /* 整体右移：窗口窄时自动减小偏移，避免挤压右侧按钮 */
-  transform: translateX(clamp(0px, 6.4vw, 60px));
   position: relative;
   display: flex;
   align-items: center;
@@ -1334,6 +1332,6 @@ onUnmounted(() => {
 /* 只让动作按钮组靠右（不影响窗口最小化/关闭按钮） */
 .titlebar-primary-actions {
   /* 动作按钮组整体右移（数值调这里；窗口窄时会挤压右侧，建议不超过 200px） */
-  margin-left: 160px;
+  margin-left: 0;
 }
 </style>
