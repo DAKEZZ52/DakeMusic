@@ -1202,3 +1202,192 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
   flex: 0 0 auto;
 }
 
+
+/* ==========================================================================
+   布局调整（QQ 音乐式）：播放栏改为贴底一条，去圆角/投影/磨砂
+   说明：只改布局与层级，配色沿用现有令牌，未改动任何颜色值
+   ========================================================================== */
+.player-bar-container {
+  padding: 0 !important;
+}
+
+.player-bar {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+  background-color: var(--surface-sidebar-base) !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+/* ==========================================================================
+   圆角与阴影统一（对齐参考图：小圆角、几乎无投影）
+   —— 只改圆角与阴影轻重，不改任何颜色
+   ========================================================================== */
+@layer utilities {
+  /* 大圆角（弹窗/大卡片）→ 8px */
+  .rounded-\[28px\],
+  .rounded-\[24px\],
+  .rounded-\[20px\],
+  .rounded-\[18px\],
+  .rounded-3xl,
+  .rounded-2xl {
+    border-radius: 12px !important;
+  }
+
+  /* 中圆角（普通卡片/输入框）→ 6px */
+  .rounded-\[16px\],
+  .rounded-\[14px\],
+  .rounded-\[12px\],
+  .rounded-xl {
+    border-radius: 10px !important;
+  }
+
+  /* 小圆角（标签/按钮/封面）→ 4px */
+  .rounded-\[10px\],
+  .rounded-\[8px\],
+  .rounded-\[6px\],
+  .rounded-lg {
+    border-radius: 8px !important;
+  }
+}
+
+/* 阴影：整体压到几乎无感 */
+:root {
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-card-hover: 0 2px 6px rgba(15, 23, 42, 0.08);
+  --shadow-cover: 0 1px 3px rgba(15, 23, 42, 0.08);
+  --shadow-elevated: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-control: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+
+/* 最终覆盖：播放栏必须保持贴底直角（置于所有圆角规则之后，避免被 .rounded-xl 覆盖） */
+.player-bar {
+  border-radius: 0 !important;
+  border: 0 !important;
+  border-top: 1px solid var(--border-light) !important;
+  box-shadow: none !important;
+}
+
+/* ==========================================================================
+   侧栏导航：去磨砂、去悬浮位移、选中改为中性浅灰块（不抢主色）
+   ========================================================================== */
+.sidebar-nav-item,
+.sidebar-library-item {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.sidebar-nav-item.is-active,
+.sidebar-library-item.is-active {
+  background: color-mix(in srgb, var(--text-main) 8%, transparent) !important;
+  color: var(--text-main) !important;
+  box-shadow: none !important;
+}
+
+.sidebar-nav-item:hover,
+.sidebar-library-item:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* 选中项的图标也跟随文字变中性色（不再单独用主色） */
+.sidebar-nav-item.is-active svg,
+.sidebar-library-item.is-active svg {
+  color: var(--text-main) !important;
+}
+
+/* ==========================================================================
+   密度：播放栏压矮、侧栏行高收紧（对齐参考图的信息密度）
+   ========================================================================== */
+.player-bar {
+  height: 84px !important; /* 原 h-24 = 96px */
+}
+
+.player-bar-container {
+  padding-bottom: 0 !important;
+}
+
+.sidebar-nav-item {
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.sidebar-library-item {
+  padding-top: 5px !important;
+  padding-bottom: 5px !important;
+}
+
+/* ==========================================================================
+   简约侧栏（对齐参考图）：隐藏分组标题、行距加大、歌单标签缩小
+   ========================================================================== */
+.sidebar-section-header {
+  display: none !important;
+}
+
+/* 无分组标题后，分组间不再额外留白，行距统一 */
+.sidebar-nav-scroll .px-4 > div {
+  margin-bottom: 0 !important;
+}
+
+/* 导航行：行距加大到 9px（原 6px） */
+.sidebar-nav-item {
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+}
+
+/* 自建歌单/收藏歌单：缩小、变灰、不再抢眼 */
+.sidebar-playlist-tab {
+  font-size: 11px !important;
+  font-weight: 400 !important;
+  color: var(--text-secondary) !important;
+  opacity: 0.75;
+}
+
+.sidebar-playlist-tab.is-active {
+  color: var(--text-main) !important;
+  opacity: 1;
+}
+
+/* 导航区与歌单区之间：一条浅色分割线 */
+.sidebar-playlist-header {
+  border-top: 1px solid var(--border-light);
+  padding-top: 12px !important;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   歌单区头部：固定高度（切换 Tab 不位移）+ 三个操作按钮间距加大
+   ========================================================================== */
+.sidebar-playlist-header {
+  height: 34px;
+}
+
+.sidebar-playlist-header > div:last-child {
+  gap: 8px !important;
+  padding-left: 6px !important;
+}
+
+/* Tab 文字宽度固定，切换时不重新排版 */
+.sidebar-playlist-tab {
+  min-width: 48px;
+}
+
+/* ==========================================================================
+   首页密度：内容边距收紧、英雄卡压扁（对齐参考图的信息密度）
+   ========================================================================== */
+.home-view {
+  padding: 18px 24px 28px !important;
+}
+
+.hero-banner {
+  padding: 26px 30px !important;
+  border-radius: 12px !important;
+  margin-bottom: 20px !important;
+}
+
+.home-header {
+  margin-bottom: 14px;
+}
