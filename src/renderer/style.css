@@ -1202,12 +1202,3 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
   flex: 0 0 auto;
 }
 
-/* 用户卡吸顶：侧栏整体滚动时保持固定可见 */
-.sidebar-user-card {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  background: color-mix(in srgb, var(--surface-sidebar-base) 94%, transparent);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-}

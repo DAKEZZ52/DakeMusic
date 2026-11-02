@@ -945,8 +945,10 @@ watch(
     </template>
 
     <template v-else>
-      <div class="sidebar-full-panel app-scrollbar flex flex-col flex-1 min-h-0">
+      <div class="sidebar-full-panel flex flex-col flex-1 min-h-0">
         <SidebarUserCard />
+
+        <div class="sidebar-body-scroll app-scrollbar no-drag">
 
         <div class="sidebar-nav-scroll no-drag">
           <div class="px-4">
@@ -1186,6 +1188,7 @@ watch(
             </span>
           </div>
         </Scrollbar>
+        </div>
       </div>
     </template>
   </aside>
@@ -1852,6 +1855,12 @@ watch(
    （之前歌单区 flex:1 抢占剩余空间，窗口矮时歌单会被压没）
    ========================================================================== */
 .sidebar-full-panel {
+  overflow: hidden;
+}
+
+.sidebar-body-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
