@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#090913" />
+    <meta name="description" content="DakeMusic 语聊房网页版 — 一起听歌、上麦聊天、同步歌词。" />
+    <title>深夜电台 · DakeMusic 语聊房</title>
+    <link rel="stylesheet" href="./style.css" />
+    <script src="./vendor/livekit-client.umd.js" defer></script>
+    <script src="./app.js" defer></script>
+  </head>
+  <body>
+    <!-- 图标库：全部内联，无外部依赖 -->
+    <svg class="svg-sprite" aria-hidden="true">
+      <symbol id="i-music" viewBox="0 0 24 24">
+        <path d="M9 18V5l12-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="18" cy="16" r="3" />
+      </symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24">
+        <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z" />
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+        <line x1="12" y1="19" x2="12" y2="22" />
+      </symbol>
+      <symbol id="i-mic-off" viewBox="0 0 24 24">
+        <line x1="2" y1="2" x2="22" y2="22" />
+        <path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2" />
+        <path d="M5 10v2a7 7 0 0 0 12 5" />
+        <path d="M15 9.34V5a3 3 0 0 0-5.68-1.33" />
+        <path d="M9 9v3a3 3 0 0 0 5.12 2.12" />
+        <line x1="12" y1="19" x2="12" y2="22" />
+      </symbol>
+      <symbol id="i-speaker" viewBox="0 0 24 24">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+      </symbol>
+      <symbol id="i-speaker-off" viewBox="0 0 24 24">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+        <line x1="2" y1="2" x2="22" y2="22" />
+      </symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <line x1="4" y1="6" x2="20" y2="6" />
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <line x1="4" y1="18" x2="20" y2="18" />
+        <circle cx="9" cy="6" r="2" />
+        <circle cx="15" cy="12" r="2" />
+        <circle cx="7" cy="18" r="2" />
+      </symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </symbol>
+      <symbol id="i-users" viewBox="0 0 24 24">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </symbol>
+      <symbol id="i-exit" viewBox="0 0 24 24">
+        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+        <polyline points="16 17 21 12 16 7" />
+        <line x1="21" y1="12" x2="9" y2="12" />
+      </symbol>
+      <symbol id="i-chevron-left" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></symbol>
+      <symbol id="i-chevron-right" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6" /></symbol>
+      <symbol id="i-chevron-down" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9" /></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+      <symbol id="i-send" viewBox="0 0 24 24">
+        <path d="m22 2-7 20-4-9-9-4Z" />
+        <path d="M22 2 11 13" />
+      </symbol>
+      <symbol id="i-image" viewBox="0 0 24 24">
+        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <path d="M21 15l-5-5L5 21" />
+      </symbol>
+      <symbol id="i-smile" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M8 14s1.5 2 4 2 4-2 4-2" />
+        <line x1="9" y1="9" x2="9.01" y2="9" />
+        <line x1="15" y1="9" x2="15.01" y2="9" />
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="m7 4 13 8-13 8V4z" /></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24">
+        <rect x="6" y="4" width="4" height="16" rx="1" />
+        <rect x="14" y="4" width="4" height="16" rx="1" />
+      </symbol>
+      <symbol id="i-prev" viewBox="0 0 24 24">
+        <path d="M19 20 9 12l10-8v16z" />
+        <line x1="5" y1="19" x2="5" y2="5" />
+      </symbol>
+      <symbol id="i-next" viewBox="0 0 24 24">
+        <path d="m5 4 10 8-10 8V4z" />
+        <line x1="19" y1="5" x2="19" y2="19" />
+      </symbol>
+      <symbol id="i-queue" viewBox="0 0 24 24">
+        <line x1="8" y1="6" x2="21" y2="6" />
+        <line x1="8" y1="12" x2="21" y2="12" />
+        <line x1="8" y1="18" x2="21" y2="18" />
+        <line x1="3" y1="6" x2="3.01" y2="6" />
+        <line x1="3" y1="12" x2="3.01" y2="12" />
+        <line x1="3" y1="18" x2="3.01" y2="18" />
+      </symbol>
+      <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+      <symbol id="i-trash" viewBox="0 0 24 24">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+        <path d="M10 11v6M14 11v6" />
+        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+      </symbol>
+      <symbol id="i-crown" viewBox="0 0 24 24">
+        <path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5L3 7z" fill="currentColor" stroke="none" />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="M12 22s8-3.5 8-10V5l-8-3-8 3v7c0 6.5 8 10 8 10z" />
+        <path d="M9 11.5l2 2 4-4" />
+      </symbol>
+      <symbol id="i-bell" viewBox="0 0 24 24">
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="7" />
+        <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      </symbol>
+      <symbol id="i-sparkle" viewBox="0 0 24 24">
+        <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" />
+        <path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16z" />
+      </symbol>
+      <symbol id="i-headphones" viewBox="0 0 24 24">
+        <path d="M3 18v-6a9 9 0 0 1 18 0v6" />
+        <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z" />
+      </symbol>
+      <symbol id="i-info" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 11v5M12 8h.01" />
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8" />
+      </symbol>
+      <symbol id="i-share" viewBox="0 0 24 24">
+        <circle cx="18" cy="5" r="3" />
+        <circle cx="6" cy="12" r="3" />
+        <circle cx="18" cy="19" r="3" />
+        <path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4" />
+      </symbol>
+      <symbol id="i-lock" viewBox="0 0 24 24">
+        <rect x="4" y="10" width="16" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24">
+        <path d="M20 11a8 8 0 1 0-2.34 5.66" />
+        <path d="M20 4v7h-7" />
+      </symbol>
+      <symbol id="i-door" viewBox="0 0 24 24">
+        <path d="M4 21h16" />
+        <path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17" />
+        <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none" />
+      </symbol>
+    </svg>
+
+    <div class="app" id="app">
+      <div class="app-bg" aria-hidden="true">
+        <div class="bg-aurora a1"></div>
+        <div class="bg-aurora a2"></div>
+        <div class="bg-stars s1"></div>
+        <div class="bg-stars s2"></div>
+        <div class="bg-noise"></div>
+      </div>
+      <header class="topbar">
+        <button class="icon-btn only-tablet" id="openMembers" data-drawer="members" aria-label="打开成员列表">
+          <svg class="ico"><use href="#i-users" /></svg>
+        </button>
+        <a class="brand" href="#" aria-label="DakeMusic 首页">
+          <span class="brand-mark"><svg class="ico"><use href="#i-music" /></svg></span>
+          <span class="brand-name">DakeMusic</span>
+        </a>
+        <div class="room-heading">
+          <h1><span id="topRoomName">深夜电台</span> <span class="live-pill"><i></i>LIVE</span></h1>
+          <p><span id="topOnline">12</span> 人在线 · 一起听歌聊天</p>
+        </div>
+        <button class="notice-pill" data-action="notice">
+          <svg class="ico"><use href="#i-bell" /></svg>
+          <span>全站公告：语聊房已支持中途进房同步歌词</span>
+          <svg class="ico chevron"><use href="#i-chevron-right" /></svg>
+        </button>
+        <div class="topbar-actions">
+          <span class="status-pill" id="connectionStatus"><i></i>演示模式</span>
+          <button class="btn btn-primary" data-open-song>
+            <svg class="ico"><use href="#i-music" /></svg><span>点歌</span>
+          </button>
+          <button class="icon-btn only-mobile" id="openChat" data-drawer="chat" aria-label="打开公屏">
+            <svg class="ico"><use href="#i-chat" /></svg>
+          </button>
+          <button class="icon-btn danger" data-action="leave" aria-label="退出房间">
+            <svg class="ico"><use href="#i-exit" /></svg>
+          </button>
+        </div>
+      </header>
+      <main class="room-layout">
+        <aside class="panel members-panel" id="membersPanel">
+          <div class="panel-mobile-head">
+            <span>房间成员</span>
+            <button class="icon-btn" data-close-drawer aria-label="关闭成员列表">
+              <svg class="ico"><use href="#i-close" /></svg>
+            </button>
+          </div>
+
+          <div class="room-card">
+            <div class="room-cover">
+              <img id="roomCover" src="assets/dakemusic-default-room-cover.png" alt="房间封面" />
+              <span class="cover-live"><i></i>LIVE</span>
+            </div>
+            <div class="room-meta">
+              <div class="room-title-row">
+                <h2 id="roomName">深夜电台</h2>
+              </div>
+              <p id="roomOwner">房主 · 知之Dake</p>
+              <div class="room-sub"><span class="tag tag-violet" id="roomModeTag">对唱模式</span><span id="roomIdText" title="房间 ID">ID 10086</span></div>
+            </div>
+            <button class="mode-btn" id="seatModeBtn" data-action="seat-mode">
+              <svg class="ico"><use href="#i-users" /></svg>
+              <span id="seatModeBtnText">对唱</span>
+            </button>
+          </div>
+
+          <section class="announcement">
+            <header>
+              <span><svg class="ico gold"><use href="#i-bell" /></svg>房间公告</span>
+              <button class="text-btn">编辑</button>
+            </header>
+            <p id="roomNotice">今晚主题：把耳机分你一半。点歌请按顺序，上麦先打招呼，禁止刷屏～</p>
+          </section>
+
+          <section class="members-block">
+            <header>
+              <h3>在线成员 <span class="count" id="memberCount">12</span></h3>
+              <button class="text-btn">全部</button>
+            </header>
+            <ul class="member-list" id="memberList"></ul>
+          </section>
+
+          <div class="panel-foot">
+            <span class="foot-dot"></span>
+            DakeMusic 语聊房 · 声音让距离更近
+          </div>
+        </aside>
+
+        <section class="stage">
+          <div class="stage-topline">
+            <div class="now-chip">
+              <span class="mini-disc"><i></i></span>
+              <div class="now-copy">
+                <small>正在播放</small>
+                <strong id="nowTitle">唯一 (Live)</strong>
+              </div>
+              <span class="now-artist" id="nowArtist">Rosy赵露思</span>
+            </div>
+            <div class="stage-tools">
+              <span class="vibe-chip"><svg class="ico"><use href="#i-sparkle" /></svg>Chill 夜聊</span>
+              <button class="ghost-btn" data-action="share">
+                <svg class="ico"><use href="#i-share" /></svg>分享
+              </button>
+            </div>
+          </div>
+
+          <div class="seat-stage" id="seatStage" data-mode="normal">
+            <div class="seat-stage-head">
+              <span class="seat-stage-title"><svg class="ico"><use href="#i-mic" /></svg>麦位</span>
+              <span class="seat-stage-hint" id="seatHint">点击空位上麦 · 主座需房主同意</span>
+            </div>
+            <div class="seat-approvals" id="seatApprovals" hidden></div>
+            <div class="seat-layout" id="seatNormal"></div>
+            <div class="seat-layout" id="seatDuet" hidden></div>
+          </div>
+
+          <section class="lyrics-card" id="lyricsCard">
+            <header class="lyrics-head">
+              <div class="lyrics-song">
+                <span class="lyrics-note"><svg class="ico"><use href="#i-music" /></svg></span>
+                <div class="lyrics-song-copy">
+                  <strong id="lyricTitle">唯一 (Live)</strong>
+                  <span id="lyricArtist">Rosy赵露思</span>
+                </div>
+                <span class="equalizer" id="equalizer" aria-label="正在播放">
+                  <i></i><i></i><i></i><i></i>
+                </span>
+              </div>
+              <div class="lyrics-tools">
+                <span class="sync-pill" id="lyricSyncStatus"><i></i>歌词已同步</span>
+                <button class="icon-btn small" data-action="toggle-lyrics" aria-label="收起歌词">
+                  <svg class="ico" id="lyricToggleIco"><use href="#i-chevron-down" /></svg>
+                </button>
+              </div>
+            </header>
+            <div class="lyrics-body" id="lyricsBody"></div>
+            <footer class="lyrics-foot">
+              <div class="progress-wrap">
+                <div class="progress-track" id="progressTrack" role="slider" aria-label="播放进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+                  <span class="progress-fill" id="progressFill"></span>
+                  <span class="progress-thumb"></span>
+                </div>
+                <div class="progress-time"><span id="currentTime">00:00</span><span id="totalTime">00:00</span></div>
+              </div>
+              <div class="player-controls">
+                <button class="round-btn" data-action="prev" aria-label="上一首">
+                  <svg class="ico"><use href="#i-prev" /></svg>
+                </button>
+                <button class="play-btn" id="playBtn" data-action="toggle-play" aria-label="暂停">
+                  <svg class="ico"><use href="#i-pause" /></svg>
+                </button>
+                <button class="round-btn" data-action="next" aria-label="下一首">
+                  <svg class="ico"><use href="#i-next" /></svg>
+                </button>
+              </div>
+              <div class="lyrics-extra">
+                <span class="quality-pill">无损</span>
+                <span>全房同步</span>
+              </div>
+            </footer>
+          </section>
+        </section>
+        <aside class="panel chat-panel" id="chatPanel">
+          <header class="chat-head">
+            <div class="chat-title">
+              <div class="chat-title-row"><h2>公屏</h2><span class="online-dot"></span></div>
+              <p><span id="chatOnline">12</span> 人在线 · 实时同步</p>
+            </div>
+            <div class="chat-head-actions">
+              <button class="icon-btn small" data-action="clear-chat" aria-label="清屏">
+                <svg class="ico"><use href="#i-trash" /></svg>
+              </button>
+              <button class="icon-btn small close-drawer" data-close-drawer aria-label="收起公屏">
+                <svg class="ico"><use href="#i-chevron-right" /></svg>
+              </button>
+            </div>
+          </header>
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="composer">
+            <div class="composer-tools">
+              <button class="composer-btn" data-action="image" aria-label="发送图片">
+                <svg class="ico"><use href="#i-image" /></svg>
+              </button>
+              <button class="composer-btn" id="emojiBtn" aria-label="表情">
+                <svg class="ico"><use href="#i-smile" /></svg>
+              </button>
+            </div>
+            <div class="composer-input">
+              <input id="chatInput" type="text" placeholder="说点什么，让房间热闹起来…" maxlength="200" autocomplete="off" />
+              <button class="send-btn" data-action="send">
+                <svg class="ico"><use href="#i-send" /></svg><span>发送</span>
+              </button>
+            </div>
+            <div class="emoji-pop" id="emojiPop"></div>
+          </div>
+        </aside>
+      </main>
+      <div class="control-dock" id="controlDock">
+        <div class="dock-group">
+          <button class="dock-btn on" id="micBtn" data-action="mic" aria-label="闭麦">
+            <svg class="ico"><use href="#i-mic" /></svg>
+          </button>
+          <div class="vol-pop">
+            <span>麦克风</span>
+            <input type="range" id="micVol" min="0" max="100" value="76" aria-label="麦克风音量" />
+            <b id="micVolVal">76</b>
+          </div>
+        </div>
+        <div class="dock-group">
+          <button class="dock-btn on" id="speakerBtn" data-action="speaker" aria-label="静音房间声音">
+            <svg class="ico"><use href="#i-speaker" /></svg>
+          </button>
+          <div class="vol-pop">
+            <span>音量</span>
+            <input type="range" id="speakerVol" min="0" max="100" value="68" aria-label="扬声器音量" />
+            <b id="speakerVolVal">68</b>
+          </div>
+        </div>
+        <span class="dock-sep"></span>
+        <button class="dock-btn" data-open-song aria-label="点歌台">
+          <svg class="ico"><use href="#i-queue" /></svg>
+        </button>
+        <button class="dock-btn" data-action="settings" aria-label="音频设置">
+          <svg class="ico"><use href="#i-settings" /></svg>
+        </button>
+        <span class="dock-live"><i></i><span id="dockLive">12</span></span>
+      </div>
+
+      <nav class="mobile-tabbar" aria-label="移动端导航">
+        <button data-drawer="members">
+          <svg class="ico"><use href="#i-users" /></svg><span>成员</span>
+        </button>
+        <button class="active" data-action="home">
+          <svg class="ico"><use href="#i-mic" /></svg><span>舞台</span>
+        </button>
+        <button data-drawer="chat">
+          <svg class="ico"><use href="#i-chat" /></svg><span>公屏</span>
+        </button>
+        <button data-open-song>
+          <svg class="ico"><use href="#i-music" /></svg><span>点歌</span>
+        </button>
+      </nav>
+      <div class="scrim" id="scrim" data-close-overlays></div>
+    </div>
+
+    <div id="audioSink" class="audio-sink" aria-hidden="true"></div>
+
+    <!-- 登录 / 选择房间入口：真实模式覆盖在演示房间之上 -->
+    <div class="entry-gate" id="entryGate">
+      <div class="entry-aurora ea1" aria-hidden="true"></div>
+      <div class="entry-aurora ea2" aria-hidden="true"></div>
+      <div class="entry-shell">
+        <header class="entry-brand">
+          <span class="entry-logo"><svg class="ico"><use href="#i-music" /></svg></span>
+          <div>
+            <strong>DakeMusic</strong>
+            <span>语聊房 · 网页版</span>
+          </div>
+          <span class="entry-badge"><i></i>LIVEKIT</span>
+        </header>
+
+        <div class="entry-card" id="authView">
+          <div class="entry-card-head">
+            <span class="eyebrow">WELCOME BACK</span>
+            <h1 id="authTitle">登录后进入房间</h1>
+            <p id="authSubtitle">使用 DakeMusic 账号，和桌面端共享同一间房、同一份歌词。</p>
+          </div>
+          <form id="loginForm" class="entry-form" novalidate>
+            <label class="field">
+              <span>账号</span>
+              <input id="loginName" name="username" autocomplete="username" placeholder="字母开头，3-20 位" maxlength="20" />
+            </label>
+            <label class="field">
+              <span>密码</span>
+              <input id="loginPassword" name="password" type="password" autocomplete="current-password" placeholder="至少 6 位" maxlength="64" />
+            </label>
+            <label class="field" id="registerNicknameRow" hidden>
+              <span>昵称 <em>选填</em></span>
+              <input id="registerNickname" name="nickname" autocomplete="nickname" placeholder="房间里显示的名字" maxlength="20" />
+            </label>
+            <div class="entry-error" id="authError" role="alert"></div>
+            <button class="entry-primary" id="authSubmit" type="submit"><span>登录</span></button>
+          </form>
+          <div class="entry-switch">
+            <span id="authSwitchText">还没有账号？</span>
+            <button type="button" id="toggleRegister">注册</button>
+          </div>
+          <p class="entry-hint"><svg class="ico"><use href="#i-info" /></svg>网页版需要麦克风权限；音乐播放与点歌曲库仍以桌面端为准。</p>
+        </div>
+
+        <div class="entry-card room-view" id="roomView" hidden>
+          <div class="entry-card-head room-view-head">
+            <div>
+              <span class="eyebrow">ROOMS</span>
+              <h1>选择一个房间</h1>
+              <p>欢迎，<b id="entryUserName">Dake</b>。进入后会和桌面端实时同步麦位、歌词与公屏。</p>
+            </div>
+            <button class="entry-ghost" id="logoutBtn" type="button" title="退出登录">
+              <svg class="ico"><use href="#i-door" /></svg>退出
+            </button>
+          </div>
+
+          <div class="room-join-box">
+            <label class="field field-inline">
+              <span>房间名 / 创建者</span>
+              <input id="roomIdInput" placeholder="输入房间名或创建者，也可粘贴 room 链接" autocomplete="off" />
+            </label>
+            <label class="field field-inline">
+              <span>房间密码 <em>可选</em></span>
+              <input id="roomPasswordInput" type="password" placeholder="没有密码可留空" autocomplete="off" maxlength="64" />
+            </label>
+            <button class="entry-primary entry-join" id="joinRoomBtn" type="button"><svg class="ico"><use href="#i-door" /></svg>进入</button>
+          </div>
+          <div class="entry-error" id="roomError" role="alert"></div>
+
+          <div class="room-picker-head">
+            <h2>房间列表 <span id="roomCount">0</span></h2>
+            <button class="text-btn" id="roomRefreshBtn" type="button"><svg class="ico"><use href="#i-refresh" /></svg>刷新</button>
+          </div>
+          <div class="room-picker" id="roomPicker"></div>
+
+          <details class="create-room">
+            <summary><svg class="ico"><use href="#i-plus" /></svg>创建新房间</summary>
+            <form id="createRoomForm" class="create-room-form">
+              <label class="field field-inline">
+                <span>房间名</span>
+                <input id="newRoomName" maxlength="40" placeholder="例如：深夜电台" autocomplete="off" />
+              </label>
+              <label class="field field-inline">
+                <span>密码 <em>可选</em></span>
+                <input id="newRoomPassword" type="password" maxlength="64" placeholder="留空为公开房间" autocomplete="off" />
+              </label>
+              <button class="entry-secondary" id="createRoomBtn" type="submit"><svg class="ico"><use href="#i-plus" /></svg>创建并进入</button>
+            </form>
+          </details>
+
+          <div class="entry-foot">
+            <span>房间服务：<b id="entryApiHost">dkyy.top</b></span>
+          </div>
+        </div>
+
+        <footer class="entry-footer">
+          <span>声音让距离更近</span>
+          <span class="entry-footer-dot"></span>
+          <span>DakeMusic 语聊房</span>
+        </footer>
+      </div>
+    </div>
+
+    <aside class="song-drawer" id="songDrawer" aria-hidden="true">
+      <header class="drawer-head">
+        <div>
+          <span class="eyebrow">DAKE MUSIC</span>
+          <h2>点歌台</h2>
+          <p>点一首歌，和房间里的人一起听</p>
+        </div>
+        <button class="icon-btn" data-close-song aria-label="关闭点歌台">
+          <svg class="ico"><use href="#i-close" /></svg>
+        </button>
+      </header>
+
+      <section class="now-playing-card">
+        <div class="np-cover">
+          <img src="assets/dakemusic-default-room-cover.png" alt="" />
+          <span class="np-eq"><i></i><i></i><i></i></span>
+        </div>
+        <div class="np-info">
+          <span>正在播放</span>
+          <strong id="drawerTitle">唯一 (Live)</strong>
+          <p id="drawerArtist">Rosy赵露思</p>
+        </div>
+        <button class="round-btn np-play" data-action="toggle-play" aria-label="暂停">
+          <svg class="ico"><use href="#i-pause" /></svg>
+        </button>
+      </section>
+
+      <div class="np-progress">
+        <div class="progress-track small"><span class="progress-fill" id="drawerProgressFill"></span></div>
+        <div class="progress-time"><span id="drawerCurrentTime">00:00</span><span id="drawerTotalTime">00:00</span></div>
+      </div>
+
+      <div class="queue-head">
+        <div><h3>播放队列</h3><span id="queueCount">5 首</span></div>
+        <button class="text-btn" id="queueRefreshBtn" data-action="clear-queue">
+          <svg class="ico"><use href="#i-trash" /></svg><span>清空</span>
+        </button>
+      </div>
+      <ul class="queue-list" id="queueList"></ul>
+
+      <div class="drawer-search">
+        <label class="search-box">
+          <svg class="ico"><use href="#i-search" /></svg>
+          <input id="songSearch" placeholder="搜索歌曲 / 歌手" autocomplete="off" />
+        </label>
+        <button class="btn btn-primary" data-action="add-song">
+          <svg class="ico"><use href="#i-plus" /></svg>点歌
+        </button>
+      </div>
+      <ul class="song-results" id="songResults" hidden></ul>
+      <p class="drawer-tip" id="drawerTip"><svg class="ico"><use href="#i-info" /></svg>点歌后自动加入队列，房主或麦上成员可切歌</p>
+    </aside>
+
+    <div class="modal" id="profileModal" aria-hidden="true" role="dialog" aria-label="成员资料">
+      <div class="modal-card profile-card">
+        <button class="icon-btn modal-close" data-close-modal aria-label="关闭">
+          <svg class="ico"><use href="#i-close" /></svg>
+        </button>
+        <div class="profile-hero">
+          <div class="profile-avatar" id="profileAvatar"></div>
+          <div class="profile-name" id="profileName"></div>
+          <div class="profile-tags" id="profileTags"></div>
+        </div>
+        <div class="profile-body">
+          <div class="profile-label">个性签名</div>
+          <p class="profile-bio" id="profileBio"></p>
+          <div class="profile-stats">
+            <div><b id="profileStatA">128</b><span id="profileStatALabel">关注</span></div>
+            <div><b id="profileStatB">2.4k</b><span id="profileStatBLabel">粉丝</span></div>
+            <div><b id="profileStatC">36</b><span id="profileStatCLabel">房间</span></div>
+          </div>
+          <div class="profile-actions" id="profileActions">
+            <button class="btn btn-primary" data-close-modal>打个招呼</button>
+            <button class="btn ghost" data-close-modal>TA 的主页</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="leaveModal" aria-hidden="true" role="dialog" aria-label="离开房间">
+      <div class="modal-card confirm-card">
+        <div class="confirm-icon"><svg class="ico"><use href="#i-exit" /></svg></div>
+        <h3>离开房间？</h3>
+        <p>离开后麦位会自动释放，下次进房还能看到最新的歌词和聊天。</p>
+        <div class="confirm-actions">
+          <button class="btn ghost" data-close-modal>再待一会</button>
+          <button class="btn danger" id="confirmLeave">确认离开</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal" id="settingsModal" aria-hidden="true" role="dialog" aria-label="音频设置">
+      <div class="modal-card settings-card">
+        <header class="settings-head">
+          <div><span class="eyebrow">AUDIO</span><h3>音频设置</h3></div>
+          <button class="icon-btn" data-close-modal aria-label="关闭">
+            <svg class="ico"><use href="#i-close" /></svg>
+          </button>
+        </header>
+        <label class="settings-row">
+          <span>输入设备</span>
+          <select id="audioInputSelect" aria-label="麦克风输入设备">
+            <option value="">正在读取设备…</option>
+          </select>
+        </label>
+        <label class="settings-row">
+          <span>输出设备</span>
+          <select id="audioOutputSelect" aria-label="扬声器输出设备">
+            <option value="">正在读取设备…</option>
+          </select>
+        </label>
+        <label class="settings-row">
+          <span>麦克风增益</span>
+          <input type="range" id="settingsMicVol" min="0" max="100" value="76" />
+        </label>
+        <label class="settings-row">
+          <span>房间音量</span>
+          <input type="range" id="settingsSpeakerVol" min="0" max="100" value="68" />
+        </label>
+        <p class="settings-tip" id="audioDeviceTip"><svg class="ico"><use href="#i-info" /></svg><span>建议佩戴耳机，避免回声和啸叫。</span></p>
+      </div>
+    </div>
+    <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+  </body>
+</html>

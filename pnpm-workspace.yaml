@@ -1,0 +1,8 @@
+packages:
+  - .
+  - server
+
+allowBuilds:
+  electron-winstaller: true
+  esbuild: true
+  vue-demi: true

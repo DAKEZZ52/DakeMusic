@@ -1,0 +1,392 @@
+use crate::audio_graph::{process_format_for_output, AudioFilterGraph};
+use crate::shared::{FilterGraphUpdate, FilterInput, SharedAudio};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+
+#[cfg(test)]
+pub fn spawn_filter_thread(shared: Arc<SharedAudio>) -> JoinHandle<()> {
+    spawn_filter_thread_with_graph(shared, None).expect("filter test worker should spawn")
+}
+
+#[cfg(test)]
+pub(crate) struct TestFilterWorker(Arc<SharedAudio>, Option<JoinHandle<()>>);
+
+#[cfg(test)]
+impl TestFilterWorker {
+    pub(crate) fn start(shared: Arc<SharedAudio>) -> Self {
+        let worker = spawn_filter_thread(shared.clone());
+        Self(shared, Some(worker))
+    }
+}
+
+#[cfg(test)]
+impl Drop for TestFilterWorker {
+    fn drop(&mut self) {
+        self.0.request_stop();
+        self.1
+            .take()
+            .expect("filter worker")
+            .join()
+            .expect("filter worker stopped");
+    }
+}
+
+pub fn spawn_filter_thread_with_graph(
+    shared: Arc<SharedAudio>,
+    initial_graph: Option<AudioFilterGraph>,
+) -> Result<JoinHandle<()>, String> {
+    let panic_shared = shared.clone();
+    thread::Builder::new()
+        .name("player-filter".to_string())
+        .spawn(move || {
+            if let Err(payload) =
+                catch_unwind(AssertUnwindSafe(|| run_filter(shared, initial_graph)))
+            {
+                panic_shared.mark_decode_failed();
+                crate::decoder::emit_decode_error(
+                    &panic_shared,
+                    format!(
+                        "filter worker panicked: {}",
+                        panic_payload_message(payload.as_ref())
+                    ),
+                );
+            }
+        })
+        .map_err(|err| format!("failed to spawn player filter thread: {err}"))
+}
+
+fn panic_payload_message(payload: &(dyn std::any::Any + Send)) -> &str {
+    payload
+        .downcast_ref::<&str>()
+        .copied()
+        .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+        .unwrap_or("unknown panic payload")
+}
+
+fn run_filter(shared: Arc<SharedAudio>, initial_graph: Option<AudioFilterGraph>) {
+    let mut generation = shared.current_filter_generation();
+    let mut decode_generation = shared.current_decode_generation();
+    let mut graph = match initial_graph {
+        Some(graph) => graph,
+        None => match AudioFilterGraph::new(shared.mix_format, &shared.dsp_settings()) {
+            Ok(graph) => graph,
+            Err(err) => {
+                shared.mark_decode_failed();
+                crate::decoder::emit_decode_error(&shared, err);
+                return;
+            }
+        },
+    };
+    shared.set_provider_descriptor(graph.provider_descriptor());
+    shared.set_filter_latency_secs(graph.latency_secs());
+    let mut output = Vec::<f32>::new();
+    let mut incoming = crate::transition_filter::IncomingDeckFilter::default();
+
+    loop {
+        if shared.stop.load(std::sync::atomic::Ordering::Acquire) {
+            return;
+        }
+        // A decoder reset (seek / new track) always bumps decode_generation; drop the
+        // separated incoming-deck state even when no filter-graph update accompanies the
+        // bump. The filter worker has no per-update side channel, so watch it directly.
+        let decode_before_update = decode_generation;
+        let observed_decode_generation = shared.current_decode_generation();
+        if observed_decode_generation != decode_before_update {
+            incoming.clear();
+            decode_generation = observed_decode_generation;
+        }
+        if let Some(FilterGraphUpdate {
+            filter_generation: current_filter_gen,
+            decode_generation: current_decode_gen,
+            mut settings,
+            staged_graph,
+        }) = shared.take_filter_graph_update(generation)
+        {
+            // A decoder reset (seek / new track) always bumps decode_generation and requires
+            // a full graph rebuild.  For pure filter-only generation bumps we can skip the
+            // rebuild if the internal processing format has not changed.
+            let structural = current_decode_gen != decode_before_update
+                || process_format_for_output(shared.mix_format, &settings)
+                    != graph.process_format()
+                || graph.provider_identity() != settings.provider_path.as_deref()
+                || graph.provider_mode() != settings.provider_mode
+                || graph.provider_resource_identity() != settings.provider_resource_json.as_deref();
+
+            if let Some(speed) = incoming.active_speed() {
+                // The runner releases the blend on a speed change. Its already-rendered
+                // deck queues keep their old tempo until B is promoted without a seek.
+                settings.speed = speed;
+            }
+            decode_generation = current_decode_gen;
+            generation = current_filter_gen;
+
+            if let Some((prepared, prefer_in_place)) = staged_graph {
+                let (swapped, in_place_error) = match adopt_staged_graph(
+                    &mut graph,
+                    prepared,
+                    prefer_in_place,
+                    |candidate| candidate.update_settings(&settings),
+                    |active| active.update_settings(&settings),
+                ) {
+                    Ok(result) => result,
+                    Err(err) => {
+                        shared.mark_decode_failed();
+                        crate::decoder::emit_decode_error(
+                            &shared,
+                            format!("failed to refresh prepared DSP graph: {err}"),
+                        );
+                        return;
+                    }
+                };
+                if let Some(err) = in_place_error {
+                    crate::emit_shared_event(
+                        &shared,
+                        crate::events::PlayerEvent::log(
+                            "warn",
+                            format!(
+                                "in-place DSP provider configure failed; adopting validated graph: {err}"
+                            ),
+                        ),
+                    );
+                }
+                if swapped {
+                    shared.mark_dsp_graph_boundary();
+                }
+            } else if structural {
+                if let Err(err) = graph.reset(shared.mix_format, &settings) {
+                    crate::emit_shared_event(
+                        &shared,
+                        crate::events::PlayerEvent::log(
+                            "error",
+                            format!(
+                                "audio effect graph reset failed; keeping previous graph: {err}"
+                            ),
+                        ),
+                    );
+                    shared.set_provider_descriptor(graph.provider_descriptor());
+                    shared.set_filter_latency_secs(graph.latency_secs());
+                    continue;
+                }
+            } else {
+                // Process format unchanged; update runtime DSP settings in place.
+                if let Err(err) = graph.update_settings(&settings) {
+                    shared.mark_decode_failed();
+                    crate::decoder::emit_decode_error(&shared, err);
+                    return;
+                }
+            }
+            shared.set_provider_descriptor(graph.provider_descriptor());
+            shared.set_filter_latency_secs(graph.latency_secs());
+            output.clear();
+        }
+
+        match shared.pop_decoded_for_filter(generation) {
+            FilterInput::Deck(request) => {
+                let result = incoming.process(&mut graph, &shared, &request);
+                shared.set_filter_latency_secs(graph.latency_secs());
+                let _ = request.reply.send(result);
+            }
+            FilterInput::Processed(chunk, source_frames) => {
+                if let crate::shared::DecodedAudioData::F32(samples) = chunk.data {
+                    output = samples;
+                    push_filter_output(&shared, &mut output, source_frames, decode_generation);
+                }
+            }
+            FilterInput::Frame(chunk) => {
+                let settings = shared.dsp_settings();
+                let source_frames = match graph.process_decoded(&chunk, &settings, &mut output) {
+                    Ok(source_frames) => source_frames,
+                    Err(err) => {
+                        shared.mark_decode_failed();
+                        crate::decoder::emit_decode_error(&shared, err);
+                        return;
+                    }
+                };
+                shared.set_filter_latency_secs(graph.latency_secs());
+                incoming.remember(
+                    &output,
+                    shared.mix_format.sample_rate as usize * shared.mix_format.channels * 2,
+                );
+                push_filter_output(&shared, &mut output, source_frames, decode_generation);
+            }
+            FilterInput::Boundary => {
+                incoming.clear();
+                if let Err(err) = graph.reset(shared.mix_format, &shared.dsp_settings()) {
+                    shared.mark_decode_failed();
+                    crate::decoder::emit_decode_error(&shared, err);
+                    return;
+                }
+                shared.set_provider_descriptor(graph.provider_descriptor());
+                shared.set_filter_latency_secs(graph.latency_secs());
+                output.clear();
+            }
+            FilterInput::Eof => {
+                let settings = shared.dsp_settings();
+                let source_frames = match graph.finish(&settings, &mut output) {
+                    Ok(source_frames) => source_frames,
+                    Err(err) => {
+                        shared.mark_decode_failed();
+                        crate::decoder::emit_decode_error(&shared, err);
+                        return;
+                    }
+                };
+                shared.set_filter_latency_secs(graph.latency_secs());
+                push_filter_output(&shared, &mut output, source_frames, decode_generation);
+                if shared.is_filter_generation_current(generation) {
+                    shared.mark_eof();
+                }
+                shared.wait_for_filter_generation_change(generation);
+            }
+            FilterInput::Stopped => {}
+        }
+    }
+}
+
+fn adopt_staged_graph<T>(
+    active: &mut T,
+    mut staged: T,
+    prefer_in_place: bool,
+    update_staged: impl FnOnce(&mut T) -> Result<(), String>,
+    update_in_place: impl FnOnce(&mut T) -> Result<(), String>,
+) -> Result<(bool, Option<String>), String> {
+    // The graph may have been expensive to construct. Runtime-only parameters can still change
+    // while that happens, so rebase the candidate immediately before it becomes active or serves
+    // as the configure-failure fallback.
+    update_staged(&mut staged)?;
+    if prefer_in_place {
+        match update_in_place(active) {
+            Ok(()) => Ok((false, None)),
+            Err(err) => {
+                *active = staged;
+                Ok((true, Some(err)))
+            }
+        }
+    } else {
+        *active = staged;
+        Ok((true, None))
+    }
+}
+
+fn push_filter_output(
+    shared: &SharedAudio,
+    output: &mut Vec<f32>,
+    source_frames: u64,
+    decode_generation: u64,
+) -> bool {
+    if output.is_empty() {
+        return true;
+    }
+    shared.push_output_samples_with_source_frames_for_decode_generation(
+        output,
+        source_frames,
+        decode_generation,
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::dsp::DspSettings;
+    use crate::shared::{
+        AudioSampleFormat, DecodedAudioChunk, DecodedAudioData, DecodedAudioFormat, MixFormat,
+        MIX_CHANNELS,
+    };
+    use std::sync::atomic::Ordering;
+    use std::time::Duration;
+
+    #[test]
+    fn failed_in_place_update_adopts_validated_staged_graph() {
+        let mut active = "active";
+
+        let (swapped, error) = adopt_staged_graph(
+            &mut active,
+            "validated",
+            true,
+            |_| Ok(()),
+            |_| Err("rejected".to_string()),
+        )
+        .expect("validated graph should refresh");
+
+        assert!(swapped);
+        assert_eq!(error.as_deref(), Some("rejected"));
+        assert_eq!(active, "validated");
+    }
+
+    #[test]
+    fn successful_in_place_update_keeps_active_graph() {
+        let mut active = "active";
+
+        let (swapped, error) =
+            adopt_staged_graph(&mut active, "validated", true, |_| Ok(()), |_| Ok(()))
+                .expect("validated graph should refresh");
+
+        assert!(!swapped);
+        assert!(error.is_none());
+        assert_eq!(active, "active");
+    }
+
+    #[test]
+    fn staged_graph_is_rebased_before_it_becomes_active() {
+        #[derive(Debug, PartialEq)]
+        struct MockGraph {
+            speed: f32,
+        }
+
+        let mut active = MockGraph { speed: 1.0 };
+        let staged = MockGraph { speed: 1.0 };
+        let (swapped, error) = adopt_staged_graph(
+            &mut active,
+            staged,
+            false,
+            |candidate| {
+                candidate.speed = 1.75;
+                Ok(())
+            },
+            |_| Ok(()),
+        )
+        .expect("latest runtime settings should apply to candidate");
+
+        assert!(swapped);
+        assert!(error.is_none());
+        assert_eq!(active.speed, 1.75);
+    }
+
+    #[test]
+    fn filter_thread_moves_decoded_samples_to_output_queue() {
+        let shared = Arc::new(SharedAudio::new(
+            MixFormat::stereo_f32(100),
+            1.0,
+            8.0,
+            &DspSettings::default(),
+        ));
+        shared.paused.store(false, Ordering::Release);
+        let handle = spawn_filter_thread(shared.clone());
+        let generation = shared.current_decode_generation();
+        let samples = vec![0.1f32; 204];
+        let chunk = DecodedAudioChunk::new(
+            DecodedAudioFormat {
+                sample_rate: shared.mix_format.sample_rate,
+                sample_format: AudioSampleFormat::F32,
+                channels: MIX_CHANNELS,
+            },
+            samples.len() / MIX_CHANNELS,
+            None,
+            DecodedAudioData::F32(samples),
+        );
+
+        assert!(shared.push_decoded_chunk_for_generation(chunk, generation));
+
+        let mut output = [0.0f32; 4];
+        for _ in 0..50 {
+            if shared.pop_into(&mut output) > 0 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+
+        shared.request_stop();
+        handle.join().expect("filter thread should exit cleanly");
+        assert_eq!(output, [0.1, 0.1, 0.1, 0.1]);
+    }
+}

@@ -1,0 +1,160 @@
+server {
+    listen 80;
+    server_name dkyy.top www.dkyy.top;
+
+    # Canonical host: www -> apex, including HTTP -> HTTPS in one hop.
+    if ($host = www.dkyy.top) {
+        return 301 https://dkyy.top$request_uri;
+    }
+
+    location = /dl { return 301 https://$host/dl/; }
+
+    location /dl/ {
+        alias /var/www/dkyy/dl/;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+    location /dl-files/ {
+        alias /var/www/dkyy/dl/;
+        index dl-not-exist.html;
+        autoindex on;
+        autoindex_format json;
+    }
+
+    location /kugou/ {
+        rewrite ^/kugou/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:3100;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 60;
+        proxy_send_timeout 60;
+    }
+
+    location /kugouapi/ {
+        rewrite ^/kugouapi/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:3101;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 60;
+        proxy_send_timeout 60;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name dkyy.top www.dkyy.top;
+
+    # Canonical host: www -> apex.
+    if ($host = www.dkyy.top) {
+        return 301 https://dkyy.top$request_uri;
+    }
+
+    ssl_certificate /etc/letsencrypt/live/dkyy.top/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/dkyy.top/privkey.pem;
+
+    client_max_body_size 500M;
+
+    root /var/www/html;
+    index index.html;
+
+    location = /dl { return 301 /dl/; }
+
+    location /dl/ {
+        alias /var/www/dkyy/dl/;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+    }
+    location /dl-files/ {
+        alias /var/www/dkyy/dl/;
+        index dl-not-exist.html;
+        autoindex on;
+        autoindex_format json;
+    }
+
+    location /livekit {
+        rewrite ^/livekit/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:7880;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+
+    location /kugou/ {
+        rewrite ^/kugou/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:3100;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 60;
+        proxy_send_timeout 60;
+    }
+
+    location /kugouapi/ {
+        rewrite ^/kugouapi/(.*) /$1 break;
+        proxy_pass http://127.0.0.1:3101;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 60;
+        proxy_send_timeout 60;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400;
+    }
+
+    location /ws {
+        # room-server 广播 WebSocket（:3001/ws）
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_read_timeout 86400;
+        proxy_send_timeout 86400;
+    }
+
+    location /admin/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    location /webroom/ {
+        # webroom: always revalidate so deploys are picked up
+        add_header Cache-Control "no-cache";
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    location /assets/ {
+        expires 7d;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    location = /app { return 404; }
+    location ^~ /app/ { return 404; }
+}

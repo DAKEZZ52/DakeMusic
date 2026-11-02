@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  normalizeZoomLevel,
+  stepZoomLevel,
+  zoomLevelToFactor,
+  zoomShortcut,
+  titleBarHeight,
+} from '../src/shared/windowZoom.ts';
+
+test('stored Chromium levels, zoom range and invalid settings remain compatible', () => {
+  for (const value of [null, '2', NaN, Infinity, {}, undefined])
+    assert.equal(normalizeZoomLevel(value), 0);
+  assert.equal(normalizeZoomLevel(99), 8);
+  assert.equal(normalizeZoomLevel(-99), -8);
+  assert.equal(normalizeZoomLevel(0.5), 0.5);
+  assert.equal(zoomLevelToFactor(0), 1);
+  assert.equal(zoomLevelToFactor(1), 1.2);
+  assert.ok(Math.abs(zoomLevelToFactor(-1) - 1 / 1.2) < 1e-10);
+  assert.equal(titleBarHeight(-8), 35);
+  assert.equal(titleBarHeight(0), 46);
+  assert.equal(titleBarHeight(2), 66);
+});
+test('zoom commands change by five percentage points without accumulating drift', () => {
+  const percent = (level: number) => Math.round(zoomLevelToFactor(level) * 100);
+  let level = 0;
+  for (let expected = 105; expected <= 200; expected += 5) {
+    level = stepZoomLevel(level, 1);
+    assert.equal(percent(level), expected);
+  }
+  for (let expected = 195; expected >= 95; expected -= 5) {
+    level = stepZoomLevel(level, -1);
+    assert.equal(percent(level), expected);
+  }
+  assert.equal(percent(stepZoomLevel(2, 1)), 149);
+  assert.equal(percent(stepZoomLevel(2, -1)), 139);
+  assert.equal(stepZoomLevel(-8, -1), -8);
+  assert.equal(stepZoomLevel(8, 1), 8);
+});
+test('zoom key bindings use the platform modifier and exclude AltGr', () => {
+  const input = { key: '=', control: true, meta: false, alt: false };
+  for (const platform of ['win32', 'linux']) {
+    assert.equal(zoomShortcut(input, platform), 'in');
+    assert.equal(zoomShortcut({ ...input, key: '+' }, platform), 'in');
+    assert.equal(zoomShortcut({ ...input, key: '-' }, platform), 'out');
+    assert.equal(zoomShortcut({ ...input, key: '0' }, platform), 'reset');
+    assert.equal(zoomShortcut({ ...input, alt: true }, platform), null);
+    assert.equal(zoomShortcut({ ...input, control: false }, platform), null);
+  }
+  assert.equal(zoomShortcut(input, 'darwin'), null);
+  assert.equal(zoomShortcut({ ...input, control: false, meta: true }, 'darwin'), 'in');
+  assert.equal(zoomShortcut({ ...input, key: 'x' }, 'win32'), null);
+});

@@ -1,0 +1,147 @@
+<script setup lang="ts">
+import { computed } from 'vue';
+import { useSettingStore } from '@/stores/setting';
+import { DEFAULT_LYRIC_FILTER_PATTERN, useLyricStore } from '@/stores/lyric';
+import Switch from '@/components/ui/Switch.vue';
+import Select from '@/components/ui/Select.vue';
+import PageLyricIcon from '@/components/ui/PageLyricIcon.vue';
+import SettingsSectionShell from './SettingsSectionShell.vue';
+import { sectionTitles } from '../constants';
+
+const settingStore = useSettingStore();
+const lyricStore = useLyricStore();
+
+type RomanizationStyle = 'separate-line' | 'ruby';
+const romanizationStyleOptions = [
+  { label: '独立一行', value: 'separate-line' },
+  { label: '注音', value: 'ruby' },
+];
+const romanizationStyle = computed<RomanizationStyle>({
+  get: () => (lyricStore.showRomanizationAsRuby ? 'ruby' : 'separate-line'),
+  set: (value) => {
+    lyricStore.showRomanizationAsRuby = value === 'ruby';
+  },
+});
+
+const offsetStepOptions = [0.1, 0.25, 0.5, 1, 2].map((value) => ({
+  label: `${value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} 秒`,
+  value: String(value),
+}));
+</script>
+
+<template>
+  <SettingsSectionShell id="pageLyric" :title="sectionTitles.pageLyric.label">
+    <template #icon>
+      <PageLyricIcon :size="20" class="text-primary-text" />
+    </template>
+
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">显示翻译</h3>
+        <p class="text-sm text-text-secondary">有翻译时在歌词页面中显示翻译行</p>
+      </div>
+      <Switch v-model="lyricStore.wantTranslation" />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">显示音译</h3>
+        <p class="text-sm text-text-secondary">有音译时在歌词页面中显示音译行</p>
+      </div>
+      <Switch v-model="lyricStore.wantRomanization" />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">音译样式</h3>
+        <p class="text-sm text-text-secondary">选择页面歌词中音译的显示方式</p>
+      </div>
+      <Select
+        class="w-45 shrink-0"
+        :model-value="romanizationStyle"
+        :options="romanizationStyleOptions"
+        @update:model-value="romanizationStyle = $event as RomanizationStyle"
+      />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">封面模糊背景</h3>
+        <p class="text-sm text-text-secondary">
+          将封面图片模糊化作为歌词页背景，关闭时使用主题色纯色背景
+        </p>
+      </div>
+      <Switch v-model="settingStore.lyricPageBackgroundBlur" />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">背景律动</h3>
+        <p class="text-sm text-text-secondary">
+          开启后，歌词页封面模糊背景会变成无规律色块流动效果，此功能会增加性能消耗
+        </p>
+      </div>
+      <Switch
+        v-model="settingStore.lyricPageBackgroundRhythm"
+        :disabled="!settingStore.lyricPageBackgroundBlur"
+      />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">歌词对齐微调步长</h3>
+        <p class="text-sm text-text-secondary">歌词页中前进/后退微调歌词的时间间隔</p>
+      </div>
+      <Select
+        class="w-45 shrink-0"
+        :model-value="String(settingStore.lyricOffsetStep)"
+        :options="offsetStepOptions"
+        @update:model-value="settingStore.lyricOffsetStep = Number($event)"
+      />
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">歌词过滤</h3>
+        <p class="text-sm text-text-secondary">过滤非歌词内容（如制作人信息、版权声明等）</p>
+      </div>
+      <Switch v-model="settingStore.lyricFilterEnabled" />
+    </div>
+    <template v-if="settingStore.lyricFilterEnabled">
+      <div class="settings-divider"></div>
+      <div class="settings-item items-start">
+        <div class="space-y-1">
+          <h3 class="font-semibold">过滤表达式</h3>
+          <p class="text-sm text-text-secondary">正则表达式，匹配的行将被隐藏</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button
+            class="settings-action"
+            v-if="settingStore.lyricFilterPattern"
+            type="button"
+            @click="settingStore.lyricFilterPattern = ''"
+          >
+            恢复默认
+          </button>
+          <input
+            v-model="settingStore.lyricFilterPattern"
+            type="text"
+            class="settings-input w-64"
+            :placeholder="DEFAULT_LYRIC_FILTER_PATTERN"
+          />
+        </div>
+      </div>
+    </template>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">各皮肤外观设置</h3>
+        <p class="text-sm text-text-secondary">
+          字号、字重、歌词颜色、动态封面、写真细节等属于各皮肤的专属设置，请在歌词页点右上角「换肤」，选中皮肤后再点卡片进入调整
+        </p>
+      </div>
+    </div>
+  </SettingsSectionShell>
+</template>
+
+<style scoped src="../settingsSection.css"></style>

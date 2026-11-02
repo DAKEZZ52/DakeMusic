@@ -1,0 +1,822 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>DakeMusic 桌面音乐播放器下载 - 在线曲库、逐字歌词与语聊房</title>
+    <meta
+      name="description"
+      content="DakeMusic 是一款免费开源的桌面音乐播放器，支持在线曲库、逐字歌词、10 段均衡器、私人 FM、听歌识曲、插件扩展，以及基于 LiveKit 的多人语聊房。提供 Windows 10/11 安装包，GPLv3 开源。"
+    />
+    <meta
+      name="keywords"
+      content="DakeMusic,桌面音乐播放器,音乐播放器,音乐播放器下载,Windows音乐播放器,开源音乐播放器,在线曲库,逐字歌词,私人FM,听歌识曲,音乐语聊房,LiveKit"
+    />
+    <meta name="author" content="知之Dake" />
+    <meta name="baidu-site-verification" content="codeva-BAcVmUxfvY" />
+    <meta name="msvalidate.01" content="4975E71EFB0ED0DA216BA60DB64477A9" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="applicable-device" content="pc,mobile" />
+    <meta name="theme-color" content="#070711" />
+    <link rel="canonical" href="https://dkyy.top/" />
+    <link rel="alternate" hreflang="zh-CN" href="https://dkyy.top/" />
+    <link rel="alternate" hreflang="x-default" href="https://dkyy.top/" />
+    <link rel="sitemap" type="application/xml" title="Sitemap" href="https://dkyy.top/sitemap.xml" />
+    <link rel="icon" href="assets/img/logo.png" type="image/png" />
+    <link rel="apple-touch-icon" href="assets/img/logo.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="DakeMusic" />
+    <meta property="og:locale" content="zh_CN" />
+    <meta property="og:url" content="https://dkyy.top/" />
+    <meta property="og:title" content="DakeMusic 桌面音乐播放器下载 - 在线曲库、逐字歌词与语聊房" />
+    <meta
+      property="og:description"
+      content="免费开源的桌面音乐播放器：在线曲库、逐字歌词、10 段均衡器、私人 FM、听歌识曲、插件扩展，以及多人语聊房。支持 Windows 10/11。"
+    />
+    <meta property="og:image" content="https://dkyy.top/assets/img/og.jpg?v=20261023g" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="DakeMusic 桌面音乐播放器界面：推荐歌单与播放控制栏" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="DakeMusic 桌面音乐播放器下载 - 在线曲库、逐字歌词与语聊房" />
+    <meta
+      name="twitter:description"
+      content="免费开源的桌面音乐播放器：在线曲库、逐字歌词、10 段均衡器、私人 FM、听歌识曲、插件扩展，以及多人语聊房。"
+    />
+    <meta name="twitter:image" content="https://dkyy.top/assets/img/og.jpg?v=20261023g" />
+    <meta name="twitter:image:alt" content="DakeMusic 桌面音乐播放器界面" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://dkyy.top/#website",
+            "url": "https://dkyy.top/",
+            "name": "DakeMusic",
+            "alternateName": "DakeMusic 桌面音乐播放器",
+            "description": "免费开源的桌面音乐播放器，支持在线曲库、逐字歌词、音频增强、插件扩展与多人语聊房。",
+            "inLanguage": "zh-CN",
+            "publisher": { "@id": "https://dkyy.top/#organization" }
+          },
+          {
+            "@type": "WebPage",
+            "@id": "https://dkyy.top/#webpage",
+            "url": "https://dkyy.top/",
+            "name": "DakeMusic 桌面音乐播放器下载 - 在线曲库、逐字歌词与语聊房",
+            "description": "DakeMusic 是一款免费开源的桌面音乐播放器，支持在线曲库、逐字歌词、10 段均衡器、私人 FM、听歌识曲、插件扩展，以及基于 LiveKit 的多人语聊房。",
+            "isPartOf": { "@id": "https://dkyy.top/#website" },
+            "about": { "@id": "https://dkyy.top/#software" },
+            "primaryImageOfPage": {
+              "@type": "ImageObject",
+              "url": "https://dkyy.top/assets/img/og.jpg?v=20261023g",
+              "width": 1200,
+              "height": 630
+            },
+            "inLanguage": "zh-CN",
+            "datePublished": "2026-10-23",
+            "dateModified": "2026-10-23"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://dkyy.top/#software",
+            "name": "DakeMusic",
+            "description": "面向桌面端的开源音乐播放器，集成在线曲库、逐字歌词、音频增强、私人 FM、听歌识曲、插件系统与多人语聊房。",
+            "applicationCategory": "MultimediaApplication",
+            "applicationSubCategory": "Music Player",
+            "operatingSystem": "Windows 10, Windows 11, macOS, Linux",
+            "softwareVersion": "2.4.4",
+            "softwareRequirements": "Windows 10 / 11 x64 官方安装包；macOS / Linux 可自行构建",
+            "downloadUrl": "https://dkyy.top/dl/DakeMusic-2.4.4.exe",
+            "installUrl": "https://dkyy.top/dl/DakeMusic-2.4.4.exe",
+            "inLanguage": "zh-CN",
+            "isAccessibleForFree": true,
+            "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "CNY",
+              "availability": "https://schema.org/InStock"
+            },
+            "author": { "@id": "https://dkyy.top/#author" },
+            "publisher": { "@id": "https://dkyy.top/#organization" },
+            "screenshot": [
+              "https://dkyy.top/assets/img/room_list.webp",
+              "https://dkyy.top/assets/img/home.webp",
+              "https://dkyy.top/assets/img/discover.webp",
+              "https://dkyy.top/assets/img/song_detail.webp",
+              "https://dkyy.top/assets/img/lyric.webp",
+              "https://dkyy.top/assets/img/downloads.webp",
+              "https://dkyy.top/assets/img/settings.webp",
+              "https://dkyy.top/assets/img/profile.webp"
+            ],
+            "featureList": [
+              "在线曲库与歌曲、歌单、歌手、专辑、排行榜推荐",
+              "逐字歌词、歌词翻译、桌面歌词与全屏歌词",
+              "10 段均衡器、LUFS 响度标准化与空间音效",
+              "私人 FM、听歌识曲与插件扩展",
+              "基于 LiveKit 的多人音乐语聊房",
+              "Windows、macOS、Linux 跨平台与系统媒体集成"
+            ]
+          },
+          {
+            "@type": "Person",
+            "@id": "https://dkyy.top/#author",
+            "name": "知之Dake"
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://dkyy.top/#organization",
+            "name": "DakeMusic",
+            "url": "https://dkyy.top/",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://dkyy.top/assets/img/logo.png",
+              "width": 256,
+              "height": 256
+            },
+            "founder": { "@id": "https://dkyy.top/#author" }
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://dkyy.top/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "DakeMusic 是免费的吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "是的。DakeMusic 以 GPLv3 协议开源，安装包完全免费，不提供任何付费下载渠道。如果你是通过付费渠道获取的，请立即停止付款。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "支持哪些操作系统？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "目前提供 Windows 10 / 11 x64 安装包，约 124 MB。项目同时支持 macOS 与 Linux，可按照开源仓库说明自行构建；网页版语聊房无需安装，浏览器直接进入。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "需要登录音乐平台账号吗？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "DakeMusic 不在服务器托管你的音乐平台账号，核心请求由本地服务直连对应平台。部分曲库、音质或会员权益仍取决于你使用的平台账号与地区。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "语聊房怎么用？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "下载桌面端后进入 Chat Room，或直接打开网页版语聊房。桌面端和网页端可以进入同一间房；房间支持 1 个主麦加 6 个小座、公屏聊天、点歌队列和歌词同步。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "歌词和音效支持哪些格式？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "歌词支持 LRC / YRC 解析、翻译、正则过滤、滚动同步、桌面歌词与全屏写真模式；音效提供 10 段均衡器、LUFS 响度标准化，并支持导入 WAV / IRS 空间音效。"
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "应该下载稳定版还是测试版？",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "大多数用户建议下载 v2.4.4 稳定版；想抢先体验新功能可以选择测试版。历史版本与校验文件可在下载页找到。"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="preload" as="image" href="assets/img/hero.webp?v=20261023f" type="image/webp" media="(min-width: 721px)" />
+    <link rel="preload" as="image" href="assets/img/hero-sm.webp?v=20261023f" type="image/webp" media="(max-width: 720px)" />
+    <script>
+      document.documentElement.classList.add('js');
+    </script>
+    <link rel="stylesheet" href="assets/site.css?v=20261023g" />
+    <script src="assets/site.js?v=20261023g" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
+    <svg class="sprite" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 3v12" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M4 19h16" />
+      </symbol>
+      <symbol id="i-play" viewBox="0 0 24 24">
+        <path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none" />
+      </symbol>
+      <symbol id="i-chat" viewBox="0 0 24 24">
+        <path d="M20 11.5a7 7 0 0 1-7 7H8l-4 2v-4.3A7 7 0 1 1 20 11.5Z" />
+      </symbol>
+      <symbol id="i-search" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-3.2-3.2" />
+      </symbol>
+      <symbol id="i-list" viewBox="0 0 24 24">
+        <path d="M8 6h13M8 12h13M8 18h13" />
+        <circle cx="3.6" cy="6" r="1" fill="currentColor" stroke="none" />
+        <circle cx="3.6" cy="12" r="1" fill="currentColor" stroke="none" />
+        <circle cx="3.6" cy="18" r="1" fill="currentColor" stroke="none" />
+      </symbol>
+      <symbol id="i-lyrics" viewBox="0 0 24 24">
+        <path d="M4 7h9M4 12h6M4 17h8" />
+        <path d="M18 4v9.6a2.6 2.6 0 1 1-2-2.53" />
+      </symbol>
+      <symbol id="i-eq" viewBox="0 0 24 24">
+        <path d="M4 8h9M19 8h1M4 16h3M13 16h7" />
+        <circle cx="16" cy="8" r="2.2" />
+        <circle cx="10" cy="16" r="2.2" />
+      </symbol>
+      <symbol id="i-wave" viewBox="0 0 24 24">
+        <path d="M3 12h2l2.2-6 3.2 12 3-9 2 3H21" />
+      </symbol>
+      <symbol id="i-mic" viewBox="0 0 24 24">
+        <rect x="9" y="3" width="6" height="10" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+      </symbol>
+      <symbol id="i-cloud" viewBox="0 0 24 24">
+        <path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6 9.5 4.5 4.5 0 0 0 7 18Z" />
+      </symbol>
+      <symbol id="i-plugin" viewBox="0 0 24 24">
+        <path d="M9 3v6M15 3v6M6 9h12v3a6 6 0 0 1-12 0V9ZM12 18v3" />
+      </symbol>
+      <symbol id="i-monitor" viewBox="0 0 24 24">
+        <rect x="3" y="4" width="18" height="12" rx="2" />
+        <path d="M9 20h6M12 16v4" />
+      </symbol>
+      <symbol id="i-chip" viewBox="0 0 24 24">
+        <rect x="7" y="7" width="10" height="10" rx="2" />
+        <path d="M10 3v2M14 3v2M10 19v2M14 19v2M3 10h2M3 14h2M19 10h2M19 14h2" />
+      </symbol>
+      <symbol id="i-shield" viewBox="0 0 24 24">
+        <path d="M12 3l7 3v6c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3Z" />
+        <path d="m9 12 2 2 4-4" />
+      </symbol>
+      <symbol id="i-arrow" viewBox="0 0 24 24">
+        <path d="M5 12h14M13 6l6 6-6 6" />
+      </symbol>
+      <symbol id="i-menu" viewBox="0 0 24 24">
+        <path d="M4 7h16M4 12h16M4 17h16" />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24">
+        <path d="m6 6 12 12M18 6 6 18" />
+      </symbol>
+      <symbol id="i-chevron" viewBox="0 0 24 24">
+        <path d="m9 6 6 6-6 6" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <path d="m5 12 5 5L20 7" />
+      </symbol>
+      <symbol id="i-sparkles" viewBox="0 0 24 24">
+        <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" />
+        <path d="M18 15l.8 2.2L21 18l-2.2.8L18 21l-.8-2.2L15 18l2.2-.8L18 15Z" />
+      </symbol>
+      <symbol id="i-music" viewBox="0 0 24 24">
+        <path d="M9 18V6l11-2v12" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="17" cy="16" r="3" />
+      </symbol>
+    </svg>
+
+    <header class="nav" id="nav">
+      <div class="wrap nav-inner">
+        <a class="brand" href="/" aria-label="DakeMusic 首页">
+          <img src="assets/img/logo.png" width="34" height="34" alt="" />
+          <span>DakeMusic</span>
+        </a>
+
+        <nav class="nav-links" aria-label="主导航">
+          <a href="#features">功能</a>
+          <a href="#voice">语聊房</a>
+          <a href="#screens">界面</a>
+          <a href="#performance">性能</a>
+          <a href="#faq">常见问题</a>
+          <a href="#download">下载</a>
+        </nav>
+
+        <div class="nav-actions">
+          <a class="btn btn-ghost nav-web" href="/webroom/">网页语聊房</a>
+          <a class="btn btn-primary" href="#download">
+            <svg class="ico" aria-hidden="true"><use href="#i-download" /></svg>
+            下载
+          </a>
+          <button class="nav-toggle" id="navToggle" type="button" aria-label="打开菜单" aria-expanded="false" aria-controls="navMenu">
+            <svg class="ico" aria-hidden="true"><use href="#i-menu" /></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="nav-menu" id="navMenu" hidden>
+        <a href="#features">功能</a>
+        <a href="#voice">语聊房</a>
+        <a href="#screens">界面</a>
+        <a href="#performance">性能</a>
+        <a href="#faq">常见问题</a>
+        <a href="#download">下载</a>
+        <a href="/webroom/">网页语聊房</a>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero">
+        <div class="wrap hero-grid">
+          <div class="hero-copy">
+            <span class="badge" id="ver-badge"><i class="dot"></i>v2.4.4 稳定版 · 免费开源</span>
+            <h1>把音乐和语聊房，<br /><span class="grad">装进桌面音乐播放器</span></h1>
+            <p class="lead">
+              DakeMusic 是一款为桌面端打造的第三方开源音乐播放器：在线曲库、逐字歌词、音效增强、私人
+              FM，还有基于 LiveKit 的多人语聊房。支持 Windows / macOS / Linux，桌面端和网页端可进同一间房，实时同步。
+            </p>
+            <div class="hero-actions">
+              <a class="btn btn-primary btn-lg" id="dl-btn" href="/dl/DakeMusic-2.4.4.exe">
+                <svg class="ico" aria-hidden="true"><use href="#i-download" /></svg>
+                下载 Windows 版
+              </a>
+              <a class="btn btn-ghost btn-lg" href="/webroom/">
+                <svg class="ico" aria-hidden="true"><use href="#i-chat" /></svg>
+                打开网页语聊房
+              </a>
+            </div>
+            <ul class="hero-meta">
+              <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>Windows 10 / 11 x64</li>
+              <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg><span id="ver-size">约 204 MB</span></li>
+              <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>GPLv3 开源</li>
+              <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>无广告</li>
+            </ul>
+          </div>
+
+          <div class="hero-visual">
+            <div class="glow" aria-hidden="true"></div>
+            <picture>
+              <source media="(max-width: 720px)" srcset="assets/img/hero-sm.webp?v=20261023f" type="image/webp" />
+              <img
+                class="shot-hero"
+                src="assets/img/hero.webp?v=20261023f"
+                width="1308"
+                height="885"
+                alt="DakeMusic 桌面端首页：推荐歌单与播放器控制栏"
+                fetchpriority="high"
+                decoding="async"
+              />
+            </picture>
+            <div class="chip chip-a">
+              <svg class="ico" aria-hidden="true"><use href="#i-lyrics" /></svg>
+              逐字歌词
+            </div>
+            <div class="chip chip-b">
+              <svg class="ico" aria-hidden="true"><use href="#i-eq" /></svg>
+              10 段均衡器
+            </div>
+            <div class="chip chip-c">
+              <svg class="ico" aria-hidden="true"><use href="#i-mic" /></svg>
+              6 麦位语聊房
+            </div>
+          </div>
+        </div>
+
+        <div class="wrap tech-strip" aria-label="技术栈">
+          <span>Electron 43</span>
+          <span>Vue 3.5</span>
+          <span>TypeScript</span>
+          <span>Rust · napi-rs</span>
+          <span>LiveKit</span>
+          <span>GPLv3</span>
+        </div>
+      </section>
+
+      <section class="section" id="features">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <span class="eyebrow">FEATURES</span>
+            <h2>从播放到探索，一整套桌面音乐体验</h2>
+            <p>不是网页套壳：原生模块、播放引擎、系统集成和插件系统都在桌面端完成。</p>
+          </header>
+
+          <div class="feature-grid">
+            <article class="card reveal">
+              <span class="card-icon violet"><svg class="ico" aria-hidden="true"><use href="#i-search" /></svg></span>
+              <h3>推荐与探索</h3>
+              <p>歌曲、歌单、歌手、专辑、排行榜推荐；支持歌曲、歌词、MV 等多维搜索。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon blue"><svg class="ico" aria-hidden="true"><use href="#i-list" /></svg></span>
+              <h3>外部歌单导入</h3>
+              <p>支持网易云、QQ 音乐、酷我、酷狗、汽水、Spotify、Apple Music 歌单导入。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon green"><svg class="ico" aria-hidden="true"><use href="#i-play" /></svg></span>
+              <h3>进阶播放</h3>
+              <p>播放队列、循环模式、倍速播放、淡入淡出切歌，音量与进度精细控制。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon pink"><svg class="ico" aria-hidden="true"><use href="#i-lyrics" /></svg></span>
+              <h3>逐字歌词</h3>
+              <p>LRC / YRC 解析、歌词翻译、正则过滤、滚动同步、桌面歌词与全屏写真模式。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon gold"><svg class="ico" aria-hidden="true"><use href="#i-eq" /></svg></span>
+              <h3>音频增强</h3>
+              <p>10 段均衡器（自动前级补偿）、LUFS 响度标准化、WAV / IRS 空间音效，可导入音效引擎。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon violet"><svg class="ico" aria-hidden="true"><use href="#i-wave" /></svg></span>
+              <h3>实时频谱</h3>
+              <p>直接从播放引擎提取音频数据做 FFT，为插件提供低延迟、高精度频谱帧。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon blue"><svg class="ico" aria-hidden="true"><use href="#i-mic" /></svg></span>
+              <h3>听歌识曲</h3>
+              <p>支持麦克风或系统音频捕获，快速识别正在播放的歌曲。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon green"><svg class="ico" aria-hidden="true"><use href="#i-plugin" /></svg></span>
+              <h3>插件扩展</h3>
+              <p>在线插件源与本地插件加载，自定义页面、侧栏、设置项、播放器按钮和右键菜单。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon pink"><svg class="ico" aria-hidden="true"><use href="#i-monitor" /></svg></span>
+              <h3>跨平台与系统集成</h3>
+              <p>Windows / macOS / Linux；原生接入 SMTC、MPRIS、MPNowPlaying，托盘与全局快捷键。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section voice-section" id="voice">
+        <div class="wrap">
+          <div class="voice-panel reveal">
+            <div class="voice-copy">
+              <span class="eyebrow">VOICE ROOM</span>
+              <h2>语聊房，和音乐一起玩</h2>
+              <p>
+                基于 LiveKit 的实时语音房间。桌面端和网页端进同一间房，麦位、公屏、点歌队列和歌词全房间同步。
+              </p>
+              <ul class="check-list">
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>1 主麦 + 6 小座，申请制上麦，房主 / 管理员审批</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>公屏实时聊天，支持图片、表情与违禁词过滤</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>房间点歌台：搜索、排队、切歌，全房间同步</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>歌词由房主或主麦 DJ 广播，网页端同步显示</li>
+                <li><svg class="ico" aria-hidden="true"><use href="#i-check" /></svg>管理员、禁言、禁麦、踢人，以及房间封面与公告</li>
+              </ul>
+              <div class="voice-actions">
+                <a class="btn btn-primary" href="/webroom/">
+                  打开网页版语聊房
+                  <svg class="ico" aria-hidden="true"><use href="#i-arrow" /></svg>
+                </a>
+                <span class="hint">免安装 · 浏览器直接进房</span>
+              </div>
+            </div>
+
+            <div class="room-mock" aria-hidden="true">
+              <div class="room-head">
+                <span class="live"><i></i>LIVE</span>
+                <strong>深夜电台</strong>
+                <span class="room-count">12 人在线</span>
+              </div>
+              <div class="room-lyric">You made me a believer, believer</div>
+              <div class="room-stage">
+                <div class="seat main speaking">
+                  <span class="avatar a1">知</span>
+                  <span class="seat-name">主麦 · 知之Dake</span>
+                  <span class="seat-tag">房主</span>
+                </div>
+                <div class="seat-row">
+                  <div class="seat speaking"><span class="avatar a2">鹿</span><span class="seat-name">小鹿</span></div>
+                  <div class="seat"><span class="avatar a3">泽</span><span class="seat-name">阿泽</span></div>
+                  <div class="seat muted"><span class="avatar a4">M</span><span class="seat-name">Momo</span></div>
+                  <div class="seat"><span class="avatar a5">星</span><span class="seat-name">夜航星</span></div>
+                  <div class="seat"><span class="avatar a6">夏</span><span class="seat-name">夏夜</span></div>
+                  <div class="seat empty"><span class="avatar">+</span><span class="seat-name">空位</span></div>
+                </div>
+              </div>
+              <div class="room-chat">
+                <div class="bubble"><b>小鹿</b>这首歌好好听</div>
+                <div class="bubble self">一起听，下一首我来点</div>
+              </div>
+              <div class="room-dock">
+                <span class="dock-btn on"><svg class="ico" aria-hidden="true"><use href="#i-mic" /></svg></span>
+                <span class="dock-btn"><svg class="ico" aria-hidden="true"><use href="#i-wave" /></svg></span>
+                <span class="dock-btn"><svg class="ico" aria-hidden="true"><use href="#i-music" /></svg></span>
+                <span class="dock-btn"><svg class="ico" aria-hidden="true"><use href="#i-eq" /></svg></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="screens">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <span class="eyebrow">SCREENS</span>
+            <h2>看看它长什么样</h2>
+            <p>从语聊房、首页推荐到歌词、下载与设置——点开看大图。</p>
+          </header>
+
+          <div class="gallery">
+            <button class="shot reveal" type="button" data-full="assets/img/room_list.webp?v=20261023e" data-title="语聊房">
+              <img src="assets/img/room_list-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 语聊房房间列表" loading="lazy" decoding="async" />
+              <span class="shot-label">语聊房</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/home.webp?v=20261023e" data-title="首页推荐">
+              <img src="assets/img/home-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 首页每日推荐与风格推荐" loading="lazy" decoding="async" />
+              <span class="shot-label">首页推荐</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/discover.webp?v=20261023e" data-title="探索发现">
+              <img src="assets/img/discover-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 探索发现歌单" loading="lazy" decoding="async" />
+              <span class="shot-label">探索发现</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/song_detail.webp?v=20261023e" data-title="歌曲详情">
+              <img src="assets/img/song_detail-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 歌曲详情与榜单成就" loading="lazy" decoding="async" />
+              <span class="shot-label">歌曲详情</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/lyric.webp?v=20261023e" data-title="全屏歌词">
+              <img src="assets/img/lyric-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 全屏逐行歌词" loading="lazy" decoding="async" />
+              <span class="shot-label">全屏歌词</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/downloads.webp?v=20261023e" data-title="下载管理">
+              <img src="assets/img/downloads-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 下载管理与下载设置" loading="lazy" decoding="async" />
+              <span class="shot-label">下载管理</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/settings.webp?v=20261023e" data-title="偏好设置">
+              <img src="assets/img/settings-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 偏好设置主题与外观" loading="lazy" decoding="async" />
+              <span class="shot-label">偏好设置</span>
+            </button>
+            <button class="shot reveal" type="button" data-full="assets/img/profile.webp?v=20261023e" data-title="个人中心">
+              <img src="assets/img/profile-thumb.webp?v=20261023e" width="720" height="488" alt="DakeMusic 个人中心与账号档案" loading="lazy" decoding="async" />
+              <span class="shot-label">个人中心</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="performance">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <span class="eyebrow">PERFORMANCE</span>
+            <h2>性能不是口号，是取舍</h2>
+            <p>该用原生模块的地方不用 JS 硬扛，该直连的地方不做多余中转。</p>
+          </header>
+
+          <div class="perf-grid">
+            <article class="card reveal">
+              <span class="card-icon violet"><svg class="ico" aria-hidden="true"><use href="#i-chip" /></svg></span>
+              <h3>Rust 原生模块</h3>
+              <p>文件扫描、音频处理等重活交给 napi-rs 原生模块，减少 JS 层开销。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon blue"><svg class="ico" aria-hidden="true"><use href="#i-shield" /></svg></span>
+              <h3>直连音乐平台</h3>
+              <p>核心请求由本地服务直连对应平台，不做音频中转，也不托管账号。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon green"><svg class="ico" aria-hidden="true"><use href="#i-wave" /></svg></span>
+              <h3>播放引擎直出频谱</h3>
+              <p>FFT 直接从播放引擎取音频数据，低延迟、高精度，插件可视化更跟手。</p>
+            </article>
+            <article class="card reveal">
+              <span class="card-icon gold"><svg class="ico" aria-hidden="true"><use href="#i-monitor" /></svg></span>
+              <h3>系统级媒体集成</h3>
+              <p>原生接入 SMTC / MPRIS / MPNowPlaying，系统媒体键与播放进度同步。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="download">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <span class="eyebrow">DOWNLOAD</span>
+            <h2>下载 DakeMusic 桌面音乐播放器</h2>
+            <p>Windows 安装包已提供；项目以 GPLv3 开源，macOS / Linux 可自行构建。</p>
+          </header>
+
+          <div class="download-card reveal">
+            <div class="download-main">
+              <div class="version-line">
+                <span class="badge" id="dls-badge"><i class="dot"></i>v2.4.4 稳定版</span>
+                <span class="version-date" id="dls-date">2026-10-25</span>
+              </div>
+              <a class="btn btn-primary btn-lg download-btn" id="dls-btn" href="/dl/DakeMusic-2.4.4.exe">
+                <svg class="ico" aria-hidden="true"><use href="#i-download" /></svg>
+                下载 Windows 安装包
+              </a>
+              <p class="download-meta" id="dls-size">Windows 10 / 11 x64 · 约 204 MB · 免费开源</p>
+
+              <div class="changelog">
+                <h3>v2.4.4 更新</h3>
+                <ul>
+                  <li>新增下载系统：多任务队列、断点续传、失败重试</li>
+                  <li>新增人声分离五模型（Inst_HQ_3 / Inst_Main / Inst_HQ_5 / Voc_FT / KARA）</li>
+                  <li>新增分离调性：原调 + C~B 共 12 个调性</li>
+                  <li>修复分离输出的 WAV 文件损坏问题</li>
+                </ul>
+              </div>
+            </div>
+
+            <aside class="download-side">
+              <a class="dl-item" id="dl-stable" href="/dl/DakeMusic-2.4.4.exe">
+                <span class="dl-icon"><svg class="ico" aria-hidden="true"><use href="#i-download" /></svg></span>
+                <span class="dl-text"><b>稳定版</b><small id="dl-stable-meta">v2.4.4 · 推荐大多数用户</small></span>
+                <svg class="ico dl-arrow" aria-hidden="true"><use href="#i-chevron" /></svg>
+              </a>
+              <a class="dl-item" href="/webroom/">
+                <span class="dl-icon"><svg class="ico" aria-hidden="true"><use href="#i-chat" /></svg></span>
+                <span class="dl-text"><b>网页语聊房</b><small>免安装 · 浏览器直接进房</small></span>
+                <svg class="ico dl-arrow" aria-hidden="true"><use href="#i-chevron" /></svg>
+              </a>
+              <a class="dl-item" href="/dl/">
+                <span class="dl-icon"><svg class="ico" aria-hidden="true"><use href="#i-list" /></svg></span>
+                <span class="dl-text"><b>所有版本</b><small>历史安装包与校验文件</small></span>
+                <svg class="ico dl-arrow" aria-hidden="true"><use href="#i-chevron" /></svg>
+              </a>
+              <p class="download-note">
+                <svg class="ico" aria-hidden="true"><use href="#i-shield" /></svg>
+                完全免费开源，请勿通过任何付费渠道下载。如果你是付费获取的，说明你被骗了。
+              </p>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="faq">
+        <div class="wrap">
+          <header class="section-head reveal">
+            <span class="eyebrow">FAQ</span>
+            <h2>DakeMusic 常见问题</h2>
+            <p>下载、系统支持、账号和语聊房，一次说清楚。</p>
+          </header>
+
+          <div class="faq-list">
+            <details class="faq-item reveal">
+              <summary>DakeMusic 是免费的吗？</summary>
+              <p>是的。DakeMusic 以 GPLv3 协议开源，安装包完全免费，不提供任何付费下载渠道。如果你是通过付费渠道获取的，请立即停止付款。</p>
+            </details>
+            <details class="faq-item reveal">
+              <summary>支持哪些操作系统？</summary>
+              <p>目前提供 Windows 10 / 11 x64 安装包，约 124 MB。项目同时支持 macOS 与 Linux，可按照开源仓库说明自行构建；网页版语聊房无需安装，浏览器直接进入。</p>
+            </details>
+            <details class="faq-item reveal">
+              <summary>需要登录音乐平台账号吗？</summary>
+              <p>DakeMusic 不在服务器托管你的音乐平台账号，核心请求由本地服务直连对应平台。部分曲库、音质或会员权益仍取决于你使用的平台账号与地区。</p>
+            </details>
+            <details class="faq-item reveal">
+              <summary>语聊房怎么用？</summary>
+              <p>下载桌面端后进入 Chat Room，或直接打开网页版语聊房。桌面端和网页端可以进入同一间房；房间支持 1 个主麦加 6 个小座、公屏聊天、点歌队列和歌词同步。</p>
+            </details>
+            <details class="faq-item reveal">
+              <summary>歌词和音效支持哪些格式？</summary>
+              <p>歌词支持 LRC / YRC 解析、翻译、正则过滤、滚动同步、桌面歌词与全屏写真模式；音效提供 10 段均衡器、LUFS 响度标准化，并支持导入 WAV / IRS 空间音效。</p>
+            </details>
+            <details class="faq-item reveal">
+              <summary>应该下载稳定版还是测试版？</summary>
+              <p>大多数用户建议下载 v2.4.3 稳定版；想抢先体验新功能可以选择测试版。历史版本与校验文件可在下载页找到。</p>
+            </details>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <div class="wrap footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="/">
+            <img src="assets/img/logo.png" width="30" height="30" alt="" />
+            <span>DakeMusic</span>
+          </a>
+          <p>为桌面端打造的音乐播放器与语聊房。</p>
+        </div>
+
+        <nav class="footer-col" aria-label="产品">
+          <h4>产品</h4>
+          <a href="#features">功能特性</a>
+          <a href="#voice">语聊房</a>
+          <a href="#screens">界面预览</a>
+          <a href="#faq">常见问题</a>
+          <a href="#download">下载</a>
+        </nav>
+
+        <nav class="footer-col" aria-label="资源">
+          <h4>资源</h4>
+          <a href="/webroom/">网页语聊房</a>
+          <a href="/dl/">下载页</a>
+          <a href="/dl/">历史版本</a>
+        </nav>
+
+        <div class="footer-col">
+          <h4>关于</h4>
+          <span>作者：知之Dake</span>
+          <span>QQ：983064062</span>
+          <span>GPLv3 开源</span>
+        </div>
+      </div>
+
+      <div class="wrap footer-bottom">
+        <span class="footer-copy">
+          © <span id="year">2026</span> DakeMusic
+          <span aria-hidden="true">·</span>
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">桂ICP备2026023468号-1</a>
+        </span>
+        <span>音乐版权归各平台及版权方所有；本软件不提供音频中转与账号托管。</span>
+      </div>
+    </footer>
+
+    <dialog class="lightbox" id="lightbox" aria-label="查看大图">
+      <button class="lightbox-close" id="lightboxClose" type="button" aria-label="关闭">
+        <svg class="ico" aria-hidden="true"><use href="#i-close" /></svg>
+      </button>
+      <button class="lightbox-nav prev" id="lightboxPrev" type="button" aria-label="上一张">
+        <svg class="ico" aria-hidden="true"><use href="#i-chevron" /></svg>
+      </button>
+      <figure>
+        <img id="lightboxImage" alt="" />
+        <figcaption id="lightboxCaption"></figcaption>
+      </figure>
+      <button class="lightbox-nav next" id="lightboxNext" type="button" aria-label="下一张">
+        <svg class="ico" aria-hidden="true"><use href="#i-chevron" /></svg>
+      </button>
+    </dialog>
+    <script>
+    // ===== DakeMusic 版本信息动态化：自动读取下载目录最新版本 =====
+    (function () {
+      var badge = document.getElementById('ver-badge');
+      var dlBtn = document.getElementById('dl-btn');
+      var verSize = document.getElementById('ver-size');
+      var dlsBadge = document.getElementById('dls-badge');
+      var dlsDate = document.getElementById('dls-date');
+      var dlsBtn = document.getElementById('dls-btn');
+      var dlsSize = document.getElementById('dls-size');
+      var dlStable = document.getElementById('dl-stable');
+      var dlStableMeta = document.getElementById('dl-stable-meta');
+      function parseVer(name) {
+        var m = name.match(/(\d+)\.(\d+)\.(\d+)(?:-(beta))?/);
+        return m ? { major: +m[1], minor: +m[2], patch: +m[3], beta: !!m[4], full: m[0] } : null;
+      }
+      function cmp(a, b) {
+        if (a.major !== b.major) return b.major - a.major;
+        if (a.minor !== b.minor) return b.minor - a.minor;
+        if (a.patch !== b.patch) return b.patch - a.patch;
+        if (a.beta !== b.beta) return a.beta ? 1 : -1;
+        return 0;
+      }
+      function fmtSize(bytes) {
+        var mb = bytes / 1024 / 1024;
+        return (mb >= 100 ? Math.round(mb) : Math.round(mb * 10) / 10) + ' MB';
+      }
+      function fmtDate(mtime) {
+        var d = new Date(mtime);
+        return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+      }
+      fetch('/dl-files/', { cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (list) {
+          var exes = list
+            .filter(function (f) { return f.type === 'file' && /\.exe$/.test(f.name) && !/\.blockmap$/.test(f.name); })
+            .map(function (f) { return { name: f.name, size: f.size, date: fmtDate(f.mtime), ver: parseVer(f.name) }; })
+            .filter(function (f) { return f.ver; })
+            .sort(function (a, b) { return cmp(a.ver, b.ver); });
+          if (!exes.length) return;
+          var latest = exes[0];
+          var tag = latest.ver.beta ? ' 测试版' : ' 稳定版';
+          if (badge) badge.innerHTML = '<i class="dot"></i>v' + latest.ver.full + tag + ' · 免费开源';
+          if (dlBtn) dlBtn.setAttribute('href', '/dl/' + latest.name);
+          if (verSize) verSize.textContent = '约 ' + fmtSize(latest.size);
+          // 下载专区
+          if (dlsBadge) dlsBadge.innerHTML = '<i class="dot"></i>v' + latest.ver.full + tag;
+          if (dlsDate) dlsDate.textContent = latest.date ? latest.date : '';
+          if (dlsBtn) dlsBtn.setAttribute('href', '/dl/' + latest.name);
+          if (dlsSize) dlsSize.textContent = 'Windows 10 / 11 x64 · 约 ' + fmtSize(latest.size) + ' · 免费开源';
+          if (dlStable) dlStable.setAttribute('href', '/dl/' + latest.name);
+          if (dlStableMeta) dlStableMeta.textContent = 'v' + latest.ver.full + ' · 推荐大多数用户';
+          // 同步 JSON-LD 软件信息
+          document.querySelectorAll('script[type="application/ld+json"]').forEach(function (s) {
+            try {
+              var d = JSON.parse(s.textContent);
+              var arr = Array.isArray(d) ? d : [d];
+              arr.forEach(function (root) {
+                if (root && root['@graph']) root['@graph'].forEach(function (n) {
+                  if (n && n['@type'] === 'SoftwareApplication') {
+                    n.softwareVersion = latest.ver.full;
+                    n.downloadUrl = 'https://dkyy.top/dl/' + latest.name;
+                    n.installUrl = 'https://dkyy.top/dl/' + latest.name;
+                  }
+                });
+              });
+              s.textContent = JSON.stringify(d);
+            } catch (e) {}
+          });
+        })
+        .catch(function () {});
+    })();
+    </script>
+  </body>
+</html>

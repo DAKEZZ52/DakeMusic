@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DakeMusic 管理后台</title>
+<!--
+  DakeMusic 管理后台 · 苹果风格版
+  Author: 知之Dake（DAKE知之）
+  Copyright © 2026 DakeMusic. All rights reserved.
+  基于 room-server 管理后台改造：保留全部后端接口与交互逻辑，仅重绘为浅色苹果风玻璃拟态。
+-->
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Segoe UI',Roboto,'PingFang SC','Microsoft YaHei',sans-serif;
+  background:#eef1f8;
+  color:#1d1d1f;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ===================== 登录页 ===================== */
+.login-wrap {
+  min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+  background:
+    radial-gradient(1200px 600px at 15% 10%, rgba(10,132,255,.14), transparent 60%),
+    radial-gradient(1000px 500px at 85% 90%, rgba(175,82,222,.12), transparent 60%),
+    linear-gradient(160deg,#f2f4fb,#e9edf7);
+  padding:20px;
+}
+.login-card {
+  width:380px;
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(24px) saturate(1.4);
+  -webkit-backdrop-filter:blur(24px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.65);
+  border-radius:28px;
+  padding:44px 40px 40px;
+  box-shadow:0 24px 70px rgba(31,45,90,.16), inset 0 1px 0 rgba(255,255,255,.9);
+}
+.login-brand {
+  display:flex; align-items:center; justify-content:center; gap:10px;
+  margin-bottom:6px;
+}
+.login-brand svg { width:30px; height:30px; color:#0a84ff; }
+.login-card h1 { text-align:center; font-size:26px; font-weight:700; letter-spacing:-.02em; color:#1d1d1f; }
+.login-card .sub { text-align:center; color:#86868b; margin:6px 0 26px; font-size:13px; }
+.login-card input {
+  width:100%;
+  padding:13px 16px;
+  margin-bottom:13px;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:13px;
+  background:rgba(255,255,255,.85);
+  font-size:14px;
+  color:#1d1d1f;
+  outline:none;
+  transition:border-color .18s ease, box-shadow .18s ease;
+}
+.login-card input::placeholder { color:#a1a1a6; }
+.login-card input:focus { border-color:#0a84ff; box-shadow:0 0 0 4px rgba(10,132,255,.14); }
+.login-card button {
+  width:100%;
+  padding:13px;
+  margin-top:6px;
+  background:linear-gradient(180deg,#0a84ff,#0071e3);
+  color:#fff;
+  border:none;
+  border-radius:13px;
+  font-size:15px;
+  font-weight:600;
+  cursor:pointer;
+  transition:opacity .15s ease, transform .08s ease;
+  box-shadow:0 6px 18px rgba(10,132,255,.3);
+}
+.login-card button:hover { opacity:.92; }
+.login-card button:active { transform:scale(.98); }
+.login-error { color:#ff3b30; font-size:13px; text-align:center; margin-top:12px; display:none; }
+
+/* ===================== 主布局 ===================== */
+.admin-layout { display:none; min-height:100vh; }
+.sidebar {
+  width:224px;
+  background:rgba(255,255,255,.68);
+  backdrop-filter:blur(24px) saturate(1.3);
+  -webkit-backdrop-filter:blur(24px) saturate(1.3);
+  border-right:1px solid rgba(255,255,255,.7);
+  position:fixed; top:0; left:0; bottom:0;
+  overflow-y:auto;
+  display:flex; flex-direction:column;
+}
+.sidebar .logo {
+  padding:22px 20px 18px;
+  display:flex; align-items:center; gap:9px;
+  font-size:16px; font-weight:700; letter-spacing:-.01em;
+  color:#1d1d1f;
+  border-bottom:1px solid rgba(0,0,0,.05);
+}
+.sidebar .logo svg { width:22px; height:22px; color:#0a84ff; }
+.sidebar .menu { padding:14px 12px; flex:1; }
+.sidebar .menu-item {
+  display:flex; align-items:center; gap:11px;
+  padding:11px 14px;
+  margin-bottom:4px;
+  border-radius:12px;
+  cursor:pointer;
+  color:#5b5b60;
+  font-size:13.5px;
+  font-weight:500;
+  transition:background .16s ease, color .16s ease, transform .08s ease;
+}
+.sidebar .menu-item svg { width:17px; height:17px; flex:none; }
+.sidebar .menu-item:hover { background:rgba(0,0,0,.045); color:#1d1d1f; }
+.sidebar .menu-item:active { transform:scale(.98); }
+.sidebar .menu-item.active {
+  background:linear-gradient(180deg,#0a84ff,#0071e3);
+  color:#fff;
+  box-shadow:0 6px 16px rgba(10,132,255,.3);
+}
+.sidebar .menu-foot { padding:14px 20px; font-size:11px; color:#a1a1a6; border-top:1px solid rgba(0,0,0,.05); }
+
+.main { margin-left:224px; padding:26px 30px; }
+.topbar {
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(20px) saturate(1.3);
+  -webkit-backdrop-filter:blur(20px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.65);
+  padding:16px 22px;
+  border-radius:20px;
+  margin-bottom:22px;
+  display:flex; justify-content:space-between; align-items:center;
+  box-shadow:0 8px 30px rgba(31,45,90,.08);
+}
+.topbar h2 { font-size:17px; font-weight:700; letter-spacing:-.01em; color:#1d1d1f; }
+.topbar .user {
+  display:flex; align-items:center; gap:7px;
+  color:#0071e3; font-weight:600; font-size:13.5px;
+  cursor:pointer;
+  padding:8px 14px;
+  border-radius:999px;
+  background:rgba(10,132,255,.1);
+  transition:background .15s ease;
+}
+.topbar .user svg { width:15px; height:15px; }
+.topbar .user:hover { background:rgba(10,132,255,.16); }
+
+/* ===================== 统计卡片 ===================== */
+.stats-grid {
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:16px;
+  margin-bottom:22px;
+}
+.stat-card {
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(18px) saturate(1.3);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.65);
+  border-radius:22px;
+  padding:20px;
+  display:flex; align-items:center; gap:15px;
+  box-shadow:0 10px 32px rgba(31,45,90,.09);
+  transition:transform .16s ease, box-shadow .16s ease;
+}
+.stat-card:hover { transform:translateY(-2px); box-shadow:0 16px 40px rgba(31,45,90,.13); }
+.stat-icon {
+  width:48px; height:48px; border-radius:15px;
+  display:flex; align-items:center; justify-content:center;
+  flex:none;
+}
+.stat-icon svg { width:24px; height:24px; color:#fff; }
+.stat-icon.red { background:linear-gradient(160deg,#ff6b6b,#ee3b3b); box-shadow:0 6px 16px rgba(238,59,59,.28); }
+.stat-icon.blue { background:linear-gradient(160deg,#4da3ff,#0a84ff); box-shadow:0 6px 16px rgba(10,132,255,.28); }
+.stat-icon.green { background:linear-gradient(160deg,#3ddc8f,#18a058); box-shadow:0 6px 16px rgba(24,160,88,.28); }
+.stat-icon.orange { background:linear-gradient(160deg,#ffb340,#f28c0f); box-shadow:0 6px 16px rgba(242,140,15,.28); }
+.stat-info .num { font-size:26px; font-weight:700; letter-spacing:-.02em; color:#1d1d1f; line-height:1.1; }
+.stat-info .label { font-size:13px; color:#86868b; margin-top:2px; }
+
+/* ===================== 表格卡片 ===================== */
+.table-card {
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(18px) saturate(1.3);
+  -webkit-backdrop-filter:blur(18px) saturate(1.3);
+  border:1px solid rgba(255,255,255,.65);
+  border-radius:22px;
+  padding:24px;
+  box-shadow:0 10px 32px rgba(31,45,90,.09);
+}
+.table-card h3 { margin-bottom:18px; color:#1d1d1f; font-size:16px; font-weight:700; letter-spacing:-.01em; }
+.table-search { margin-bottom:18px; display:flex; gap:10px; }
+.table-search input {
+  padding:10px 16px;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:12px;
+  background:rgba(255,255,255,.9);
+  outline:none;
+  font-size:13.5px;
+  color:#1d1d1f;
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+.table-search input:focus { border-color:#0a84ff; box-shadow:0 0 0 4px rgba(10,132,255,.12); }
+.table-search button {
+  padding:10px 20px;
+  background:linear-gradient(180deg,#0a84ff,#0071e3);
+  color:#fff;
+  border:none;
+  border-radius:12px;
+  cursor:pointer;
+  font-size:13.5px;
+  font-weight:600;
+  transition:opacity .15s ease;
+}
+.table-search button:hover { opacity:.9; }
+table { width:100%; border-collapse:collapse; }
+th, td {
+  padding:13px 12px;
+  text-align:left;
+  border-bottom:1px solid rgba(0,0,0,.055);
+  font-size:13.5px;
+}
+th { color:#86868b; font-weight:500; font-size:12.5px; }
+tbody tr:last-child td { border-bottom:none; }
+tbody tr { transition:background .14s ease; }
+tbody tr:hover { background:rgba(10,132,255,.045); }
+.badge {
+  padding:3px 11px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:600;
+  display:inline-block;
+}
+.badge.admin { background:rgba(255,149,0,.14); color:#d07c00; }
+.badge.normal { background:rgba(0,0,0,.06); color:#6e6e73; }
+.btn-small {
+  padding:6px 14px;
+  border:none;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:12.5px;
+  font-weight:600;
+  transition:opacity .15s ease, transform .08s ease;
+}
+.btn-small:hover { opacity:.85; }
+.btn-small:active { transform:scale(.97); }
+.btn-small.ban { background:rgba(255,59,48,.12); color:#e53b30; }
+.btn-small.unban { background:rgba(52,199,89,.14); color:#1f9d55; }
+.btn-small.close { background:rgba(255,59,48,.12); color:#e53b30; }
+
+/* 公告编辑 */
+.notice-desc { color:#86868b; font-size:13px; margin-bottom:14px; }
+.notice-area {
+  width:100%;
+  padding:14px 16px;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:14px;
+  background:rgba(255,255,255,.9);
+  outline:none;
+  font-size:14px;
+  font-family:inherit;
+  color:#1d1d1f;
+  resize:vertical;
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+.notice-area:focus { border-color:#0a84ff; box-shadow:0 0 0 4px rgba(10,132,255,.12); }
+.notice-row { margin-top:14px; display:flex; align-items:center; gap:14px; }
+.notice-save {
+  padding:11px 26px;
+  background:linear-gradient(180deg,#0a84ff,#0071e3);
+  color:#fff;
+  border:none;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:14px;
+  font-weight:600;
+  transition:opacity .15s ease;
+}
+.notice-save:hover { opacity:.9; }
+.notice-msg { color:#34c759; font-size:13px; }
+
+.page { display:none; }
+.page.active { display:block; }
+
+/* ===================== 弹窗 ===================== */
+.modal-mask {
+  position:fixed; inset:0;
+  background:rgba(28,28,34,.38);
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  display:none; align-items:center; justify-content:center;
+  z-index:999;
+  padding:20px;
+}
+.modal-mask.show { display:flex; }
+.modal {
+  width:400px;
+  background:rgba(255,255,255,.92);
+  backdrop-filter:blur(24px) saturate(1.4);
+  -webkit-backdrop-filter:blur(24px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.7);
+  border-radius:24px;
+  padding:28px;
+  box-shadow:0 30px 80px rgba(20,24,40,.24);
+}
+.modal h3 { margin-bottom:20px; color:#1d1d1f; font-size:17px; font-weight:700; letter-spacing:-.01em; }
+.modal label { display:block; margin-bottom:7px; color:#6e6e73; font-size:13px; font-weight:500; }
+.modal input {
+  width:100%;
+  padding:11px 14px;
+  margin-bottom:14px;
+  border:1px solid rgba(0,0,0,.08);
+  border-radius:12px;
+  background:rgba(255,255,255,.92);
+  outline:none;
+  font-size:14px;
+  color:#1d1d1f;
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+.modal input:focus { border-color:#0a84ff; box-shadow:0 0 0 4px rgba(10,132,255,.12); }
+.modal .check-label {
+  display:flex; align-items:center; gap:9px;
+  cursor:pointer;
+  font-weight:500;
+  color:#3c3c43;
+  margin-bottom:16px;
+}
+.modal .check-label input { width:auto; margin:0; accent-color:#0a84ff; }
+.modal-btns { display:flex; gap:10px; justify-content:flex-end; margin-top:6px; }
+.modal-btns button {
+  padding:10px 20px;
+  border:none;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:13.5px;
+  font-weight:600;
+  transition:opacity .15s ease, transform .08s ease;
+}
+.modal-btns button:active { transform:scale(.97); }
+.modal-btns .cancel { background:rgba(0,0,0,.06); color:#6e6e73; }
+.modal-btns .cancel:hover { background:rgba(0,0,0,.09); }
+.modal-btns .save { background:linear-gradient(180deg,#0a84ff,#0071e3); color:#fff; box-shadow:0 5px 14px rgba(10,132,255,.28); }
+.modal-btns .save:hover { opacity:.9; }
+
+@media (max-width: 900px) {
+  .stats-grid { grid-template-columns:repeat(2,1fr); }
+  .sidebar { width:72px; }
+  .sidebar .logo span, .sidebar .menu-item span, .sidebar .menu-foot { display:none; }
+  .sidebar .logo { justify-content:center; padding:20px 8px 18px; }
+  .sidebar .menu-item { justify-content:center; padding:13px; }
+  .main { margin-left:72px; padding:18px 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- 登录页 -->
+<div class="login-wrap" id="loginPage">
+  <div class="login-card">
+    <div class="login-brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <h1>DakeMusic</h1>
+    </div>
+    <p class="sub">管理后台登录</p>
+    <input type="text" id="loginUser" placeholder="管理员账号" autocomplete="username">
+    <input type="password" id="loginPass" placeholder="密码" autocomplete="current-password">
+    <button onclick="doLogin()">登 录</button>
+    <div class="login-error" id="loginErr"></div>
+  </div>
+</div>
+
+<!-- 主界面 -->
+<div class="admin-layout" id="adminLayout">
+  <div class="sidebar">
+    <div class="logo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+      <span>DakeMusic 管理</span>
+    </div>
+    <div class="menu">
+      <div class="menu-item active" onclick="showPage('dashboard',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        <span>控制台</span>
+      </div>
+      <div class="menu-item" onclick="showPage('users',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1.2-3.4 3.7-5 6.5-5s5.3 1.6 6.5 5"/><circle cx="17" cy="9" r="2.5"/><path d="M16 14.6c2.6.3 4.4 1.9 5.5 4.4"/></svg>
+        <span>用户管理</span>
+      </div>
+      <div class="menu-item" onclick="showPage('rooms',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>
+        <span>房间管理</span>
+      </div>
+      <div class="menu-item" onclick="showPage('badwords',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v5c0 5 3.4 8.6 8 10 4.6-1.4 8-5 8-10V6z"/><path d="M9.5 12l2 2 3.5-4"/></svg>
+        <span>违禁词</span>
+      </div>
+      <div class="menu-item" onclick="showPage('notice',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16v10H8l-4 4z"/><path d="M8 9.5h8"/><path d="M8 12.5h5"/></svg>
+        <span>公告管理</span>
+      </div>
+    </div>
+    <div class="menu-foot">DakeMusic · v2.4.4</div>
+  </div>
+  <div class="main">
+    <div class="topbar">
+      <h2 id="pageTitle">控制台</h2>
+      <div class="user" onclick="doLogout()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/></svg>
+        <span>退出</span>
+      </div>
+    </div>
+
+    <!-- 控制台 -->
+    <div class="page active" id="page-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon red">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1.2-3.4 3.7-5 6.5-5s5.3 1.6 6.5 5"/></svg>
+          </div>
+          <div class="stat-info"><div class="num" id="statTotal">0</div><div class="label">总注册用户</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon blue">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-6 4 3 5-8"/></svg>
+          </div>
+          <div class="stat-info"><div class="num" id="statToday">0</div><div class="label">今日新增</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9 21v-6h6v6"/></svg>
+          </div>
+          <div class="stat-info"><div class="num" id="statRooms">0</div><div class="label">当前房间数</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </div>
+          <div class="stat-info"><div class="num" id="statOnline">0</div><div class="label">当前在线人数</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 用户管理 -->
+    <div class="page" id="page-users">
+      <div class="table-card">
+        <h3>用户列表</h3>
+        <div class="table-search">
+          <input type="text" id="userKeyword" placeholder="搜索账号 / 昵称">
+          <button onclick="loadUsers(1)">搜索</button>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>账号</th><th>昵称</th><th>性别</th><th>城市</th><th>注册时间</th><th>角色</th><th>操作</th></tr></thead>
+          <tbody id="userTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 房间管理 -->
+    <div class="page" id="page-rooms">
+      <div class="table-card">
+        <h3>当前房间</h3>
+        <table>
+          <thead><tr><th>房间ID</th><th>房间名</th><th>房主</th><th>在线人数</th><th>创建时间</th><th>操作</th></tr></thead>
+          <tbody id="roomTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 违禁词管理 -->
+    <div class="page" id="page-badwords">
+      <div class="table-card">
+        <h3>违禁词列表</h3>
+        <div class="table-search">
+          <input type="text" id="newBadWord" placeholder="输入违禁词">
+          <button onclick="addBadWord()">添加</button>
+        </div>
+        <table>
+          <thead><tr><th>ID</th><th>违禁词</th><th>添加时间</th><th>操作</th></tr></thead>
+          <tbody id="badWordTbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 公告管理 -->
+    <div class="page" id="page-notice">
+      <div class="table-card">
+        <h3>全站公告</h3>
+        <p class="notice-desc">公告会显示在所有客户端房内顶部居中位置，留空则清除公告。</p>
+        <textarea class="notice-area" id="noticeInput" rows="4" placeholder="输入公告内容"></textarea>
+        <div class="notice-row">
+          <button class="notice-save" onclick="saveNotice()">发布公告</button>
+          <span class="notice-msg" id="noticeMsg"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑用户弹窗 -->
+<div class="modal-mask" id="userModal">
+  <div class="modal">
+    <h3>编辑用户</h3>
+    <label>昵称</label>
+    <input type="text" id="editNickname">
+    <label>性别</label>
+    <input type="text" id="editGender" placeholder="男 / 女">
+    <label>城市</label>
+    <input type="text" id="editCity">
+    <label>重置密码（留空不改）</label>
+    <input type="password" id="editPassword" placeholder="新密码">
+    <label class="check-label">
+      <input type="checkbox" id="editIsAdmin"> 设为管理员
+    </label>
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeUserModal()">取消</button>
+      <button class="save" onclick="saveUser()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 编辑房间弹窗 -->
+<div class="modal-mask" id="roomModal">
+  <div class="modal">
+    <h3>编辑房间</h3>
+    <label>房间名</label>
+    <input type="text" id="editRoomName">
+    <label>房主名</label>
+    <input type="text" id="editRoomOwner">
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeRoomModal()">取消</button>
+      <button class="save" onclick="saveRoom()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let token = localStorage.getItem('adminToken') || '';
+
+async function api(path, opts={}) {
+  const r = await fetch('/admin' + path, {
+    ...opts,
+    headers: { 'Content-Type':'application/json', ...(token ? {Authorization:'Bearer '+token} : {}) },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  const data = await r.json();
+  if (r.status === 401) { doLogout(); throw new Error('未登录'); }
+  return data;
+}
+
+let editingUserId = null;
+let editingRoomId = null;
+
+function openUserModal(i) {
+  const u = window._users[i];
+  editingUserId = u.id;
+  document.getElementById('editNickname').value = u.nickname || '';
+  document.getElementById('editGender').value = u.gender || '';
+  document.getElementById('editCity').value = u.city || '';
+  document.getElementById('editPassword').value = '';
+  document.getElementById('editIsAdmin').checked = !!u.is_admin;
+  document.getElementById('userModal').classList.add('show');
+}
+function closeUserModal() { document.getElementById('userModal').classList.remove('show'); }
+
+async function saveUser() {
+  await api('/users/'+editingUserId+'/update', { method:'POST', body:{
+    nickname: document.getElementById('editNickname').value,
+    gender: document.getElementById('editGender').value,
+    city: document.getElementById('editCity').value,
+    password: document.getElementById('editPassword').value,
+    isAdmin: document.getElementById('editIsAdmin').checked,
+  }});
+  closeUserModal();
+  loadUsers();
+}
+
+function openRoomModal(i) {
+  const r = window._rooms[i];
+  editingRoomId = r.id;
+  document.getElementById('editRoomName').value = r.name || '';
+  document.getElementById('editRoomOwner').value = r.owner || '';
+  document.getElementById('roomModal').classList.add('show');
+}
+function closeRoomModal() { document.getElementById('roomModal').classList.remove('show'); }
+
+async function saveRoom() {
+  await api('/rooms/'+editingRoomId+'/update', { method:'POST', body:{
+    name: document.getElementById('editRoomName').value,
+    owner: document.getElementById('editRoomOwner').value,
+  }});
+  closeRoomModal();
+  loadRooms();
+}
+
+async function doLogin() {
+  const username = document.getElementById('loginUser').value;
+  const password = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  try {
+    const r = await fetch('/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, password}) });
+    const data = await r.json();
+    if (!r.ok) { errEl.textContent = data.error; errEl.style.display = 'block'; return; }
+    token = data.token;
+    localStorage.setItem('adminToken', token);
+    enterAdmin();
+  } catch(e) { errEl.textContent = '网络错误'; errEl.style.display = 'block'; }
+}
+
+function doLogout() {
+  localStorage.removeItem('adminToken');
+  token = '';
+  location.reload();
+}
+
+async function enterAdmin() {
+  document.getElementById('loginPage').style.display = 'none';
+  document.getElementById('adminLayout').style.display = 'block';
+  loadStats();
+}
+
+async function loadStats() {
+  const d = await api('/stats');
+  document.getElementById('statTotal').textContent = d.totalUsers;
+  document.getElementById('statToday').textContent = d.todayUsers;
+  document.getElementById('statRooms').textContent = d.roomCount;
+  document.getElementById('statOnline').textContent = d.onlineCount;
+}
+
+async function loadUsers(page=1) {
+  const kw = document.getElementById('userKeyword').value;
+  const d = await api('/users?page='+page+'&keyword='+encodeURIComponent(kw));
+  const tbody = document.getElementById('userTbody');
+  window._users = d.list;
+  tbody.innerHTML = d.list.map((u, i) => `
+    <tr>
+      <td>${u.id}</td>
+      <td>${u.name}</td>
+      <td>${u.nickname || u.name}</td>
+      <td>${u.gender || '-'}</td>
+      <td>${u.city || '-'}</td>
+      <td>${u.created_at}</td>
+      <td><span class="badge ${u.is_admin ? 'admin' : 'normal'}">${u.is_admin ? '管理员' : '用户'}</span></td>
+      <td><button class="btn-small ban" onclick="banUser(${u.id},true)">封禁</button> <button class="btn-small unban" onclick="openUserModal(${i})">编辑</button></td>
+    </tr>`).join('');
+}
+
+async function banUser(id, banned) {
+  await api('/users/'+id+'/ban', { method:'POST', body:{banned} });
+  loadUsers();
+}
+
+async function loadRooms() {
+  const d = await api('/rooms');
+  const tbody = document.getElementById('roomTbody');
+  window._rooms = d.list;
+  tbody.innerHTML = d.list.length ? d.list.map((r, i) => `
+    <tr>
+      <td>${r.id}</td>
+      <td>${r.name}</td>
+      <td>${r.owner}</td>
+      <td>${r.memberCount}</td>
+      <td>${r.createdAt}</td>
+      <td><button class="btn-small unban" onclick="openRoomModal(${i})">编辑</button> <button class="btn-small close" onclick="closeRoom('${r.id}')">关闭</button></td>
+    </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:#86868b">暂无房间</td></tr>';
+}
+
+async function closeRoom(id) {
+  if (!confirm('确定关闭这个房间？')) return;
+  await api('/rooms/'+id+'/close', { method:'POST' });
+  loadRooms();
+}
+
+function showPage(name, el) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('pageTitle').textContent = el.textContent.trim();
+  if (name === 'users') loadUsers();
+  if (name === 'rooms') loadRooms();
+  if (name === 'badwords') loadBadWords();
+  if (name === 'notice') loadNotice();
+  if (name === 'dashboard') loadStats();
+}
+
+async function loadNotice() {
+  const d = await api('/notice');
+  document.getElementById('noticeInput').value = d.notice || '';
+}
+
+async function saveNotice() {
+  const notice = document.getElementById('noticeInput').value.trim();
+  const msg = document.getElementById('noticeMsg');
+  try {
+    await api('/notice', { method:'POST', body:{ notice } });
+    msg.textContent = '已发布！所有客户端下次进房即可看到。';
+    msg.style.color = '#34c759';
+  } catch(e) {
+    msg.textContent = '发布失败';
+    msg.style.color = '#ff3b30';
+  }
+}
+
+async function loadBadWords() {
+  const d = await api('/bad-words');
+  const tbody = document.getElementById('badWordTbody');
+  tbody.innerHTML = d.list.map(w => `<tr>
+    <td>${w.id}</td>
+    <td>${w.word}</td>
+    <td>${new Date(w.created_at).toLocaleString('zh-CN')}</td>
+    <td><button class="btn-small ban" onclick="delBadWord(${w.id})">删除</button></td>
+  </tr>`).join('');
+}
+
+async function addBadWord() {
+  const word = document.getElementById('newBadWord').value.trim();
+  if (!word) return;
+  await api('/bad-words/add', { method:'POST', body:{ word } });
+  document.getElementById('newBadWord').value = '';
+  loadBadWords();
+}
+
+async function delBadWord(id) {
+  if (!confirm('确定删除？')) return;
+  await api('/bad-words/'+id+'/delete', { method:'POST' });
+  loadBadWords();
+}
+
+// 自动登录
+if (token) enterAdmin();
+</script>
+</body>
+</html>

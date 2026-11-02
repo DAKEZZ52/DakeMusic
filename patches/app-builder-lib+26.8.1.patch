@@ -1,0 +1,17 @@
+diff --git a/node_modules/app-builder-lib/out/wine.js b/node_modules/app-builder-lib/out/wine.js
+index aeff507..f536280 100644
+--- a/node_modules/app-builder-lib/out/wine.js
++++ b/node_modules/app-builder-lib/out/wine.js
+@@ -10,6 +10,12 @@ function execWine(file, file64 = null, appArgs = [], options = {}) {
+             // 2 minutes
+             options.timeout = 120 * 1000;
+         }
++        // FIX(DakeMusic): 合并 process.env，保留 TEMP/TMP 等环境变量，
++        // 否则 NSIS stub 运行时会回退到 C:\Windows\Temp（不可写）导致
++        // "Error writing temporary file"
++        if (options.env != null) {
++            options.env = { ...process.env, ...options.env };
++        }
+         return (0, builder_util_1.exec)(file, appArgs, options);
+     }
+     const commandArgs = ["wine", "--ia32", file];

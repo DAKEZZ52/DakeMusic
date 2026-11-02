@@ -1,0 +1,551 @@
+use super::cpal_shared::OutputResampler;
+use crate::device::platform_macos::{
+    coreaudio_device_display_name, coreaudio_status_message, monitor_coreaudio_exclusive_changes,
+    prepare_coreaudio_exclusive_format, resolve_coreaudio_device_id, run_coreaudio_callback,
+    try_disable_coreaudio_mixing, CoreAudioExclusiveChangeMonitor, CoreAudioMixingGuard,
+    CoreAudioPcmFormat, CoreAudioPcmSampleFormat, CoreAudioPhysicalFormatGuard,
+};
+use crate::events::{PlayerErrorCode, PlayerEvent};
+use crate::exclusive::ExclusiveGuard;
+use crate::output::{
+    build_output_stats, emit_output_runtime_error, fill_output_reusing,
+    output_buffer_mode_for_frames, output_start_was_cancelled, report_output_start,
+    report_output_start_failure, OutputStartSender, OutputStopToken, MIN_REALTIME_BUFFER_FRAMES,
+};
+use crate::shared::SharedAudio;
+use coreaudio_sys as ca;
+use std::cell::UnsafeCell;
+use std::ffi::c_void;
+use std::mem;
+use std::slice;
+use std::sync::Arc;
+use std::thread::{self, JoinHandle};
+use std::time::Duration;
+
+struct CoreAudioOutputContext {
+    shared: Arc<SharedAudio>,
+    format: CoreAudioPcmFormat,
+    resampler: UnsafeCell<OutputResampler>,
+    stereo_scratch: UnsafeCell<Vec<f32>>,
+    output_scratch: UnsafeCell<Vec<f32>>,
+    realtime_sample_capacity: usize,
+}
+
+unsafe impl Sync for CoreAudioOutputContext {}
+
+struct CoreAudioExclusiveOutput {
+    device_id: ca::AudioDeviceID,
+    io_proc_id: ca::AudioDeviceIOProcID,
+    context: *mut CoreAudioOutputContext,
+    started: bool,
+    change_monitor: Option<CoreAudioExclusiveChangeMonitor>,
+    physical_format_guard: Option<CoreAudioPhysicalFormatGuard>,
+    _mixing_guard: Option<CoreAudioMixingGuard>,
+    _exclusive_guard: Option<ExclusiveGuard>,
+}
+
+impl Drop for CoreAudioExclusiveOutput {
+    fn drop(&mut self) {
+        drop(self.change_monitor.take());
+        unsafe {
+            if self.started {
+                let _ = ca::AudioDeviceStop(self.device_id, self.io_proc_id);
+            }
+            let destroy_status = ca::AudioDeviceDestroyIOProcID(self.device_id, self.io_proc_id);
+            // The IOProc owns the raw client-data pointer contract. If CoreAudio could not
+            // unregister it, keeping the context alive is safer than freeing memory that a
+            // late callback may still dereference.
+            if destroy_status == 0 && !self.context.is_null() {
+                drop(Box::from_raw(self.context));
+                self.context = std::ptr::null_mut();
+            }
+            drop(self.physical_format_guard.take());
+        }
+    }
+}
+
+pub fn spawn_output_thread(
+    device_name: String,
+    shared: Arc<SharedAudio>,
+    stop: OutputStopToken,
+    emit: fn(PlayerEvent),
+    start_notify: Option<OutputStartSender>,
+) -> JoinHandle<()> {
+    thread::spawn(move || {
+        let mut start_notify = start_notify;
+        match run_exclusive_output(
+            &device_name,
+            shared.clone(),
+            stop.clone(),
+            emit,
+            &mut start_notify,
+        ) {
+            Ok(()) => {}
+            Err(message) => {
+                let startup_failure =
+                    report_output_start_failure(&mut start_notify, message.clone());
+                if !startup_failure {
+                    emit_output_runtime_error(
+                        &shared,
+                        &stop,
+                        emit,
+                        PlayerErrorCode::OutputExclusive,
+                        message,
+                    );
+                } else {
+                    stop.request_stop();
+                }
+            }
+        }
+    })
+}
+
+fn run_exclusive_output(
+    device_name: &str,
+    shared: Arc<SharedAudio>,
+    stop: OutputStopToken,
+    emit: fn(PlayerEvent),
+    start_notify: &mut Option<OutputStartSender>,
+) -> Result<(), String> {
+    let device_id = resolve_coreaudio_device_id(device_name)
+        .ok_or_else(|| format!("CoreAudio output device not found: {device_name}"))?;
+    let resolved_device_name = coreaudio_device_display_name(device_id);
+    let exclusive_guard = ExclusiveGuard::acquire(device_name)?;
+    let mixing_guard = try_disable_coreaudio_mixing(device_id);
+    let preferred_output_format = shared.preferred_output_sample_format();
+    let (format, physical_format_guard) = prepare_coreaudio_exclusive_format(
+        device_id,
+        shared.mix_format.sample_rate,
+        shared.mix_format.channels,
+        preferred_output_format,
+    )?;
+    let buffer_frames = coreaudio_device_buffer_frames(device_id).unwrap_or_default();
+    let device_buffer_secs = buffer_frames as f64 / f64::from(format.sample_rate.max(1));
+    shared.update_output_stats(build_output_stats(
+        "coreaudio-exclusive",
+        &shared,
+        format.sample_rate,
+        format.channels,
+        format!("{:?}", format.sample_format),
+        output_buffer_mode_for_frames(buffer_frames),
+        buffer_frames as f64,
+        device_buffer_secs,
+    ));
+    emit(PlayerEvent::log(
+        "info",
+        format!(
+            "CoreAudio exclusive opening: requested='{device_name}', resolved='{resolved_device_name}', sample_rate={}, engine_sample_rate={}, channels={}, preferred_output_format={:?}, format={:?}, bytes_per_sample={}, non_interleaved={}, high_aligned={}, big_endian={}, mixing_disabled={}",
+            format.sample_rate,
+            shared.mix_format.sample_rate,
+            format.channels,
+            preferred_output_format,
+            format.sample_format,
+            format.bytes_per_sample(),
+            format.non_interleaved,
+            format.high_aligned,
+            format.big_endian,
+            mixing_guard.is_some()
+        ),
+    ));
+
+    let realtime_frames = usize::try_from(buffer_frames)
+        .unwrap_or_default()
+        .max(MIN_REALTIME_BUFFER_FRAMES);
+    let scratch_channels = format.channels.max(shared.mix_format.channels).max(1);
+    let scratch_capacity = realtime_frames.saturating_mul(scratch_channels);
+    let mut resampler = OutputResampler::new(
+        shared.mix_format.sample_rate,
+        format.sample_rate,
+        shared.mix_format.channels,
+        format.channels,
+    )?;
+    resampler.reserve_realtime_capacity(realtime_frames)?;
+    let context = Box::into_raw(Box::new(CoreAudioOutputContext {
+        resampler: UnsafeCell::new(resampler),
+        format,
+        shared,
+        stereo_scratch: UnsafeCell::new(Vec::with_capacity(scratch_capacity)),
+        output_scratch: UnsafeCell::new(Vec::with_capacity(scratch_capacity)),
+        realtime_sample_capacity: scratch_capacity,
+    }));
+    let mut io_proc_id: ca::AudioDeviceIOProcID = None;
+    let create_status = unsafe {
+        ca::AudioDeviceCreateIOProcID(
+            device_id,
+            Some(render_callback),
+            context.cast(),
+            &mut io_proc_id,
+        )
+    };
+    if create_status != 0 {
+        unsafe {
+            drop(Box::from_raw(context));
+        }
+        return Err(coreaudio_status_message(
+            "failed to create CoreAudio exclusive IOProc",
+            create_status,
+        ));
+    }
+
+    let mut output = CoreAudioExclusiveOutput {
+        device_id,
+        io_proc_id,
+        context,
+        started: false,
+        change_monitor: None,
+        physical_format_guard,
+        _mixing_guard: mixing_guard,
+        _exclusive_guard: exclusive_guard,
+    };
+
+    output.change_monitor = Some(monitor_coreaudio_exclusive_changes(
+        device_id,
+        format,
+        output.context_ref().shared.clone(),
+    )?);
+
+    if output_start_was_cancelled(&stop, &output.context_ref().shared, start_notify) {
+        return Ok(());
+    }
+    let start_status = unsafe { ca::AudioDeviceStart(device_id, io_proc_id) };
+    if start_status != 0 {
+        return Err(coreaudio_status_message(
+            "failed to start CoreAudio exclusive output",
+            start_status,
+        ));
+    }
+
+    output.started = true;
+    output.context_ref().shared.mark_output_started();
+    report_output_start(start_notify, Ok(()));
+    emit(PlayerEvent::log(
+        "info",
+        format!("CoreAudio exclusive output started: resolved='{resolved_device_name}'"),
+    ));
+
+    while !stop.should_stop(&output.context_ref().shared) {
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    drop(output);
+    Ok(())
+}
+
+fn coreaudio_device_buffer_frames(device_id: ca::AudioDeviceID) -> Option<u32> {
+    let address = ca::AudioObjectPropertyAddress {
+        mSelector: ca::kAudioDevicePropertyBufferFrameSize,
+        mScope: ca::kAudioObjectPropertyScopeGlobal,
+        mElement: ca::kAudioObjectPropertyElementMain,
+    };
+    let mut frames = 0u32;
+    let mut size = mem::size_of::<u32>() as u32;
+    let status = unsafe {
+        ca::AudioObjectGetPropertyData(
+            device_id,
+            &address,
+            0,
+            std::ptr::null(),
+            &mut size,
+            (&mut frames as *mut u32).cast::<c_void>(),
+        )
+    };
+    (status == 0 && frames > 0).then_some(frames)
+}
+
+impl CoreAudioExclusiveOutput {
+    fn context_ref(&self) -> &CoreAudioOutputContext {
+        unsafe { &*self.context }
+    }
+}
+
+unsafe extern "C" fn render_callback(
+    _device: ca::AudioObjectID,
+    _now: *const ca::AudioTimeStamp,
+    _input_data: *const ca::AudioBufferList,
+    _input_time: *const ca::AudioTimeStamp,
+    output_data: *mut ca::AudioBufferList,
+    _output_time: *const ca::AudioTimeStamp,
+    client_data: *mut c_void,
+) -> ca::OSStatus {
+    if output_data.is_null() || client_data.is_null() {
+        return 0;
+    }
+    let succeeded = run_coreaudio_callback(|| unsafe {
+        let context = &*(client_data as *const CoreAudioOutputContext);
+        fill_coreaudio_buffers(context, output_data);
+    });
+    if !succeeded {
+        let _ = run_coreaudio_callback(|| unsafe {
+            silence_coreaudio_buffers(output_data);
+        });
+    }
+    0
+}
+
+unsafe fn silence_coreaudio_buffers(list: *mut ca::AudioBufferList) {
+    let buffer_count = (*list).mNumberBuffers as usize;
+    let buffers = slice::from_raw_parts_mut((*list).mBuffers.as_mut_ptr(), buffer_count);
+    for buffer in buffers {
+        if !buffer.mData.is_null() {
+            std::ptr::write_bytes(buffer.mData, 0, buffer.mDataByteSize as usize);
+        }
+    }
+}
+
+unsafe fn fill_coreaudio_buffers(context: &CoreAudioOutputContext, list: *mut ca::AudioBufferList) {
+    let buffer_count = (*list).mNumberBuffers as usize;
+    if buffer_count == 0 {
+        return;
+    }
+    let buffers = slice::from_raw_parts_mut((*list).mBuffers.as_mut_ptr(), buffer_count);
+    if context.format.non_interleaved || buffer_count > 1 {
+        fill_non_interleaved(buffers, context);
+    } else {
+        fill_interleaved(&mut buffers[0], context);
+    }
+}
+
+fn fill_interleaved(buffer: &mut ca::AudioBuffer, context: &CoreAudioOutputContext) {
+    if buffer.mData.is_null() || buffer.mDataByteSize == 0 {
+        return;
+    }
+    let channels = (buffer.mNumberChannels as usize)
+        .max(context.format.channels)
+        .max(1);
+    let sample_count = buffer.mDataByteSize as usize / context.format.bytes_per_sample();
+    let frame_samples = sample_count - (sample_count % channels);
+    if frame_samples > context.realtime_sample_capacity {
+        unsafe {
+            std::ptr::write_bytes(buffer.mData, 0, buffer.mDataByteSize as usize);
+        }
+        return;
+    }
+    match context.format.sample_format {
+        CoreAudioPcmSampleFormat::F32 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<f32>(), frame_samples);
+            fill_coreaudio_interleaved_output(output, channels, context);
+        },
+        CoreAudioPcmSampleFormat::F64 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<f64>(), frame_samples);
+            let output_scratch = &mut *context.output_scratch.get();
+            output_scratch.resize(frame_samples, 0.0);
+            fill_coreaudio_interleaved_output(output_scratch, channels, context);
+            for (target, sample) in output.iter_mut().zip(output_scratch.iter().copied()) {
+                *target = sample as f64;
+            }
+        },
+        CoreAudioPcmSampleFormat::I16 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<i16>(), frame_samples);
+            let output_scratch = &mut *context.output_scratch.get();
+            output_scratch.resize(frame_samples, 0.0);
+            fill_coreaudio_interleaved_output(output_scratch, channels, context);
+            for (target, sample) in output.iter_mut().zip(output_scratch.iter().copied()) {
+                *target = (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16;
+            }
+        },
+        CoreAudioPcmSampleFormat::U8 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<u8>(), frame_samples);
+            let output_scratch = &mut *context.output_scratch.get();
+            output_scratch.resize(frame_samples, 0.0);
+            fill_coreaudio_interleaved_output(output_scratch, channels, context);
+            for (target, sample) in output.iter_mut().zip(output_scratch.iter().copied()) {
+                *target = u8_sample(sample);
+            }
+        },
+        CoreAudioPcmSampleFormat::I24 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<u8>(), frame_samples * 3);
+            let output_scratch = &mut *context.output_scratch.get();
+            output_scratch.resize(frame_samples, 0.0);
+            fill_coreaudio_interleaved_output(output_scratch, channels, context);
+            for (target, sample) in output
+                .chunks_exact_mut(3)
+                .zip(output_scratch.iter().copied())
+            {
+                write_i24_packed_sample(target, sample, context.format.big_endian);
+            }
+        },
+        CoreAudioPcmSampleFormat::I24In32 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<i32>(), frame_samples);
+            let output_scratch = &mut *context.output_scratch.get();
+            output_scratch.resize(frame_samples, 0.0);
+            fill_coreaudio_interleaved_output(output_scratch, channels, context);
+            for (target, sample) in output.iter_mut().zip(output_scratch.iter().copied()) {
+                *target = i24_in_32_sample(sample, context.format.high_aligned);
+            }
+        },
+        CoreAudioPcmSampleFormat::I32 => unsafe {
+            let output = slice::from_raw_parts_mut(buffer.mData.cast::<i32>(), frame_samples);
+            let output_scratch = &mut *context.output_scratch.get();
+            output_scratch.resize(frame_samples, 0.0);
+            fill_coreaudio_interleaved_output(output_scratch, channels, context);
+            for (target, sample) in output.iter_mut().zip(output_scratch.iter().copied()) {
+                *target = (sample.clamp(-1.0, 1.0) * i32::MAX as f32).round() as i32;
+            }
+        },
+    }
+}
+
+fn fill_coreaudio_interleaved_output(
+    output: &mut [f32],
+    channels: usize,
+    context: &CoreAudioOutputContext,
+) {
+    if context.format.sample_rate == context.shared.mix_format.sample_rate
+        && channels == context.shared.mix_format.channels
+    {
+        let stereo_scratch = unsafe { &mut *context.stereo_scratch.get() };
+        fill_output_reusing(output, channels, &context.shared, stereo_scratch);
+    } else {
+        let resampler = unsafe { &mut *context.resampler.get() };
+        resampler.fill_output(output, channels, &context.shared);
+    }
+}
+
+fn fill_non_interleaved(buffers: &mut [ca::AudioBuffer], context: &CoreAudioOutputContext) {
+    let frames = buffers
+        .iter()
+        .filter(|buffer| !buffer.mData.is_null())
+        .map(|buffer| buffer.mDataByteSize as usize / context.format.bytes_per_sample())
+        .min()
+        .unwrap_or(0);
+    if frames == 0 {
+        return;
+    }
+
+    let stereo_scratch = unsafe { &mut *context.stereo_scratch.get() };
+    let output_scratch = unsafe { &mut *context.output_scratch.get() };
+    let channels = context.format.channels.max(1);
+    if frames.saturating_mul(channels) > context.realtime_sample_capacity {
+        for buffer in buffers {
+            if !buffer.mData.is_null() {
+                unsafe {
+                    std::ptr::write_bytes(buffer.mData, 0, buffer.mDataByteSize as usize);
+                }
+            }
+        }
+        return;
+    }
+    stereo_scratch.resize(frames * channels, 0.0);
+    if context.format.sample_rate == context.shared.mix_format.sample_rate
+        && channels == context.shared.mix_format.channels
+    {
+        fill_output_reusing(stereo_scratch, channels, &context.shared, output_scratch);
+    } else {
+        let resampler = unsafe { &mut *context.resampler.get() };
+        resampler.fill_output(stereo_scratch, channels, &context.shared);
+    }
+
+    for (channel, buffer) in buffers.iter_mut().enumerate() {
+        if buffer.mData.is_null() {
+            continue;
+        }
+        match context.format.sample_format {
+            CoreAudioPcmSampleFormat::F32 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<f32>(), frames);
+                write_non_interleaved_channel(output, stereo_scratch, channels, channel);
+            },
+            CoreAudioPcmSampleFormat::F64 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<f64>(), frames);
+                for (frame, target) in output.iter_mut().enumerate() {
+                    *target =
+                        non_interleaved_sample(stereo_scratch, channels, frame, channel) as f64;
+                }
+            },
+            CoreAudioPcmSampleFormat::I16 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<i16>(), frames);
+                for (frame, target) in output.iter_mut().enumerate() {
+                    let sample = non_interleaved_sample(stereo_scratch, channels, frame, channel);
+                    *target = (sample.clamp(-1.0, 1.0) * i16::MAX as f32).round() as i16;
+                }
+            },
+            CoreAudioPcmSampleFormat::U8 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<u8>(), frames);
+                for (frame, target) in output.iter_mut().enumerate() {
+                    *target = u8_sample(non_interleaved_sample(
+                        stereo_scratch,
+                        channels,
+                        frame,
+                        channel,
+                    ));
+                }
+            },
+            CoreAudioPcmSampleFormat::I24 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<u8>(), frames * 3);
+                for (frame, target) in output.chunks_exact_mut(3).enumerate() {
+                    let sample = non_interleaved_sample(stereo_scratch, channels, frame, channel);
+                    write_i24_packed_sample(target, sample, context.format.big_endian);
+                }
+            },
+            CoreAudioPcmSampleFormat::I24In32 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<i32>(), frames);
+                for (frame, target) in output.iter_mut().enumerate() {
+                    let sample = non_interleaved_sample(stereo_scratch, channels, frame, channel);
+                    *target = i24_in_32_sample(sample, context.format.high_aligned);
+                }
+            },
+            CoreAudioPcmSampleFormat::I32 => unsafe {
+                let output = slice::from_raw_parts_mut(buffer.mData.cast::<i32>(), frames);
+                for (frame, target) in output.iter_mut().enumerate() {
+                    let sample = non_interleaved_sample(stereo_scratch, channels, frame, channel);
+                    *target = (sample.clamp(-1.0, 1.0) * i32::MAX as f32).round() as i32;
+                }
+            },
+        }
+    }
+}
+
+fn u8_sample(sample: f32) -> u8 {
+    ((sample.clamp(-1.0, 1.0) + 1.0) * 127.5).round() as u8
+}
+
+fn i24_sample(sample: f32) -> i32 {
+    (sample.clamp(-1.0, 1.0) * 8_388_607.0).round() as i32
+}
+
+fn i24_in_32_sample(sample: f32, high_aligned: bool) -> i32 {
+    let value = i24_sample(sample);
+    if high_aligned {
+        value << 8
+    } else {
+        value
+    }
+}
+
+fn write_i24_packed_sample(target: &mut [u8], sample: f32, big_endian: bool) {
+    let value = i24_sample(sample);
+    if big_endian {
+        let bytes = value.to_be_bytes();
+        target[0] = bytes[1];
+        target[1] = bytes[2];
+        target[2] = bytes[3];
+    } else {
+        let bytes = value.to_le_bytes();
+        target[0] = bytes[0];
+        target[1] = bytes[1];
+        target[2] = bytes[2];
+    }
+}
+
+fn write_non_interleaved_channel(
+    output: &mut [f32],
+    interleaved: &[f32],
+    channels: usize,
+    channel: usize,
+) {
+    for (frame, target) in output.iter_mut().enumerate() {
+        *target = non_interleaved_sample(interleaved, channels, frame, channel);
+    }
+}
+
+fn non_interleaved_sample(
+    interleaved: &[f32],
+    channels: usize,
+    frame: usize,
+    channel: usize,
+) -> f32 {
+    let channels = channels.max(1);
+    interleaved
+        .get(frame.saturating_mul(channels).saturating_add(channel))
+        .copied()
+        .unwrap_or(0.0)
+}

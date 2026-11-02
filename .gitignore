@@ -1,0 +1,76 @@
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Diagnostic reports
+report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+out/
+release/
+build/mpv/
+
+# Native addon build artifacts
+native/*/*.node
+native/*/target/
+native/*/node_modules/
+native/*/index.d.ts
+native/*/package-lock.json
+
+# Packages
+*.dmg
+*.exe
+*.deb
+*.rpm
+*.AppImage
+*.zip
+*.7z
+*.rar
+*.bak
+
+# IDEs
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.vs/
+*.suo
+*.sw?
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Vite
+*.local
+
+# TypeScript
+*.tsbuildinfo
+
+# Misc
+.ace-tool/
+.planning
+cloudflare/**/.wrangler/
+cloudflare/**/*.dev.vars
+cloudflare/**/*.local.toml
+* - 閸擃垱婀?*
+room-server/缂冩垹鐝悧鍫熸拱/
+.git-backup-*/
+.dev-userdata/
+
+# 文档截图（README 未引用，不入库）
+screenshots/

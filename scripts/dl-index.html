@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DakeMusic - 下载中心</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { -webkit-font-smoothing: antialiased; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f5f7;
+    min-height: 100vh;
+    color: #1d1d1f;
+  }
+
+  .hero {
+    position: relative;
+    padding: 64px 20px 40px;
+    text-align: center;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: -160px;
+    transform: translateX(-50%);
+    width: 720px;
+    height: 420px;
+    background:
+      radial-gradient(closest-side, rgba(0, 122, 255, 0.18), transparent 70%),
+      radial-gradient(closest-side, rgba(175, 82, 222, 0.14), transparent 75%);
+    pointer-events: none;
+  }
+  .hero-inner { position: relative; z-index: 1; }
+
+  .app-icon {
+    width: 84px;
+    height: 84px;
+    margin: 0 auto 18px;
+    border-radius: 21px;
+    background: linear-gradient(160deg, #5ac8fa 0%, #007aff 55%, #5856d6 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 12px 28px rgba(0, 122, 255, 0.28);
+  }
+  .app-icon svg { width: 46px; height: 46px; }
+
+  h1 { font-size: 34px; font-weight: 700; letter-spacing: -0.5px; }
+  .subtitle { margin-top: 10px; font-size: 15px; color: #6e6e73; }
+  .badge {
+    display: inline-block;
+    margin-top: 14px;
+    padding: 5px 14px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #007aff;
+    background: rgba(0, 122, 255, 0.1);
+  }
+
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 80px; }
+
+  .latest {
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(24px) saturate(1.5);
+    -webkit-backdrop-filter: blur(24px) saturate(1.5);
+    border: 1px solid rgba(255, 255, 255, 0.9);
+    border-radius: 24px;
+    box-shadow: 0 12px 40px rgba(29, 29, 31, 0.08);
+    padding: 34px 36px;
+    display: flex;
+    align-items: center;
+    gap: 28px;
+    margin-bottom: 28px;
+  }
+  .latest-dot {
+    flex-shrink: 0;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #007aff;
+    box-shadow: 0 0 0 5px rgba(0, 122, 255, 0.15);
+    display: inline-block;
+  }
+  .latest-info { flex: 1; min-width: 0; }
+  .latest-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px; font-weight: 700; color: #007aff;
+    letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .latest-name { margin-top: 8px; font-size: 24px; font-weight: 700; letter-spacing: -0.3px; }
+  .latest-meta { margin-top: 6px; font-size: 13px; color: #6e6e73; }
+
+  .btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 13px 30px;
+    border-radius: 999px;
+    border: none;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    background: #007aff;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s ease, transform 0.1s ease;
+  }
+  .btn:hover { background: #0071e3; }
+  .btn:active { transform: scale(0.97); }
+  .btn svg { width: 17px; height: 17px; }
+
+  .section-title { font-size: 19px; font-weight: 700; margin: 12px 4px 14px; letter-spacing: -0.2px; }
+  .ver-card {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(255, 255, 255, 0.66);
+    backdrop-filter: blur(20px) saturate(1.4);
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 18px;
+    padding: 18px 22px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 18px rgba(29, 29, 31, 0.05);
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .ver-card:hover { box-shadow: 0 8px 26px rgba(29, 29, 31, 0.1); transform: translateY(-1px); }
+  .ver-icon {
+    flex-shrink: 0;
+    width: 42px; height: 42px;
+    border-radius: 11px;
+    background: linear-gradient(160deg, #a0a0a8, #7a7a83);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .ver-icon svg { width: 21px; height: 21px; }
+  .ver-info { flex: 1; min-width: 0; }
+  .ver-name { font-size: 16px; font-weight: 600; }
+  .ver-name .tag {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: 2px;
+  }
+  .tag.beta { color: #ff9500; background: rgba(255, 149, 0, 0.12); }
+  .ver-meta { margin-top: 3px; font-size: 12.5px; color: #86868b; }
+  .ver-btn {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 20px;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #007aff;
+    background: rgba(0, 122, 255, 0.1);
+    text-decoration: none;
+    transition: background 0.2s ease;
+  }
+  .ver-btn:hover { background: rgba(0, 122, 255, 0.18); }
+  .ver-btn svg { width: 14px; height: 14px; }
+
+  .foot {
+    text-align: center;
+    margin-top: 44px;
+    font-size: 12.5px;
+    color: #86868b;
+    line-height: 1.9;
+  }
+  .foot a { color: #007aff; text-decoration: none; }
+
+  .loading { text-align: center; padding: 40px 0; color: #86868b; font-size: 14px; }
+
+  @media (max-width: 620px) {
+    .latest { flex-direction: column; text-align: center; padding: 28px 24px; }
+    .latest-info { text-align: center; }
+    .ver-card { flex-wrap: wrap; }
+    .ver-btn { margin-left: auto; }
+    h1 { font-size: 28px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="app-icon">
+      <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="6.5" cy="18" r="2.5" fill="#fff"/>
+        <circle cx="16.5" cy="16" r="2.5" fill="#fff"/>
+      </svg>
+    </div>
+    <h1>DakeMusic</h1>
+    <p class="subtitle">完全免费且开源的音乐播放器 · 支持下载、人声分离、语聊房</p>
+    <span class="badge" id="badge">v2.4.6 已发布</span>
+  </div>
+</div>
+
+<div class="wrap">
+  <div id="latest"><div class="latest"><div class="latest-info"><span class="latest-label"><span class="latest-dot"></span>最新版本</span><div class="latest-name">DakeMusic 2.4.6</div><div class="latest-meta">Windows x64 · 约 203 MB · 2026-10-31 · UI布局轻量改动 / 迷你播放器「唱歌模式」</div></div><a class="btn" href="DakeMusic-2.4.6.exe"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="#fff" stroke-width="2.2" stroke-linecap="round"/></svg> 下载</a></div></div>
+  <div class="section-title">历史版本</div>
+  <div id="history"><div class="ver-card"><div class="ver-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="#fff"/><circle cx="16.5" cy="16" r="2.5" fill="#fff"/></svg></div><div class="ver-info"><div class="ver-name">DakeMusic 2.4.5</div><div class="ver-meta">Windows x64 · 约 204 MB · 2026-10-26</div></div><a class="ver-btn" href="DakeMusic-2.4.5.exe"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> 下载</a></div>
+<div class="ver-card"><div class="ver-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="#fff"/><circle cx="16.5" cy="16" r="2.5" fill="#fff"/></svg></div><div class="ver-info"><div class="ver-name">DakeMusic 2.4.4</div><div class="ver-meta">Windows x64 · 约 204 MB · 2026-10-25 · 新增下载系统 / 人声分离五模型 / 分离调性</div></div><a class="ver-btn" href="DakeMusic-2.4.4.exe"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> 下载</a></div>
+<div class="ver-card"><div class="ver-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="#fff"/><circle cx="16.5" cy="16" r="2.5" fill="#fff"/></svg></div><div class="ver-info"><div class="ver-name">DakeMusic 2.4.3</div><div class="ver-meta">Windows x64 · 约 124 MB · 2026-10-18 · 房间点歌台 / 自动领取每日 VIP</div></div><a class="ver-btn" href="DakeMusic-2.4.3.exe"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> 下载</a></div>
+<div class="ver-card"><div class="ver-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="#fff"/><circle cx="16.5" cy="16" r="2.5" fill="#fff"/></svg></div><div class="ver-info"><div class="ver-name">DakeMusic 2.4.2</div><div class="ver-meta">Windows x64 · 约 124 MB · 2026-10-12</div></div><a class="ver-btn" href="DakeMusic-2.4.2.exe"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> 下载</a></div>
+<div class="ver-card"><div class="ver-icon"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="#fff"/><circle cx="16.5" cy="16" r="2.5" fill="#fff"/></svg></div><div class="ver-info"><div class="ver-name">DakeMusic 2.4.1</div><div class="ver-meta">Windows x64 · 约 129 MB · 2026-10-12</div></div><a class="ver-btn" href="DakeMusic-2.4.1.exe"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg> 下载</a></div></div>
+  <div class="foot">
+    作者：知之 Dake | QQ: 983064062<br>
+    本软件完全免费且开源，请勿通过任何付费渠道下载。如果你是付费获取的，说明你被骗了。
+  </div>
+</div>
+
+<script>
+// 各版本简介（可选，未知版本自动显示"历史版本"）
+const DESC = {
+  '2.4.4': '新增下载系统 / 人声分离五模型 / 分离调性',
+  '2.4.3': '房间点歌台 / 自动领取每日 VIP',
+};
+
+const ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 18V6l10-2v12" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="#fff"/><circle cx="16.5" cy="16" r="2.5" fill="#fff"/></svg>';
+const DOWN_SVG = '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 3v12m0 0l-5-5m5 5l5-5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 20h14" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>';
+
+function parseVer(name) {
+  // DakeMusic-2.4.4.exe / DakeMusic-2.4.3-beta.exe
+  const m = name.match(/(\d+)\.(\d+)\.(\d+)(?:-(beta))?/);
+  if (!m) return null;
+  return { major: +m[1], minor: +m[2], patch: +m[3], beta: !!m[4], full: m[0] };
+}
+function cmp(a, b) {
+  if (a.major !== b.major) return b.major - a.major;
+  if (a.minor !== b.minor) return b.minor - a.minor;
+  if (a.patch !== b.patch) return b.patch - a.patch;
+  if (a.beta !== b.beta) return a.beta ? 1 : -1; // 正式版优先
+  return 0;
+}
+function fmtSize(bytes) {
+  const mb = bytes / 1024 / 1024;
+  return (mb >= 100 ? Math.round(mb) : Math.round(mb * 10) / 10) + ' MB';
+}
+function fmtDate(mtime) {
+  const d = new Date(mtime);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+async function load() {
+  try {
+    const res = await fetch('/dl-files/', { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const list = await res.json();
+    const exes = list.filter(f => f.type === 'file' && /\.exe$/.test(f.name) && !/\.blockmap$/.test(f.name))
+      .map(f => ({ name: f.name, size: f.size, date: fmtDate(f.mtime), ver: parseVer(f.name) }))
+      .filter(f => f.ver)
+      .sort((a, b) => cmp(a.ver, b.ver));
+
+    if (!exes.length) { document.getElementById('history').innerHTML = '<div class="loading">暂无可用版本</div>'; return; }
+
+    const latest = exes[0];
+    const label = latest.ver.beta ? '最新测试版' : '最新版本';
+    document.getElementById('badge').textContent = 'v' + latest.ver.full + ' 已发布';
+    document.getElementById('latest').innerHTML =
+      '<div class="latest">' +
+        '<div class="latest-info">' +
+          '<span class="latest-label"><span class="latest-dot"></span>' + label + '</span>' +
+          '<div class="latest-name">DakeMusic ' + latest.ver.full + '</div>' +
+          '<div class="latest-meta">Windows x64 · ' + fmtSize(latest.size) + ' · ' + latest.date +
+            (DESC[latest.ver.full] ? ' · ' + DESC[latest.ver.full] : '') + '</div>' +
+        '</div>' +
+        '<a class="btn" href="' + latest.name + '">' + DOWN_SVG.replace('currentColor', '#fff') + ' 下载</a>' +
+      '</div>';
+
+    document.getElementById('history').innerHTML = exes.slice(1).map(f => {
+      const tag = f.ver.beta ? ' <span class="tag beta">测试版</span>' : '';
+      return '<div class="ver-card">' +
+        '<div class="ver-icon">' + ICON_SVG + '</div>' +
+        '<div class="ver-info">' +
+          '<div class="ver-name">DakeMusic ' + f.ver.full + tag + '</div>' +
+          '<div class="ver-meta">Windows x64 · ' + fmtSize(f.size) + ' · ' + f.date +
+            (DESC[f.ver.full] ? ' · ' + DESC[f.ver.full] : '') + '</div>' +
+        '</div>' +
+        '<a class="ver-btn" href="' + f.name + '">' + DOWN_SVG + ' 下载</a>' +
+      '</div>';
+    }).join('');
+  } catch (e) {
+    document.getElementById('badge').textContent = '加载失败';
+    document.getElementById('history').innerHTML = '<div class="loading">版本列表加载失败：' + e.message + '</div>';
+  }
+}
+load();
+</script>
+</body>
+</html>

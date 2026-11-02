@@ -1,0 +1,48 @@
+# 统一换行符：仓库内一律存储 LF，避免 Windows/macOS/Linux 之间
+# CRLF 差异造成 lint（prettier）与单元测试（按 \n 切片源码）随机失败。
+* text=auto eol=lf
+
+# 必须在 Windows 上保持 CRLF 的脚本
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# 二进制文件（不做换行符转换，也不做文本 diff）
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.bmp binary
+*.ico binary
+*.icns binary
+*.svg text
+*.mp3 binary
+*.wav binary
+*.ogg binary
+*.flac binary
+*.m4a binary
+*.aac binary
+*.mp4 binary
+*.webm binary
+*.mov binary
+*.node binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+*.zip binary
+*.7z binary
+*.rar binary
+*.gz binary
+*.pdf binary
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+*.db binary
+*.sqlite binary
+
+# 锁文件：避免被当作“需要 review 的文本”反复产生合并噪音
+pnpm-lock.yaml linguist-generated=true
+package-lock.json linguist-generated=true

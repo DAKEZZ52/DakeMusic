@@ -1,0 +1,22 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /dl/*.exe
+Disallow: /dl/*.zip
+Disallow: /dl/*.7z
+
+User-agent: Baiduspider
+Allow: /
+Disallow: /admin/
+Disallow: /dl/*.exe
+Disallow: /dl/*.zip
+Disallow: /dl/*.7z
+
+User-agent: Bingbot
+Allow: /
+Disallow: /admin/
+Disallow: /dl/*.exe
+Disallow: /dl/*.zip
+Disallow: /dl/*.7z
+
+Sitemap: https://dkyy.top/sitemap.xml

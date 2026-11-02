@@ -1,0 +1,328 @@
+@reference "@/style.css";
+
+.search-pinned-tabs {
+  background: var(--color-bg-main);
+  border-bottom: 0.5px solid var(--border-subtle);
+}
+
+.search-view {
+  position: relative;
+  isolation: isolate;
+}
+
+.search-section + .search-section {
+  margin-top: 32px;
+}
+
+.search-section-header {
+  display: flex;
+  align-items: center;
+}
+
+.search-section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--color-text-main) 88%, transparent);
+}
+
+.search-history-clear {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--color-text-main) 55%, transparent);
+  transition: all 0.18s ease;
+}
+
+.search-history-clear:hover {
+  background: color-mix(in srgb, var(--color-text-main) 8%, transparent);
+  color: var(--color-text-main);
+}
+
+.search-chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--color-text-main) 10%, transparent);
+  color: color-mix(in srgb, var(--color-text-main) 90%, transparent);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.18s ease;
+}
+
+.history-chip {
+  padding: 6px 8px 6px 10px;
+}
+
+.history-chip:hover {
+  background: color-mix(in srgb, var(--color-text-main) 14%, transparent);
+  transform: translateY(-1px);
+}
+
+.history-chip-icon {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--color-text-main) 48%, transparent);
+}
+
+.history-chip-close {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: color-mix(in srgb, var(--color-text-main) 55%, transparent);
+  transition: all 0.18s ease;
+}
+
+.history-chip-close:hover {
+  color: var(--color-text-main);
+}
+
+.search-discovery {
+  container-type: inline-size;
+  min-width: 0;
+}
+
+.search-hot-cards,
+.search-discovery-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.search-section + .search-hot-cards {
+  margin-top: 24px;
+}
+.search-hot-card {
+  min-width: 0;
+  padding: 20px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-text-main) 3%, transparent);
+}
+.search-hot-card-title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 650;
+  color: var(--color-text-main);
+}
+.search-hot-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--hot-rows), auto);
+  gap: 4px 20px;
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+}
+.search-hot-list > li {
+  min-width: 0;
+}
+.search-hot-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 40px;
+  gap: 8px;
+  padding: 8px 4px;
+  border-radius: 6px;
+  text-align: left;
+  color: var(--color-text-secondary);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.search-hot-item:hover,
+.search-hot-item:focus-visible {
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary-text);
+}
+.search-hot-number {
+  flex: 0 0 20px;
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.search-hot-item.is-leading .search-hot-number {
+  color: var(--color-primary-text);
+}
+.search-hot-item.is-leading .search-hot-keyword {
+  color: var(--color-text-main);
+  font-weight: 600;
+}
+.search-hot-keyword {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  line-height: 22px;
+}
+.search-hot-badge {
+  flex-shrink: 0;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  color: var(--color-primary-text);
+  font-size: 10px;
+  line-height: 17px;
+}
+.search-hot-empty {
+  padding: 18px 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+@container (max-width: 580px) {
+  .search-hot-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--hot-rows-two), auto);
+    gap: 4px 12px;
+  }
+}
+@container (max-width: 360px) {
+  .search-hot-card {
+    padding: 16px;
+  }
+  .search-hot-list {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-flow: row;
+  }
+}
+
+.search-placeholder {
+  min-height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.search-placeholder {
+  font-size: 14px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-text-main) 45%, transparent);
+}
+
+.search-song-list {
+  width: 100%;
+}
+
+.search-song-list :deep(.song-list-container) {
+  width: 100%;
+}
+
+.search-song-toolbar {
+  background: var(--color-bg-main);
+}
+
+.search-song-playback-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+}
+.search-song-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.search-song-badge-icon {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-primary);
+  border-radius: 8px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--color-primary) 92%, white),
+    var(--color-secondary)
+  );
+}
+
+.search-song-toolbar-inner {
+  min-height: 52px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 8px 0;
+}
+.search-song-count {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.search-song-toolbar-actions {
+  margin-left: auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.search-result-filter {
+  width: 180px;
+  max-width: 100%;
+}
+
+.search-load-more-status {
+  padding: 8px 0 20px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--color-text-main) 48%, transparent);
+}
+
+.search-load-more-status--end {
+  color: color-mix(in srgb, var(--color-text-main) 38%, transparent);
+}
+
+.rank-song-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  flex-shrink: 0;
+  height: 36px;
+}
+.rank-song-label {
+  position: relative;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-main);
+  padding-bottom: 6px;
+}
+.rank-song-label::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 70%, transparent);
+}
