@@ -33,7 +33,7 @@ defineProps<{ action: ResolvedTitlebarAction; badge?: boolean }>();
   height: 40px;
   border-radius: 50%;
   /* 图标调暗：主文字色降到 62% */
-  color: color-mix(in srgb, var(--color-text-main) 62%, transparent);
+  color: color-mix(in srgb, var(--color-text-main) 50%, transparent);
   transition:
     background-color 0.12s,
     color 0.12s;
