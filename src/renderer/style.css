@@ -1202,9 +1202,3 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
   flex: 0 0 auto;
 }
 
-
-/* 让标题栏搜索的 Popover 包裹层不参与 flex 布局，使 .tb-search 本身成为 flex 项
-   （否则包裹层按内容宽度占位，搜索框设多宽都会被裁掉） */
-.titlebar-main-row > *:has(.tb-search) {
-  display: contents;
-}

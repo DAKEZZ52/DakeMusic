@@ -871,8 +871,7 @@ onUnmounted(() => {
 
 .titlebar-nav {
   min-width: 0;
-  /* 按内容宽度占位（原先固定 410px，实际只用 ~160px，白占空间压窄搜索框） */
-  flex: 0 1 auto;
+  flex: 0 1 410px;
   transition: padding-left 0.24s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -912,11 +911,9 @@ onUnmounted(() => {
 
 /* 搜索区域：居中 */
 .tb-search {
-  /* 弹性宽度：吃掉中间所有剩余空间，上限 520px */
-  flex: 0 0 452px;
-  width: 452px;
-  min-width: 0;
-  margin: 0 8px;
+  flex: 0 1 360px;
+  max-width: 360px;
+  margin: 0 auto;
   /* 整体右移：窗口窄时自动减小偏移，避免挤压右侧按钮 */
   transform: translateX(clamp(0px, 6.4vw, 60px));
   position: relative;
@@ -1337,7 +1334,6 @@ onUnmounted(() => {
 /* 只让动作按钮组靠右（不影响窗口最小化/关闭按钮） */
 .titlebar-primary-actions {
   /* 动作按钮组整体右移（数值调这里；窗口窄时会挤压右侧，建议不超过 200px） */
-  margin-left: 0;
+  margin-left: 160px;
 }
-
 </style>
