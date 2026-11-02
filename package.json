@@ -91,13 +91,13 @@
     "productName": "DakeMusic",
     "publish": [
       {
+        "provider": "generic",
+        "url": "https://dkyy.top/dl/"
+      },
+      {
         "provider": "github",
         "owner": "DAKEZZ52",
         "repo": "DakeMusic"
-      },
-      {
-        "provider": "generic",
-        "url": "https://dkyy.top/dl/"
       }
     ],
     "compression": "normal",

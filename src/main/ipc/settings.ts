@@ -753,6 +753,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     prerelease: false,
     acceleratorUrl: '',
     usingAccelerator: false,
+    usingTencent: false,
   };
 
   const runManagedUpdaterOperation = async <T>(operation: () => Promise<T>): Promise<T> => {
@@ -780,6 +781,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
       ...activeUpdateSource,
       prerelease,
       usingAccelerator: false,
+      usingTencent: false,
     };
   };
 
@@ -809,15 +811,16 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     activeUpdateSource = {
       ...context,
       usingAccelerator: true,
+      usingTencent: false,
     };
   };
 
-  // DakeMusic: 腾讯云自有更新源（国内直连，GitHub/加速器都失败时兜底）
+  // DakeMusic: 腾讯云自有更新源（国内直连，作为首选源；GitHub/加速器仅在腾讯云不可用时兜底）
   // prerelease=true 时订阅独立的 beta 通道（beta.yml），正式用户仍走 latest.yml，互不影响
   const TENCENT_DL_URL = DAKE_DOWNLOAD_BASE_URL;
   const configureTencentUpdateSource = (prerelease: boolean) => {
     log.info(
-      `[Updater] Falling back to Tencent Cloud feed: ${TENCENT_DL_URL} (channel: ${prerelease ? 'beta' : 'latest'})`,
+      `[Updater] Using Tencent Cloud feed: ${TENCENT_DL_URL} (channel: ${prerelease ? 'beta' : 'latest'})`,
     );
     autoUpdater.setFeedURL({ provider: 'generic', url: TENCENT_DL_URL });
     // generic 默认只会请求 latest.yml，不会随当前版本自动切到 beta，这里必须显式指定 channel
@@ -825,15 +828,25 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     autoUpdater.allowPrerelease = prerelease;
     // 关闭 channel setter 自动开启的降级，防止误装旧版本
     autoUpdater.allowDowngrade = false;
-    activeUpdateSource = { ...activeUpdateSource, prerelease, usingAccelerator: false };
+    activeUpdateSource = {
+      ...activeUpdateSource,
+      prerelease,
+      usingAccelerator: false,
+      usingTencent: true,
+    };
   };
 
   const checkForUpdatesWithFallback = async (context: {
     prerelease: boolean;
     acceleratorUrl: string;
   }) => {
-    activeUpdateSource = { ...context, usingAccelerator: false };
+    activeUpdateSource = { ...context, usingAccelerator: false, usingTencent: false };
     try {
+      // DakeMusic: 首选腾讯云（国内直连，一次命中即可，不再先等 GitHub 超时）
+      configureTencentUpdateSource(context.prerelease);
+      return await autoUpdater.checkForUpdates();
+    } catch (err) {
+      log.warn('[Updater] Tencent Cloud feed unreachable, falling back to GitHub/accelerator:', err);
       return await runGithubAcceleratorFallback({
         acceleratorEnabled: Boolean(context.acceleratorUrl),
         accelerated: async () => {
@@ -848,14 +861,17 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
           log.warn('[Updater] GitHub accelerator failed, retrying original GitHub:', error);
         },
       });
-    } catch (err) {
-      log.warn('[Updater] GitHub/accelerator unreachable, falling back to Tencent Cloud:', err);
-      configureTencentUpdateSource(context.prerelease);
-      return autoUpdater.checkForUpdates();
     }
   };
 
   const downloadUpdateWithFallback = async (token: CancellationToken) => {
+    // DakeMusic: 检查阶段命中的是腾讯云，就沿用同一源下载，避免跨源 sha512 不一致
+    if (activeUpdateSource.usingTencent) {
+      configureTencentUpdateSource(activeUpdateSource.prerelease);
+      await autoUpdater.checkForUpdates();
+      if (token.cancelled) throw new Error('cancelled');
+      return autoUpdater.downloadUpdate(token);
+    }
     try {
       return await runGithubAcceleratorFallback({
         acceleratorEnabled: activeUpdateSource.usingAccelerator,
