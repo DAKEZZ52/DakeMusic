@@ -60,6 +60,12 @@ def fetch_json(url):
         return json.loads(r.read().decode('utf-8'))
 
 
+def fetch_text(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'DakeMusic-refresh/1.0'})
+    with urllib.request.urlopen(req, timeout=20) as r:
+        return r.read().decode('utf-8', 'replace')
+
+
 def parse_ver(name):
     m = re.search(r'(\d+)\.(\d+)\.(\d+)(?:-(beta))?', name)
     if not m:
@@ -261,7 +267,11 @@ def main():
 
     print('==> 线上验证')
     for url, label in (('https://dkyy.top/', '首页'), ('https://dkyy.top/dl/', '下载页')):
-        out = subprocess.run(['curl', '-s', url], capture_output=True, text=True).stdout
+        try:
+            out = fetch_text(url)
+        except Exception as exc:
+            print('    %s -> 读取失败：%s' % (label, exc))
+            continue
         ok = 'DakeMusic ' + latest['ver']['full'] in out
         print('    %s v%s -> %s' % (label, latest['ver']['full'], 'OK' if ok else '未命中'))
 
