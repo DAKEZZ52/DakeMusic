@@ -529,6 +529,8 @@ function onSmallClick(seatId: string) {
 
 <style scoped>
 .seat-stage {
+  /* 座位布局以中间栏宽度为准（含 6 个小座位一行铺满） */
+  container-type: inline-size;
   position: relative;
   flex: 0 0 auto;
   min-height: 0;
@@ -542,6 +544,7 @@ function onSmallClick(seatId: string) {
   overflow-y: auto;
 }
 .seat-row {
+  width: 100%;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -550,8 +553,11 @@ function onSmallClick(seatId: string) {
 /* DakeMusic: 6 个小座位一排并排 */
 .seat-grid {
   display: grid;
-  grid-template-columns: repeat(6, clamp(44px, 7.2vh, 62px));
-  gap: 16px 18px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(6px, 1.6cqw, 18px);
+  width: 100%;
+  max-width: 462px;
+  margin: 0 auto;
   justify-content: center;
 }
 
@@ -574,8 +580,8 @@ function onSmallClick(seatId: string) {
 /* 头像 */
 .seat-avatar {
   position: relative;
-  width: clamp(38px, 7vh, 54px);
-  height: clamp(38px, 7vh, 54px);
+  width: clamp(30px, 11cqw, 54px);
+  height: clamp(30px, 11cqw, 54px);
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -605,8 +611,8 @@ function onSmallClick(seatId: string) {
   z-index: 2;
 }
 .seat-default {
-  width: clamp(20px, 4vh, 28px);
-  height: clamp(20px, 4vh, 28px);
+  width: clamp(16px, 5.5cqw, 28px);
+  height: clamp(16px, 5.5cqw, 28px);
   color: rgba(255, 255, 255, 0.7);
 }
 
@@ -638,8 +644,8 @@ function onSmallClick(seatId: string) {
 
 /* 大主座 */
 .seat.big .seat-avatar {
-  width: clamp(54px, 9vh, 78px);
-  height: clamp(54px, 9vh, 78px);
+  width: clamp(48px, 16cqw, 78px);
+  height: clamp(48px, 16cqw, 78px);
 }
 /* 房主信息卡：头像+信息横排 */
 .host-card {
@@ -806,7 +812,7 @@ function onSmallClick(seatId: string) {
   align-items: center;
   gap: 4px;
   max-width: 100%;
-  font-size: clamp(10px, 1.7vh, 11px);
+  font-size: clamp(9px, 2.7cqw, 11px);
   font-weight: 600;
   color: rgba(255, 255, 255, 0.85);
   text-align: center;
