@@ -922,10 +922,10 @@ function onEditCoverSelected(e: Event) {
       <!-- 创建房间弹窗 -->
       <div
         v-if="showCreateDialog"
-        class="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+        class="crl-dialog-overlay fixed inset-0 flex items-center justify-center z-50"
         @click.self="showCreateDialog = false"
       >
-        <div class="bg-[#1a1a2e] rounded-2xl p-6 w-96 border border-white/10 text-white shadow-2xl">
+        <div class="crl-dialog p-6 w-96">
           <h2 class="text-xl font-bold mb-4">创建房间</h2>
           <div class="space-y-4">
             <div>
@@ -984,10 +984,10 @@ function onEditCoverSelected(e: Event) {
       <!-- 加入房间弹窗 -->
       <div
         v-if="showJoinDialog"
-        class="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+        class="crl-dialog-overlay fixed inset-0 flex items-center justify-center z-50"
         @click.self="showJoinDialog = false"
       >
-        <div class="bg-[#1a1a2e] rounded-2xl p-6 w-96 border border-white/10 text-white shadow-2xl">
+        <div class="crl-dialog p-6 w-96">
           <h2 class="text-xl font-bold mb-4">加入房间</h2>
           <div class="space-y-4">
             <div>
@@ -1014,10 +1014,10 @@ function onEditCoverSelected(e: Event) {
       <!-- 编辑房间弹窗 -->
       <div
         v-if="showEditDialog"
-        class="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+        class="crl-dialog-overlay fixed inset-0 flex items-center justify-center z-50"
         @click.self="showEditDialog = false"
       >
-        <div class="bg-[#1a1a2e] rounded-2xl p-6 w-96 border border-white/10 text-white shadow-2xl">
+        <div class="crl-dialog p-6 w-96">
           <h2 class="text-xl font-bold mb-4">编辑房间</h2>
           <div class="space-y-4">
             <div>
@@ -1156,12 +1156,10 @@ function onEditCoverSelected(e: Event) {
       <!-- 管理员面板 -->
       <div
         v-if="showAdminPanel"
-        class="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
+        class="crl-dialog-overlay fixed inset-0 flex items-center justify-center z-50"
         @click.self="showAdminPanel = false"
       >
-        <div
-          class="bg-[#1a1a2e] rounded-2xl p-6 w-[28rem] max-h-[70vh] overflow-y-auto border border-white/10 text-white shadow-2xl"
-        >
+        <div class="crl-dialog p-6 w-[28rem] max-h-[70vh] overflow-y-auto">
           <div class="flex items-center justify-between mb-4">
             <h2 class="text-xl font-bold">管理员</h2>
             <button
@@ -1204,6 +1202,40 @@ function onEditCoverSelected(e: Event) {
 </template>
 
 <style scoped>
+/* 房间弹窗：跟随播放器的毛玻璃质感（浅色/深色主题通用） */
+.crl-dialog {
+  background: color-mix(in srgb, var(--surface-dialog-base) 82%, transparent);
+  border: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
+  border-radius: 18px;
+  color: var(--text-main);
+  box-shadow:
+    0 24px 60px rgba(15, 23, 42, 0.22),
+    0 2px 8px rgba(15, 23, 42, 0.1),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  backdrop-filter: blur(28px) saturate(160%);
+}
+
+.crl-dialog-overlay {
+  background: color-mix(in srgb, #0b0f19 48%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
+}
+
+/* 关闭系统半透明效果时退回不透明面板，避免糊成一片 */
+@media (prefers-reduced-transparency: reduce) {
+  .crl-dialog {
+    background: var(--surface-dialog-base);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+
+  .crl-dialog-overlay {
+    background: rgba(11, 15, 25, 0.72);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
 /* DakeMusic: 自定义背景层 */
 .crl-custom-bg {
   position: absolute;
