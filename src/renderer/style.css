@@ -1416,3 +1416,44 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
 .dark {
   --accent-gradient-peak-opacity-dark: calc(0.14 * var(--accent-gradient-user-gain, 1));
 }
+
+/* 深色下设置页内容区不要透出背景（原来 transparent，深色里会露出很黑的一层） */
+.dark .settings-page {
+  background: var(--surface-card-base);
+}
+
+/* ==========================================================================
+   首页英雄卡：背景改为跟随主题色的渐变，高度略压（对齐参考图）
+   ========================================================================== */
+.hero-banner {
+  min-height: 168px;
+  background: linear-gradient(
+    120deg,
+    color-mix(in srgb, var(--color-primary) 62%, #0b0f18) 0%,
+    color-mix(in srgb, var(--color-primary) 22%, #0b0f18) 58%,
+    #0b0f18 100%
+  ) !important;
+}
+
+.hero-play-btn {
+  background: color-mix(in srgb, #ffffff 92%, transparent) !important;
+  color: #10131c !important;
+}
+
+/* ==========================================================================
+   卡片统一：圆角收到 12px、内边距收紧、悬停不再上浮（对齐参考图）
+   ========================================================================== */
+.album-card,
+.artist-card,
+.playlist-card,
+.mv-card {
+  border-radius: 12px !important;
+  padding: 8px !important;
+}
+
+.album-card:hover,
+.artist-card:hover,
+.playlist-card:hover,
+.mv-card:hover {
+  transform: none !important;
+}
