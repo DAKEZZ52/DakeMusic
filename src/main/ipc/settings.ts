@@ -2,6 +2,7 @@ import { ipcRegistry } from './registry';
 import {
   shell,
   app,
+  BrowserWindow,
   net,
   session,
   dialog,
@@ -1585,7 +1586,25 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     win.webContents.send('open-disclaimer');
   });
 
-  ipcRegistry.registerListener('clear-app-data', async () => {
+  ipcRegistry.registerListener('clear-app-data', async (event) => {
+    // 破坏性操作：在主进程再确认一次，避免渲染层误触或注入后直接清空数据
+    const parentWindow = BrowserWindow.fromWebContents(event.sender);
+    const confirmOptions = {
+      type: 'warning' as const,
+      buttons: ['取消', '确认清除'],
+      defaultId: 0,
+      cancelId: 0,
+      title: '清除应用数据',
+      message: '确定要清除全部应用数据吗？',
+      detail: '将清空播放队列、缓存、全部本地存储与音频处理文件。此操作无法撤销。',
+    };
+    const choice = parentWindow
+      ? dialog.showMessageBoxSync(parentWindow, confirmOptions)
+      : dialog.showMessageBoxSync(confirmOptions);
+    if (choice !== 1) {
+      log.info('[MainIPC] clear-app-data cancelled by user');
+      return;
+    }
     getPlaybackQueueStorage().resetAll();
     await session.defaultSession.clearCache();
     await session.defaultSession.clearStorageData();

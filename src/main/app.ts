@@ -35,6 +35,7 @@ import { openAudioFilesFromArgv } from './fileAssociation';
 import { isUpdateInstallQuitRequested } from './updateInstallQuit';
 import type { PlayerController } from './player/controller';
 import { initializeNetworkSettings } from './networkSettings';
+import { installImageCorsHeaders } from './imageCors';
 import { installNetworkPolicyLifecycle } from './networkPolicy';
 
 const WM_TASKBARCREATED = 0x031a;
@@ -145,6 +146,8 @@ if (!gotTheLock) {
       app.quit();
       return;
     }
+    // 封面取色需要跨域读图片：只在图片响应上放开 CORS，不再关掉整个 webSecurity
+    installImageCorsHeaders();
     configureApplicationMenu({
       openSettings: openSettingsFromNativeShell,
     });

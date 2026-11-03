@@ -198,8 +198,6 @@ export const createDesktopLyricWindow = () => {
       sandbox: false,
       spellcheck: false,
       enableWebSQL: false,
-      webSecurity: false,
-      allowRunningInsecureContent: true,
       backgroundThrottling: false,
       zoomFactor: 1.0,
       partition: 'persist:desktop-lyric',

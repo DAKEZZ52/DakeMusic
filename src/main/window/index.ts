@@ -437,8 +437,6 @@ export async function createWindow() {
       sandbox: false,
       spellcheck: false,
       enableWebSQL: false,
-      webSecurity: false, // 禁用 CORS 限制
-      allowRunningInsecureContent: true, // 允许混合内容
       backgroundThrottling: false, // 最小化后不节流，保证播放状态和歌词同步
       zoomFactor: zoomLevelToFactor(normalizeZoomLevel(getMainAppSettings().windowZoomLevel)),
       devTools: devToolsEnabled, // 控制是否允许打开开发者工具

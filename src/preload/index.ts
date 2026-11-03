@@ -230,6 +230,42 @@ const toPlainIpcPayload = <T>(value: T): T => {
   ) as T;
 };
 
+// 渲染层允许直接调用的通道白名单。
+// 页面只能通过这里的通道访问主进程，未知通道一律丢弃并记录日志，
+// 避免页面被注入后拿到全部已注册能力。
+const RENDERER_CHANNEL_ALLOWLIST = new Set<string>([
+  'window:zoom-set',
+  'thumbar:update-play-state',
+  'window-background:get',
+  'window-background:set',
+  'open-log-directory',
+  'clear-app-data',
+  'check-for-updates',
+  'open-external',
+  'open-disclaimer',
+  'update-close-behavior',
+  'update-theme',
+  'update-remember-window-size',
+  'update-power-save-blocker',
+  'update-high-dpi-settings',
+  'update-auto-launch',
+  'update-start-minimized',
+  'update-taskbar-cover-preview',
+  'update-taskbar-progress',
+  'update-devtools-enabled',
+  'logging:update-settings',
+  'settings:setStartupSound',
+  'window-toggle',
+  'quit-app',
+  'window:lyric-visibility',
+  'window-background:diagnostics',
+]);
+
+const isChannelAllowed = (channel: string): boolean => {
+  if (RENDERER_CHANNEL_ALLOWLIST.has(channel)) return true;
+  console.warn('[preload] blocked IPC channel:', channel);
+  return false;
+};
 const invokeWithPlainPayload = <T = unknown>(channel: string, ...args: unknown[]) =>
   ipcRenderer.invoke(channel, ...args.map(toPlainIpcPayload)) as Promise<T>;
 
@@ -245,8 +281,16 @@ contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
   isWayland,
   ipcRenderer: {
-    send: (channel: string, ...args: any[]) => sendWithPlainPayload(channel, ...args),
-    invoke: (channel: string, ...args: any[]) => invokeWithPlainPayload(channel, ...args),
+    send: (channel: string, ...args: any[]) => {
+      if (!isChannelAllowed(channel)) return;
+      sendWithPlainPayload(channel, ...args);
+    },
+    invoke: (channel: string, ...args: any[]) => {
+      if (!isChannelAllowed(channel)) {
+        return Promise.reject(new Error(`blocked IPC channel: ${channel}`));
+      }
+      return invokeWithPlainPayload(channel, ...args);
+    },
     on: (channel: string, func: (...args: any[]) => void) => {
       const wrapped = getWrappedListener(channel, func);
       ipcRenderer.on(channel, wrapped);

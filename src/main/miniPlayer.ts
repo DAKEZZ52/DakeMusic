@@ -565,8 +565,6 @@ export const ensureMiniPlayerWindow = async () => {
       sandbox: false,
       spellcheck: false,
       enableWebSQL: false,
-      webSecurity: false,
-      allowRunningInsecureContent: true,
       backgroundThrottling: false,
       zoomFactor: 1.0,
       // Chromium shares host zoom within a session; Mini has a fixed DIP layout.
