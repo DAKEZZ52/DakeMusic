@@ -1331,9 +1331,9 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 14px;
-  background: var(--control-bg);
-  box-shadow: inset 0 0 0 1px var(--control-border);
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: none;
 }
 
 .sidebar-rail-avatar-btn:hover {
