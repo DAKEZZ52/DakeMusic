@@ -1097,9 +1097,9 @@ onMounted(() => loadData());
   outline-offset: 5px;
 }
 .grade-card {
-  padding: 24px;
+  padding: 16px;
   border: 1px solid var(--border-subtle);
-  border-radius: 20px;
+  border-radius: 12px;
   background: linear-gradient(
     135deg,
     rgba(var(--color-primary-rgb), 0.16),
@@ -1228,7 +1228,7 @@ onMounted(() => loadData());
 }
 .vip-expire-popover.echo-popover-content {
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: 10px;
   border-color: var(--border-subtle);
 }
 .dialog-content.login-device-dialog {
@@ -1242,9 +1242,9 @@ onMounted(() => loadData());
 .profile-editor-dialog .profile-editor-field .relative > input,
 .profile-editor-dialog .echo-select-trigger {
   height: 44px;
-  min-height: 44px;
+  min-height: 40px;
   border-color: var(--control-border);
-  border-radius: 12px;
+  border-radius: 10px;
   padding-left: 14px;
   font-size: 13px;
 }

@@ -657,7 +657,7 @@ const showScanned = (panel: QrPanelData) =>
   flex-direction: column;
   height: 31.875rem;
   overflow: hidden;
-  border-radius: 36px;
+  border-radius: 16px;
   background: var(--color-bg-dialog);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-dialog);
