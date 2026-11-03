@@ -287,6 +287,14 @@ const reqId = (req, res, next) => { req.id = crypto.randomBytes(6).toString('hex
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, keyGenerator: req => req.ip });
 const adminLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 5, keyGenerator: req => req.ip });
 const apiLimiter = rateLimit({ windowMs: 60000, max: 60 });
+// 聊天发消息：按登录用户限流（10 秒 20 条），比全局 IP 限流更精准，也不影响同 IP 的其他用户
+const chatLimiter = rateLimit({
+  windowMs: 10 * 1000,
+  max: 20,
+  keyGenerator: req => String(req.user?.userId || req.ip),
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 function authSession(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
@@ -651,6 +659,18 @@ app.delete('/api/admin/users/:id', authSession, (req, res) => {
 
 // 房间密码：新数据一律 bcrypt 哈希存储；旧数据是明文，校验通过后自动升级
 const ROOM_PASSWORD_HASH_RE = /^\$2[aby]\$/;
+// 房间封面：只接受 data:image 的 base64，且限制体积（约 900KB 原图），避免 JSON 存储被撑爆
+const ROOM_COVER_MAX_CHARS = 1_200_000;
+function normalizeRoomCover(value) {
+  if (typeof value !== 'string') return '';
+  const raw = value.trim();
+  if (!raw) return '';
+  if (!/^data:image\/(png|jpe?g|webp);base64,/i.test(raw)) return '';
+  // 超限返回 null：调用方回 413，绝不能截断 base64（截断后图片损坏）
+  if (raw.length > ROOM_COVER_MAX_CHARS) return null;
+  return raw;
+}
+
 function verifyRoomPassword(stored, input) {
   if (!stored) return true;
   const plain = String(input ?? '');
@@ -672,12 +692,14 @@ function safeJsonParse(str, fallback) {
 app.post('/api/rooms', authSession, (req, res) => {
   const { name, description, password = '', coverImage = '' } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: '房间名不能为空' });
+  const cover = normalizeRoomCover(coverImage);
+  if (cover === null) return res.status(413).json({ error: '封面图过大，请换一张更小的图片' });
   const me = currentDbUser(req);
   const ownerNick = displayName(me) || req.user.name;
   const id = uid('room');
   rooms[id] = {
     id, name: name.trim(), description: description || '',
-    coverImage: typeof coverImage === 'string' ? coverImage.slice(0, 3000000) : '',
+    coverImage: cover,
     ownerUserId: req.user.userId,
     ownerName: req.user.name,
     ownerNickname: ownerNick,
@@ -809,10 +831,6 @@ app.post('/api/rooms/:id/join', authSession, async (req, res) => {
   });
   at.addGrant({ room: room.id, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
 
-  if (isBanned) {
-    at.addGrant({ canPublish: false, canPublishData: false });
-  }
-
   room.participants.push({ identity, name: myNick, account: myAccount, userId: req.user.userId, joinedAt: Date.now() });
   userCurrentRoom.set(req.user.userId, room.id);
   saveRooms();
@@ -896,7 +914,11 @@ app.patch('/api/rooms/:id', authSession, requireOwner, (req, res) => {
   const room = req.room;
   if (name?.trim()) room.name = name.trim();
   if (typeof description === 'string') room.description = description;
-  if (typeof coverImage === 'string') room.coverImage = coverImage.slice(0, 3000000);
+  if (typeof coverImage === 'string') {
+    const cover = normalizeRoomCover(coverImage);
+    if (cover === null) return res.status(413).json({ error: '封面图过大，请换一张更小的图片' });
+    room.coverImage = cover;
+  }
   // DakeMusic: 对唱/普通模式持久化，房主不在线时新进房的人也能看到正确布局
   if (seatMode === 'normal' || seatMode === 'duet') room.seatMode = seatMode;
   saveRooms();
@@ -951,7 +973,7 @@ app.get('/api/rooms/:id/messages', (req, res) => {
   });
 });
 
-app.post('/api/rooms/:id/messages', authSession, (req, res) => {
+app.post('/api/rooms/:id/messages', authSession, chatLimiter, (req, res) => {
   const room = rooms[req.params.id];
   if (!room) return res.status(404).json({ error: '房间不存在' });
   // 必须真的在这个房间里才能发言（防止非成员往任意房间写消息）

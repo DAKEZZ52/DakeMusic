@@ -502,34 +502,67 @@ async function doDeleteRoom() {
   }
 }
 
-function onCreateCoverSelected(e: Event) {
-  const input = e.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) return;
-  if (file.size > 3 * 1024 * 1024) {
-    showError('封面图过大', '封面图不能超过3MB');
-    return;
+// 封面图：先在本地缩到 640px 内并转 JPEG，避免原图几 MB 直接上传
+async function readCoverAsDataUrl(file: File): Promise<string> {
+  const raw = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('读取图片失败'));
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.readAsDataURL(file);
+  });
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('无法解析图片'));
+      el.src = raw;
+    });
+    const max = 640;
+    const scale = Math.min(1, max / Math.max(img.width, img.height));
+    const width = Math.max(1, Math.round(img.width * scale));
+    const height = Math.max(1, Math.round(img.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return raw;
+    ctx.drawImage(img, 0, 0, width, height);
+    return canvas.toDataURL('image/jpeg', 0.82);
+  } catch {
+    return raw;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    newRoomCover.value = reader.result as string;
-  };
-  reader.readAsDataURL(file);
 }
 
-function onEditCoverSelected(e: Event) {
+async function onCreateCoverSelected(e: Event) {
   const input = e.target as HTMLInputElement;
   const file = input.files?.[0];
+  input.value = '';
   if (!file) return;
-  if (file.size > 3 * 1024 * 1024) {
-    showError('封面图过大', '封面图不能超过3MB');
+  if (!file.type.startsWith('image/')) {
+    showError('封面图格式不支持', '请选择 PNG / JPG / WebP 图片');
     return;
   }
-  const reader = new FileReader();
-  reader.onload = () => {
-    editRoomCover.value = reader.result as string;
-  };
-  reader.readAsDataURL(file);
+  try {
+    newRoomCover.value = await readCoverAsDataUrl(file);
+  } catch {
+    showError('封面图读取失败', '请换一张图片再试');
+  }
+}
+
+async function onEditCoverSelected(e: Event) {
+  const input = e.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (!file.type.startsWith('image/')) {
+    showError('封面图格式不支持', '请选择 PNG / JPG / WebP 图片');
+    return;
+  }
+  try {
+    editRoomCover.value = await readCoverAsDataUrl(file);
+  } catch {
+    showError('封面图读取失败', '请换一张图片再试');
+  }
 }
 
 // ===== 管理员（已废弃，改用超级管理员账号绑定）=====
