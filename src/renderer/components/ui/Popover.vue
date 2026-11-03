@@ -223,7 +223,7 @@ onUnmounted(() => {
 .echo-popover-content {
   --popover-background: var(--floating-surface-bg);
   z-index: 9999;
-  border-radius: 16px;
+  border-radius: 10px;
   background: var(--popover-background);
   -webkit-backdrop-filter: var(--floating-surface-filter);
   backdrop-filter: var(--floating-surface-filter);

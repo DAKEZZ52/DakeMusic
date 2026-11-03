@@ -853,7 +853,7 @@ watch(activeSection, () => scrollbarRef.value?.setScrollTop(0), { flush: 'post' 
   display: flex;
   flex: 1;
   min-height: 0;
-  padding: 8px 0 20px 16px;
+  padding: 6px 0 16px 12px;
   gap: 0;
 }
 
@@ -878,8 +878,8 @@ watch(activeSection, () => scrollbarRef.value?.setScrollTop(0), { flush: 'post' 
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 38px;
-  padding: 0 12px;
+  min-height: 34px;
+  padding: 0 10px;
   border-radius: 10px;
   color: var(--color-text-secondary);
   font-size: 13px;
