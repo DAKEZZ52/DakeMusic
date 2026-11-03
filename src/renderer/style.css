@@ -214,6 +214,12 @@ body.accent-scoped .main-layout .player-bar-container {
   --color-bg-info-card: var(--bg-info-card);
   --color-text-main: var(--text-main);
   --color-text-secondary: var(--text-secondary);
+  /* 圆角规范：全站统一缩放 */
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
+  --radius-2xl: 12px;
+  --radius-3xl: 14px;
   --color-border-light: var(--border-light);
 }
 
@@ -1226,29 +1232,23 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
    —— 只改圆角与阴影轻重，不改任何颜色
    ========================================================================== */
 @layer utilities {
-  /* 大圆角（弹窗/大卡片）→ 8px */
+  /* 任意值圆角统一；命名圆角（rounded-lg/xl/2xl/3xl）由 @theme 的 --radius-* 令牌接管 */
   .rounded-\[28px\],
   .rounded-\[24px\],
   .rounded-\[20px\],
-  .rounded-\[18px\],
-  .rounded-3xl,
-  .rounded-2xl {
+  .rounded-\[18px\] {
     border-radius: 12px !important;
   }
 
-  /* 中圆角（普通卡片/输入框）→ 6px */
   .rounded-\[16px\],
   .rounded-\[14px\],
-  .rounded-\[12px\],
-  .rounded-xl {
+  .rounded-\[12px\] {
     border-radius: 10px !important;
   }
 
-  /* 小圆角（标签/按钮/封面）→ 4px */
   .rounded-\[10px\],
   .rounded-\[8px\],
-  .rounded-\[6px\],
-  .rounded-lg {
+  .rounded-\[6px\] {
     border-radius: 8px !important;
   }
 }
