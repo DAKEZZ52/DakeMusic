@@ -431,7 +431,7 @@ onMounted(() => {
         >
           <Icon :icon="iconCloud" width="32" height="32" />
         </div>
-        <div class="text-[22px] font-semibold text-text-main">登录后查看云盘</div>
+        <div class="text-[18px] font-semibold text-text-main">登录后查看云盘</div>
       </div>
 
       <template v-else>

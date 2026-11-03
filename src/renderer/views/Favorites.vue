@@ -512,7 +512,7 @@ watch(
 
 <template>
   <PageScrollContainer class="favorites-view">
-    <div class="bg-bg-main min-h-full pb-10">
+    <div class="bg-bg-main min-h-full pb-8">
       <!-- 未登录状态 -->
       <div
         v-if="!isLoggedIn"
@@ -523,7 +523,7 @@ watch(
         >
           <Icon :icon="iconHeart" width="32" height="32" />
         </div>
-        <div class="text-[22px] font-semibold text-text-main">登录后查看我最喜爱</div>
+        <div class="text-[18px] font-semibold text-text-main">登录后查看我最喜爱</div>
       </div>
 
       <!-- 已登录 -->

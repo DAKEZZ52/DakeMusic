@@ -353,7 +353,7 @@ onMounted(() => {
         >
           <Icon :icon="iconShoppingBag" width="32" height="32" />
         </div>
-        <div class="text-[22px] font-semibold text-text-main">登录后查看已购音乐</div>
+        <div class="text-[18px] font-semibold text-text-main">登录后查看已购音乐</div>
       </div>
 
       <template v-else>
