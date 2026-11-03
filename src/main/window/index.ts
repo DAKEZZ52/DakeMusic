@@ -13,6 +13,7 @@ import {
 import { BrowserWindow, shell, app, nativeTheme, powerSaveBlocker, screen } from 'electron';
 import { join } from 'path';
 import log from '../logger';
+import { applyWindowsRoundedCorners } from './roundedCorners';
 import type { CloseBehavior, ThemeMode } from '../../shared/app';
 import { getMainAppSettings, setMainAppSetting } from '../storage/settings';
 import { getActiveWindowMode, setActiveWindowMode } from './mode';
@@ -493,6 +494,7 @@ export async function createWindow() {
   // 当窗口准备好显示时再展示，优雅解决启动白屏
   // 如果启用了启动时最小化，则不自动显示窗口，由用户通过托盘恢复
   win.once('ready-to-show', () => {
+    if (win) applyWindowsRoundedCorners(win);
     flushPersistWindowState();
     void logMainMemory('main window:ready-to-show');
     if (!initialSettings.startMinimized) {
