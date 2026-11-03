@@ -317,7 +317,7 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
       "allowElevation": true,
       "include": "build/installer.nsh",
       "buildUniversalInstaller": false,
