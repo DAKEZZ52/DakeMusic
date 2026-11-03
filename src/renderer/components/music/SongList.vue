@@ -181,7 +181,7 @@ const filteredSongIndexMap = computed(() => {
   return map;
 });
 
-const itemHeight = 60;
+const itemHeight = 50;
 const overscan = 10;
 const scrollContainerRef = useScrollContainer();
 const {

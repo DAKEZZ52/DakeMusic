@@ -21,11 +21,11 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   hasDetails: false,
-  expandedHeight: 230,
+  expandedHeight: 200,
   collapsedHeight: 56,
   contentPaddingX: 24,
   contentGap: 20,
-  coverBaseSize: 150,
+  coverBaseSize: 132,
   titleFontSize: 24,
   detailsGap: 10,
   detailsMarginTop: 8,

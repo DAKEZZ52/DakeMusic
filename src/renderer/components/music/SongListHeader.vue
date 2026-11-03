@@ -52,7 +52,7 @@ const gridTemplate = computed(() =>
 <template>
   <div :class="props.paddingClass">
     <div
-      class="grid items-center h-11 text-[12px] text-text-main/80 font-bold border-b border-[var(--border-subtle)]"
+      class="grid items-center h-9 text-[12px] text-text-main/80 font-bold border-b border-[var(--border-subtle)]"
       :style="{ gridTemplateColumns: gridTemplate }"
     >
       <div
