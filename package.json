@@ -100,7 +100,7 @@
         "repo": "DakeMusic"
       }
     ],
-    "compression": "normal",
+    "compression": "maximum",
     "removePackageScripts": true,
     "removePackageKeywords": true,
     "npmRebuild": false,
@@ -119,7 +119,21 @@
     "files": [
       "dist",
       "dist-electron",
-      "!**/*.map"
+      "!**/*.map",
+      "!.dev-userdata/**",
+      "!screenshots/**",
+      "!src/**",
+      "!docs/**",
+      "!tests/**",
+      "!scripts/**",
+      "!site/**",
+      "!cloudflare/**",
+      "!room-server/**",
+      "!tools/**",
+      "!native/**/vendor/**",
+      "!native/**/build/**",
+      "!node_modules/soundtouchjs/public/**",
+      "!**/*.tsbuildinfo"
     ],
     "extraResources": [
       {
@@ -216,6 +230,27 @@
       "target": [
         "zip",
         "dmg"
+      ],
+      "files": [
+        "dist",
+        "dist-electron",
+        "!**/*.map",
+        "!.dev-userdata/**",
+        "!screenshots/**",
+        "!src/**",
+        "!docs/**",
+        "!tests/**",
+        "!scripts/**",
+        "!site/**",
+        "!cloudflare/**",
+        "!room-server/**",
+        "!tools/**",
+        "!native/**/vendor/**",
+        "!native/**/build/**",
+        "!node_modules/soundtouchjs/public/**",
+        "!**/*.tsbuildinfo",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/**",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/linux/**"
       ]
     },
     "win": {
@@ -252,6 +287,28 @@
           "name": "Audio File",
           "role": "Player"
         }
+      ],
+      "files": [
+        "dist",
+        "dist-electron",
+        "!**/*.map",
+        "!.dev-userdata/**",
+        "!screenshots/**",
+        "!src/**",
+        "!docs/**",
+        "!tests/**",
+        "!scripts/**",
+        "!site/**",
+        "!cloudflare/**",
+        "!room-server/**",
+        "!tools/**",
+        "!native/**/vendor/**",
+        "!native/**/build/**",
+        "!node_modules/soundtouchjs/public/**",
+        "!**/*.tsbuildinfo",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/darwin/**",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/linux/**",
+        "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**"
       ]
     },
     "linux": {
@@ -348,6 +405,10 @@
     "asar": true,
     "asarUnpack": [
       "node_modules/onnxruntime-node/**/*"
+    ],
+    "electronLanguages": [
+      "zh-CN",
+      "en-US"
     ]
   },
   "pnpm": {
