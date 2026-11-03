@@ -618,7 +618,7 @@ const filteredArtistCards = computed(() => {
     :style="{ '--explore-header-height': `${exploreHeaderHeight}px` }"
   >
     <div
-      class="explore-view px-10 pt-4 pb-10"
+      class="explore-view px-6 pt-4 pb-8"
       :style="{ '--explore-header-height': `${exploreHeaderHeight}px` }"
     >
       <PageStickyHeader class="explore-header">
@@ -1005,9 +1005,9 @@ const filteredArtistCards = computed(() => {
   display: flex;
   align-items: center;
   gap: 14px;
-  height: 64px;
-  padding: 0 18px;
-  border-radius: 16px;
+  height: 60px;
+  padding: 0 16px;
+  border-radius: 12px;
   background: var(--content-panel-bg);
   border: 1px solid var(--content-panel-border);
   transition: all 0.2s ease;
