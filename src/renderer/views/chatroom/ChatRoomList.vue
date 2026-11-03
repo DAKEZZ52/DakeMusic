@@ -1202,7 +1202,7 @@ function onEditCoverSelected(e: Event) {
 </template>
 
 <style scoped>
-/* 房间弹窗：跟随播放器的毛玻璃质感（浅色/深色主题通用） */
+/* ===== 房间弹窗：跟随主题的毛玻璃面板 ===== */
 .crl-dialog {
   background: color-mix(in srgb, var(--surface-dialog-base) 90%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
@@ -1216,7 +1216,13 @@ function onEditCoverSelected(e: Event) {
   backdrop-filter: blur(28px) saturate(160%);
 }
 
-/* 弹窗内文字与输入框：统一走主题色，保证浅色/深色 + 复杂背景都看得清 */
+.crl-dialog-overlay {
+  background: color-mix(in srgb, #0b0f19 55%, transparent);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
+}
+
+/* 弹窗内文字：统一走主题色，浅色/深色和复杂背景下都清晰 */
 .crl-label {
   color: var(--text-secondary);
   font-weight: 500;
@@ -1247,12 +1253,6 @@ function onEditCoverSelected(e: Event) {
   background: var(--control-track-bg);
 }
 
-.crl-dialog-overlay {
-  background: color-mix(in srgb, #0b0f19 55%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
-  backdrop-filter: blur(10px) saturate(120%);
-}
-
 /* 关闭系统半透明效果时退回不透明面板，避免糊成一片 */
 @media (prefers-reduced-transparency: reduce) {
   .crl-dialog {
@@ -1261,44 +1261,12 @@ function onEditCoverSelected(e: Event) {
     backdrop-filter: none;
   }
 
-  /* 弹窗内文字与输入框：统一走主题色，保证浅色/深色 + 复杂背景都看得清 */
-  .crl-label {
-    color: var(--text-secondary);
-    font-weight: 500;
-  }
-
-  .crl-hint {
-    color: var(--text-secondary);
-    opacity: 0.9;
-  }
-
-  .crl-input {
-    background: color-mix(in srgb, var(--control-track-bg) 90%, transparent);
-    border-color: var(--border-subtle);
-    color: var(--text-main);
-    transition:
-      border-color 0.15s ease,
-      background-color 0.15s ease;
-  }
-
-  .crl-input::placeholder {
-    color: var(--text-secondary);
-    opacity: 0.7;
-  }
-
-  .crl-input:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    background: var(--control-track-bg);
-  }
-
   .crl-dialog-overlay {
     background: rgba(11, 15, 25, 0.72);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
   }
 }
-/* DakeMusic: 自定义背景层 */
 .crl-custom-bg {
   position: absolute;
   inset: 0;
