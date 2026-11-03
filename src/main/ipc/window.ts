@@ -82,10 +82,13 @@ export const registerWindowHandlers = ({ getMainWindow }: IpcContext) => {
 
   ipcRegistry.registerListener(
     'window-control',
-    (event, action: 'minimize' | 'maximize' | 'close' | 'fullscreen') => {
+    (event, action: 'minimize' | 'maximize' | 'close' | 'fullscreen' | 'attention') => {
       const browserWindow = BrowserWindow.fromWebContents(event.sender) ?? getMainWindow();
       if (!browserWindow) return;
-      if (action === 'minimize') browserWindow.minimize();
+      if (action === 'attention') {
+        browserWindow.flashFrame(true);
+        browserWindow.once('focus', () => browserWindow.flashFrame(false));
+      } else if (action === 'minimize') browserWindow.minimize();
       else if (action === 'maximize') {
         if (browserWindow.isMaximized()) browserWindow.unmaximize();
         else browserWindow.maximize();

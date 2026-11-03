@@ -270,7 +270,7 @@ contextBridge.exposeInMainWorld('electron', {
       return () => ipcRenderer.removeListener('shortcut-trigger', listener);
     },
   },
-  windowControl: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen') =>
+  windowControl: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen' | 'attention') =>
     ipcRenderer.send('window-control', action),
   appInfo: {
     get: () => ipcRenderer.invoke('app:get-info') as Promise<AppInfoResult>,

@@ -23,6 +23,10 @@ export const useUpdateStore = defineStore('update', {
     downloadError: '',
     isChecking: false,
     dialogOpen: false,
+    /** 用户主动点了下载（用于下载完成后自动弹窗提醒） */
+    downloadUserInitiated: false,
+    /** 本次下载的完成提醒是否已弹过，避免反复打扰 */
+    downloadedNoticeShown: false,
     initialized: false,
     disposeDownload: null as null | (() => void),
     checkResultListener: null as null | ((payload: unknown) => void),
@@ -112,7 +116,25 @@ export const useUpdateStore = defineStore('update', {
 
     applyDownloadStatus(result: UpdateDownloadResult) {
       if (result.status === 'error' && this.recoverSignatureFailure(result.error)) return;
+      const previousStatus = this.downloadStatus;
       this.downloadStatus = result.status;
+      // 下载完成：即使弹窗已被用户关闭，也重新弹出，提示可以安装
+      if (
+        result.status === 'downloaded' &&
+        previousStatus === 'downloading' &&
+        this.downloadUserInitiated &&
+        !this.downloadedNoticeShown
+      ) {
+        this.downloadedNoticeShown = true;
+        this.downloadUserInitiated = false;
+        this.dialogOpen = true;
+        // 若窗口不在前台，任务栏闪烁提醒用户
+        try {
+          window.electron?.windowControl?.('attention');
+        } catch {
+          // ignore
+        }
+      }
       if (result.progress) {
         this.downloadPercent = Math.round(result.progress.percent);
       } else if (result.status === 'idle') {
@@ -166,6 +188,8 @@ export const useUpdateStore = defineStore('update', {
       this.downloadStatus = 'downloading';
       this.downloadPercent = 0;
       this.downloadError = '';
+      this.downloadUserInitiated = true;
+      this.downloadedNoticeShown = false;
       window.electron?.updater?.download();
     },
 
@@ -175,6 +199,8 @@ export const useUpdateStore = defineStore('update', {
       this.downloadStatus = 'idle';
       this.downloadPercent = 0;
       this.downloadError = '';
+      this.downloadUserInitiated = false;
+      this.downloadedNoticeShown = false;
       window.electron?.updater?.cancelDownload?.();
     },
 

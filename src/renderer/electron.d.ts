@@ -180,7 +180,7 @@ export interface IElectronAPI {
     setLocalEditableActive: (active: boolean) => Promise<void>;
     onTrigger: (func: (command: string) => void) => () => void;
   };
-  windowControl: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen') => void;
+  windowControl: (action: 'minimize' | 'maximize' | 'close' | 'fullscreen' | 'attention') => void;
   appInfo: {
     get: () => Promise<AppInfoResult>;
     getChangelog: () => Promise<string>;
