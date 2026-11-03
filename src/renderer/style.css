@@ -1457,3 +1457,16 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
 .mv-card:hover {
   transform: none !important;
 }
+
+/* ==========================================================================
+   标题栏右侧：更多（…）/ 唱歌模式 / 全屏 三个图标淡化，不与窗口按钮抢视觉
+   ========================================================================== */
+.more-trigger,
+.window-action-soft {
+  color: color-mix(in srgb, var(--color-text-main) 52%, transparent) !important;
+}
+
+.more-trigger:hover,
+.window-action-soft:hover {
+  color: var(--color-text-main) !important;
+}
