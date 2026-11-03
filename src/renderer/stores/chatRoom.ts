@@ -15,6 +15,9 @@ import { usePlayerStore } from './player';
 import { usePlaylistStore } from '@/stores/playlist';
 import { replaceQueueAndPlay } from '@/utils/playback';
 
+/** 内存中保留的最大聊天消息条数（更早的从历史接口重新拉取） */
+const MAX_MESSAGES = 500;
+
 export interface RoomInfo {
   id: string;
   name: string;
@@ -106,6 +109,10 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       if (msg.type !== 'text' && msg.type !== 'system' && msg.type !== 'image') return;
       if (msg.senderIdentity === undefined) return;
       messages.value.push(msg);
+      // 长会话封顶，避免消息数组无限增长拖慢渲染
+      if (messages.value.length > MAX_MESSAGES) {
+        messages.value.splice(0, messages.value.length - MAX_MESSAGES);
+      }
     },
     onConnected: () => {
       isConnected.value = true;

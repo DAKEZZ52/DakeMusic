@@ -649,6 +649,21 @@ app.delete('/api/admin/users/:id', authSession, (req, res) => {
   res.json({ ok: true });
 });
 
+// 房间密码：新数据一律 bcrypt 哈希存储；旧数据是明文，校验通过后自动升级
+const ROOM_PASSWORD_HASH_RE = /^\$2[aby]\$/;
+function verifyRoomPassword(stored, input) {
+  if (!stored) return true;
+  const plain = String(input ?? '');
+  const storedStr = String(stored);
+  if (ROOM_PASSWORD_HASH_RE.test(storedStr)) return bcrypt.compareSync(plain, storedStr);
+  return storedStr === plain;
+}
+
+function hashRoomPassword(password) {
+  const plain = String(password ?? '');
+  return plain ? bcrypt.hashSync(plain, 10) : '';
+}
+
 function safeJsonParse(str, fallback) {
   try { return JSON.parse(str); } catch { return fallback; }
 }
@@ -668,7 +683,8 @@ app.post('/api/rooms', authSession, (req, res) => {
     ownerNickname: ownerNick,
     createdAt: Date.now(),
     participants: [], banned: [],
-    password,
+    // 只存 bcrypt 哈希，避免明文房间密码落盘
+    password: hashRoomPassword(password),
   };
   saveRooms(() => logger.info('room.create', { reqId: req.id, roomId: id, owner: ownerNick }));
   res.json({ id, name: rooms[id].name, isOwner: true });
@@ -752,7 +768,14 @@ app.post('/api/rooms/:id/join', authSession, async (req, res) => {
 
   const isBanned = room.banned.some(b => b.startsWith(`user_${req.user.userId}`));
   if (isBanned) return res.status(403).json({ error: 'BANNED' });
-  if (room.password && room.password !== req.body?.password) return res.status(403).json({ error: '密码错误' });
+  if (room.password && !verifyRoomPassword(room.password, req.body?.password)) {
+    return res.status(403).json({ error: '密码错误' });
+  }
+  // 旧房间是明文密码，验证通过后顺手升级为哈希
+  if (room.password && !ROOM_PASSWORD_HASH_RE.test(String(room.password))) {
+    room.password = hashRoomPassword(req.body?.password);
+    saveRooms();
+  }
 
   const oldParticipants = room.participants.filter(p => p.userId === req.user.userId && p.identity !== identity);
   for (const old of oldParticipants) {
@@ -931,6 +954,12 @@ app.get('/api/rooms/:id/messages', (req, res) => {
 app.post('/api/rooms/:id/messages', authSession, (req, res) => {
   const room = rooms[req.params.id];
   if (!room) return res.status(404).json({ error: '房间不存在' });
+  // 必须真的在这个房间里才能发言（防止非成员往任意房间写消息）
+  const myRoomId = userCurrentRoom.get(req.user.userId);
+  const inParticipants = room.participants.some(p => p.userId === req.user.userId);
+  if (!inParticipants && myRoomId !== req.params.id) {
+    return res.status(403).json({ error: '你不在该房间中' });
+  }
   const { content, silent } = req.body || {};
   if (!content || !content.trim()) return res.status(400).json({ error: '内容不能为空' });
   if (content.length > 4000) return res.status(400).json({ error: '消息过长' });
@@ -1001,16 +1030,26 @@ app.post('/api/rooms/:id/take-seat', authSession, (req, res) => {
   const now = Date.now();
 
   // 先下掉该用户在其他麦位
-  const myOldSeat = stmtFindSeatByUser.get(req.params.id, req.user.userId);
-  if (myOldSeat) {
-    stmtInsertSeat.run(req.params.id, myOldSeat.seat_index, null, null, null, 0, 0, now);
-  }
-
-  // 检查目标麦位是否被占
+  // 先校验目标麦位：校验失败时不能动用户原有座位，否则会白丢座位
   const allSeats = stmtGetSeats.all(req.params.id);
   const target = allSeats.find(s => s.seat_index === seatIndex);
   if (target && target.user_id && target.user_id !== req.user.userId) {
     return res.status(409).json({ error: '该麦位已被占用' });
+  }
+
+  // 主麦位（0 号）只允许房主/超级管理员就座，避免普通成员直接占房主位
+  if (seatIndex === 0) {
+    const meForSeat = currentDbUser(req);
+    const seatOwner = room.ownerUserId === req.user.userId ||
+      isSuperAdmin(req.user) ||
+      isRootSuperAccount(meForSeat?.name || '');
+    if (!seatOwner) return res.status(403).json({ error: '主麦位仅房主可用' });
+  }
+
+  // 校验通过后再下掉该用户原来的座位
+  const myOldSeat = stmtFindSeatByUser.get(req.params.id, req.user.userId);
+  if (myOldSeat) {
+    stmtInsertSeat.run(req.params.id, myOldSeat.seat_index, null, null, null, 0, 0, now);
   }
 
   stmtInsertSeat.run(req.params.id, seatIndex, req.user.userId, myNick, myAvatar, target?.is_muted || 0, 0, now);

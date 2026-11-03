@@ -219,6 +219,8 @@ const lyricTick = ref(0);
 const lyricCollapsed = ref(false);
 const lyricBox = ref<HTMLElement | null>(null);
 let lyricTimer: any = null;
+// 组件卸载后 LiveKit 的 Promise 可能才 resolve，用它拦住迟到注册
+let lyricRoomDisposed = false;
 let watchBroadcastStop: (() => void) | null = null;
 let lyricBroadcastTimer: any = null; // 全量歌词兜底定时器
 let lyricHeartbeatTimer: any = null; // 轻量行号心跳定时器
@@ -272,6 +274,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  lyricRoomDisposed = true;
   if (lyricTimer) clearInterval(lyricTimer);
   if (lyricBroadcastTimer) clearInterval(lyricBroadcastTimer);
   if (lyricHeartbeatTimer) clearInterval(lyricHeartbeatTimer);
@@ -679,9 +682,10 @@ async function onNewParticipant() {
 // 挂载：注册监听；房主开启定时广播
 onMounted(() => {
   loadBadWords();
+  lyricRoomDisposed = false;
   const roomPromise = getLKRoom();
   roomPromise.then((room) => {
-    if (!room) return;
+    if (!room || lyricRoomDisposed) return;
     room.on('dataReceived', onRoomDataReceived);
     room.on('participantConnected', onNewParticipant);
 
