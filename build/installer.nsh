@@ -1,4 +1,4 @@
-﻿!macro customInit
+!macro customInit
   ; 安装前强制结束残留的 EchoMusic 进程（包括卸载程序）
   ; 解决卸载后重新安装时 "Uninstall EchoMusic.exe" 被锁定的问题
   nsExec::ExecToStack 'taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
@@ -31,15 +31,4 @@
   CreateShortCut "$newStartMenuLink" "$appExe" "--no-sandbox --no-stdio-init" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
   ClearErrors
   WinShell::SetLnkAUMI "$newStartMenuLink" "${APP_ID}"
-!macroend
-
-
-; ── 品牌欢迎页：安装器打开先显示左侧品牌大图 ──
-!macro customHeader
-  !define MUI_WELCOMEPAGE_TITLE "安装 ${PRODUCT_NAME}"
-  !define MUI_WELCOMEPAGE_TEXT "本向导将引导你完成 ${PRODUCT_NAME} 的安装。$\r$\n$\r$\n点击「下一步」继续。"
-!macroend
-
-!macro customWelcomePage
-  !insertmacro MUI_PAGE_WELCOME
 !macroend
