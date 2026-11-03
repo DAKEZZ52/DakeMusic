@@ -67,13 +67,13 @@ const { settings } = useLyricSkin(HOST_SKIN_KEYS.cover, LYRIC_SKIN_COVER_DEFAULT
   justify-content: center;
   flex: 0 0 auto;
   width: clamp(280px, 35%, 420px);
-  padding: 16px 0;
+  padding: 24px 0;
 }
 
 .cover-wrapper {
   width: clamp(220px, 80%, 380px);
   aspect-ratio: 1;
-  border-radius: 12px;
+  border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
 }
