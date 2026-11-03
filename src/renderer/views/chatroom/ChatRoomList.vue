@@ -577,7 +577,7 @@ function onEditCoverSelected(e: Event) {
           </p>
           <div class="w-80 space-y-4">
             <div>
-              <label class="block text-sm mb-1 opacity-70">
+              <label class="crl-label block text-sm mb-1">
                 {{ authMode === 'register' ? '账号' : '账号 / 昵称' }}
                 <span class="text-xs opacity-50">{{
                   authMode === 'register' ? '（登录用，字母开头3-20位，注册后不可改）' : ''
@@ -585,38 +585,38 @@ function onEditCoverSelected(e: Event) {
               </label>
               <input
                 v-model="loginNameInput"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 :placeholder="authMode === 'register' ? '输入账号，如 Dake' : '输入账号或昵称'"
                 @keyup.enter="handleAuth"
               />
             </div>
             <div v-if="authMode === 'register'">
-              <label class="block text-sm mb-1 opacity-70"
+              <label class="crl-label block text-sm mb-1"
                 >昵称 <span class="text-xs opacity-50">（房间里的显示名，可随时改）</span></label
               >
               <input
                 v-model="loginNicknameInput"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="输入昵称，留空则与账号相同"
                 @keyup.enter="handleAuth"
               />
             </div>
             <div>
-              <label class="block text-sm mb-1 opacity-70">密码</label>
+              <label class="crl-label block text-sm mb-1">密码</label>
               <input
                 v-model="loginPasswordInput"
                 type="password"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="输入密码（至少6位）"
                 @keyup.enter="handleAuth"
               />
             </div>
             <div v-if="authMode === 'register'">
-              <label class="block text-sm mb-1 opacity-70">确认密码</label>
+              <label class="crl-label block text-sm mb-1">确认密码</label>
               <input
                 v-model="loginConfirmPassword"
                 type="password"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="再次输入密码"
                 @keyup.enter="handleAuth"
               />
@@ -929,24 +929,24 @@ function onEditCoverSelected(e: Event) {
           <h2 class="text-xl font-bold mb-4">创建房间</h2>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm mb-1 opacity-70">房间名称</label>
+              <label class="crl-label block text-sm mb-1">房间名称</label>
               <input
                 v-model="newRoomName"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="给房间起个名字"
               />
             </div>
             <div>
-              <label class="block text-sm mb-1 opacity-70">房间密码（可选）</label>
+              <label class="crl-label block text-sm mb-1">房间密码（可选）</label>
               <input
                 v-model="newRoomPassword"
                 type="password"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="设置后加入需要密码"
               />
             </div>
             <div>
-              <label class="block text-sm mb-1 opacity-70">房间封面</label>
+              <label class="crl-label block text-sm mb-1">房间封面</label>
               <div
                 class="w-40 aspect-square rounded-lg overflow-hidden bg-[var(--control-track-bg)] border border-[var(--border-subtle)] mb-2"
               >
@@ -959,7 +959,7 @@ function onEditCoverSelected(e: Event) {
                 <Button v-if="newRoomCover" variant="ghost" size="sm" @click="newRoomCover = ''"
                   >恢复默认</Button
                 >
-                <span v-else class="text-xs opacity-40">当前：默认封面</span>
+                <span v-else class="crl-hint text-xs">当前：默认封面</span>
               </div>
               <input
                 ref="createCoverInput"
@@ -991,12 +991,12 @@ function onEditCoverSelected(e: Event) {
           <h2 class="text-xl font-bold mb-4">加入房间</h2>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm mb-1 opacity-70">房间密码（无密码留空）</label>
+              <label class="crl-label block text-sm mb-1">房间密码（无密码留空）</label>
               <input
                 ref="joinPasswordInput"
                 v-model="joinRoomPassword"
                 type="password"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="输入房间密码"
                 @keyup.enter="confirmJoin"
               />
@@ -1021,15 +1021,15 @@ function onEditCoverSelected(e: Event) {
           <h2 class="text-xl font-bold mb-4">编辑房间</h2>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm mb-1 opacity-70">房间名称</label>
+              <label class="crl-label block text-sm mb-1">房间名称</label>
               <input
                 v-model="editRoomName"
-                class="w-full px-3 py-2 rounded-lg bg-[var(--control-track-bg)] border border-[var(--border-subtle)] focus:outline-none focus:border-[var(--color-primary)]"
+                class="crl-input w-full px-3 py-2 rounded-lg border"
                 placeholder="房间名称"
               />
             </div>
             <div>
-              <label class="block text-sm mb-1 opacity-70">房间封面</label>
+              <label class="crl-label block text-sm mb-1">房间封面</label>
               <div
                 class="w-40 aspect-square rounded-lg overflow-hidden bg-[var(--control-track-bg)] border border-[var(--border-subtle)] mb-2"
               >
@@ -1042,7 +1042,7 @@ function onEditCoverSelected(e: Event) {
                 <Button v-if="editRoomCover" variant="ghost" size="sm" @click="editRoomCover = ''"
                   >恢复默认</Button
                 >
-                <span v-else class="text-xs opacity-40">当前：默认封面</span>
+                <span v-else class="crl-hint text-xs">当前：默认封面</span>
               </div>
               <input
                 ref="editCoverInput"
@@ -1204,7 +1204,7 @@ function onEditCoverSelected(e: Event) {
 <style scoped>
 /* 房间弹窗：跟随播放器的毛玻璃质感（浅色/深色主题通用） */
 .crl-dialog {
-  background: color-mix(in srgb, var(--surface-dialog-base) 82%, transparent);
+  background: color-mix(in srgb, var(--surface-dialog-base) 90%, transparent);
   border: 1px solid color-mix(in srgb, var(--border-subtle) 90%, transparent);
   border-radius: 18px;
   color: var(--text-main);
@@ -1216,8 +1216,39 @@ function onEditCoverSelected(e: Event) {
   backdrop-filter: blur(28px) saturate(160%);
 }
 
+/* 弹窗内文字与输入框：统一走主题色，保证浅色/深色 + 复杂背景都看得清 */
+.crl-label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.crl-hint {
+  color: var(--text-secondary);
+  opacity: 0.9;
+}
+
+.crl-input {
+  background: color-mix(in srgb, var(--control-track-bg) 90%, transparent);
+  border-color: var(--border-subtle);
+  color: var(--text-main);
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.crl-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+
+.crl-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  background: var(--control-track-bg);
+}
+
 .crl-dialog-overlay {
-  background: color-mix(in srgb, #0b0f19 48%, transparent);
+  background: color-mix(in srgb, #0b0f19 55%, transparent);
   -webkit-backdrop-filter: blur(10px) saturate(120%);
   backdrop-filter: blur(10px) saturate(120%);
 }
@@ -1228,6 +1259,37 @@ function onEditCoverSelected(e: Event) {
     background: var(--surface-dialog-base);
     -webkit-backdrop-filter: none;
     backdrop-filter: none;
+  }
+
+  /* 弹窗内文字与输入框：统一走主题色，保证浅色/深色 + 复杂背景都看得清 */
+  .crl-label {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  .crl-hint {
+    color: var(--text-secondary);
+    opacity: 0.9;
+  }
+
+  .crl-input {
+    background: color-mix(in srgb, var(--control-track-bg) 90%, transparent);
+    border-color: var(--border-subtle);
+    color: var(--text-main);
+    transition:
+      border-color 0.15s ease,
+      background-color 0.15s ease;
+  }
+
+  .crl-input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.7;
+  }
+
+  .crl-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    background: var(--control-track-bg);
   }
 
   .crl-dialog-overlay {
