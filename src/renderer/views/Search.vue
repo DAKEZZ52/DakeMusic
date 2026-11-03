@@ -520,7 +520,7 @@ onUnmounted(() => {
         :lyric-column="activeSearchType === 'lyric'"
       />
 
-      <div v-else-if="searchErrors[activeSearchType]" class="search-placeholder px-10" role="alert">
+      <div v-else-if="searchErrors[activeSearchType]" class="search-placeholder px-6" role="alert">
         <p>{{ searchErrors[activeSearchType] }}</p>
         <Button variant="secondary" size="sm" @click="runSearch(currentSearchKeyword)"
           >重新搜索</Button
