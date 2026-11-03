@@ -846,7 +846,10 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
       configureTencentUpdateSource(context.prerelease);
       return await autoUpdater.checkForUpdates();
     } catch (err) {
-      log.warn('[Updater] Tencent Cloud feed unreachable, falling back to GitHub/accelerator:', err);
+      log.warn(
+        '[Updater] Tencent Cloud feed unreachable, falling back to GitHub/accelerator:',
+        err,
+      );
       return await runGithubAcceleratorFallback({
         acceleratorEnabled: Boolean(context.acceleratorUrl),
         accelerated: async () => {

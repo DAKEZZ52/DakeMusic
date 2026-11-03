@@ -9,8 +9,6 @@ import MiniLyricPanel from './MiniLyricPanel.vue';
 import { useVirtualList } from '@/composables/useVirtualList';
 import { usePlaybackProgressStatus } from '@/composables/usePlaybackProgressStatus';
 import {
-  iconHeart,
-  iconHeartFilled,
   iconMusic,
   iconPause,
   iconPinned,
@@ -18,9 +16,7 @@ import {
   iconSkipBack,
   iconSkipForward,
   iconList,
-  iconCloudDownload,
   iconSquare,
-  iconTypography,
   iconVolume1,
   iconVolume2,
   iconVolume3,
@@ -293,12 +289,6 @@ const handleMiniKeys = (e: KeyboardEvent) => {
 };
 
 // 收藏：本地乐观切换，避免等待 ~120ms 防抖 + IPC 回传造成爱心状态延迟
-const toggleFavorite = () => {
-  if (!playback.value) return;
-  playback.value.isFavorite = !playback.value.isFavorite;
-  command('toggleFavorite');
-};
-
 const mergeLyricSnapshot = (
   nextLyric: MiniPlayerLyricPayload | null | undefined,
 ): MiniPlayerLyricPayload | null => {
@@ -1058,7 +1048,13 @@ onUnmounted(() => {
             </template>
           </Tooltip>
           <!-- 唱歌模式：原声/伴奏切换 -->
-          <Tooltip :content="playback?.audioEffect === 'accompaniment' ? '伴奏模式，点击切回原声' : '原声模式，点击切换伴奏'">
+          <Tooltip
+            :content="
+              playback?.audioEffect === 'accompaniment'
+                ? '伴奏模式，点击切回原声'
+                : '原声模式，点击切换伴奏'
+            "
+          >
             <template #trigger>
               <button
                 type="button"
@@ -1076,7 +1072,14 @@ onUnmounted(() => {
           <div class="mini-pitch-group no-drag">
             <Tooltip content="降调">
               <template #trigger>
-                <button type="button" class="mini-pitch-arrow" aria-label="降调" @click="command('pitchDown')">降</button>
+                <button
+                  type="button"
+                  class="mini-pitch-arrow"
+                  aria-label="降调"
+                  @click="command('pitchDown')"
+                >
+                  降
+                </button>
               </template>
             </Tooltip>
             <Tooltip :content="(playback?.pitch ?? 0) !== 0 ? '点击重置为原调' : '当前原调'">
@@ -1094,7 +1097,14 @@ onUnmounted(() => {
             </Tooltip>
             <Tooltip content="升调">
               <template #trigger>
-                <button type="button" class="mini-pitch-arrow" aria-label="升调" @click="command('pitchUp')">升</button>
+                <button
+                  type="button"
+                  class="mini-pitch-arrow"
+                  aria-label="升调"
+                  @click="command('pitchUp')"
+                >
+                  升
+                </button>
               </template>
             </Tooltip>
           </div>

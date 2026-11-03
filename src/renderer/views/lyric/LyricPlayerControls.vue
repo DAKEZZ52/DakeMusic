@@ -396,7 +396,11 @@ const handleCopySongInfo = async () => {
           size="none"
           class="bar-func-btn bar-func-muted audio-toggle-btn"
           :class="playerStore.audioEffect === 'accompaniment' ? 'text-primary-text' : ''"
-          :tooltip="playerStore.audioEffect === 'accompaniment' ? '伴奏模式，点击切回原声' : '原声模式，点击切换伴奏'"
+          :tooltip="
+            playerStore.audioEffect === 'accompaniment'
+              ? '伴奏模式，点击切回原声'
+              : '原声模式，点击切换伴奏'
+          "
           @click="toggleAudioEffect"
         >
           {{ playerStore.audioEffect === 'accompaniment' ? '伴奏' : '原声' }}

@@ -74,7 +74,8 @@ export function resolveRunningWindowBackground(
   platform: string,
   transparent: boolean,
   buildOrCapabilities:
-    number | Pick<WindowBackgroundCapabilities, 'frostMode' | 'strategy'> = 22621,
+    | number
+    | Pick<WindowBackgroundCapabilities, 'frostMode' | 'strategy'> = 22621,
 ) {
   const build = typeof buildOrCapabilities === 'number' ? buildOrCapabilities : 22621;
   const frostMode =

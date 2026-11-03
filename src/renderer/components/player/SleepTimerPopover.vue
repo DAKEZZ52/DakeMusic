@@ -85,7 +85,9 @@ const selectAction = (action: SleepTimerAction) => {
   if (active.value) player.setSleepTimerAction(action);
 };
 
-const openDialog = () => { open.value = true; };
+const openDialog = () => {
+  open.value = true;
+};
 defineExpose({ openDialog });
 </script>
 
@@ -95,9 +97,7 @@ defineExpose({ openDialog });
     size="none"
     type="button"
     class="sleep-timer-trigger bar-func-btn relative flex items-center gap-2 transition-all"
-    :class="
-      active ? 'text-primary-text bar-func-active' : 'bar-func-muted'
-    "
+    :class="active ? 'text-primary-text bar-func-active' : 'bar-func-muted'"
     :aria-label="triggerLabel"
     @click="open = true"
   >

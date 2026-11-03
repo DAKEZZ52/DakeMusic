@@ -220,10 +220,7 @@ const ipcRequest = async (
 
   if (error) {
     const errMsg = error instanceof Error ? error.message : String(error);
-    logger.error(
-      'API',
-      `[${method}] ${fullUrl}\n  ← ERROR (${elapsed}ms): ${errMsg}`,
-    );
+    logger.error('API', `[${method}] ${fullUrl}\n  ← ERROR (${elapsed}ms): ${errMsg}`);
     throw error;
   }
 

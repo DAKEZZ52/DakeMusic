@@ -14,7 +14,7 @@ import { mapPlaylistMeta, mapTopSong } from '@/utils/mappers';
 import { extractList } from '@/utils/extractors';
 import type { PlaylistMeta } from '@/models/playlist';
 import type { Song } from '@/models/song';
-import { iconPlay, iconSlidersHorizontal, iconSparkles } from '@/icons';
+import { iconPlay, iconSlidersHorizontal } from '@/icons';
 import Button from '@/components/ui/Button.vue';
 import UserAgreementDialog from '@/components/app/UserAgreementDialog.vue';
 import PageScrollContainer from '@/components/ui/PageScrollContainer.vue';
@@ -64,8 +64,6 @@ const playlistStore = usePlaylistStore();
 const playerStore = usePlayerStore();
 const toastStore = useToastStore();
 const showUserAgreement = ref(false);
-
-const todayLabel = computed(() => new Date().getDate().toString());
 
 const greeting = computed(() => {
   const hour = new Date().getHours();
@@ -218,14 +216,9 @@ const openRecommend = () => {
 
 const playTodayRecommend = () => {
   if (dailySongs.value.length > 0 && heroSong.value) {
-    void replaceQueueAndPlay(
-      playlistStore,
-      playerStore,
-      dailySongs.value,
-      0,
-      heroSong.value,
-      { type: 'daily-recommend' },
-    );
+    void replaceQueueAndPlay(playlistStore, playerStore, dailySongs.value, 0, heroSong.value, {
+      type: 'daily-recommend',
+    });
   } else {
     openRecommend();
   }
@@ -261,10 +254,6 @@ onMounted(() => {
 onUnmounted(() => {
   if (heroTimer) clearInterval(heroTimer);
 });
-
-const openRanking = () => {
-  router.push({ name: 'ranking' });
-};
 
 const resolvePlaylistRouteId = (entry: PlaylistMeta) =>
   entry.listCreateGid || entry.globalCollectionId || entry.listCreateListid || entry.id;
@@ -425,7 +414,9 @@ const handleRejectAgreement = () => {
           <div class="hero-quote">
             <template v-if="heroSong">
               <div class="hero-line hero-line-main">{{ heroSong.title }}</div>
-              <div class="hero-line hero-line-sub">{{ heroSong.artist }} · {{ heroSong.album || '推荐曲目' }}</div>
+              <div class="hero-line hero-line-sub">
+                {{ heroSong.artist }} · {{ heroSong.album || '推荐曲目' }}
+              </div>
             </template>
             <template v-else>
               <div class="hero-line hero-line-main">发现好音乐</div>
@@ -433,7 +424,12 @@ const handleRejectAgreement = () => {
             </template>
           </div>
         </div>
-        <button class="hero-play-btn" type="button" aria-label="播放推荐" @click="playTodayRecommend">
+        <button
+          class="hero-play-btn"
+          type="button"
+          aria-label="播放推荐"
+          @click="playTodayRecommend"
+        >
           <Icon :icon="iconPlay" width="20" height="20" />
         </button>
         <div class="hero-right">

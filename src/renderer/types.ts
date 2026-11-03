@@ -24,7 +24,12 @@ export type OutputDeviceOption = {
 };
 
 export type OutputDeviceStatus =
-  'idle' | 'ready' | 'unsupported' | 'permission' | 'fallback' | 'error';
+  | 'idle'
+  | 'ready'
+  | 'unsupported'
+  | 'permission'
+  | 'fallback'
+  | 'error';
 
 export type ShortcutScope = 'local' | 'global';
 

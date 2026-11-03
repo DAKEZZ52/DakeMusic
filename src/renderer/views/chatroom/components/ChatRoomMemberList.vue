@@ -99,12 +99,7 @@ const emit = defineEmits<{
             </svg>
           </span>
           <span v-if="member.isOwner" class="cr-badge owner"><i>房主</i></span>
-          <span
-            v-if="member.isAdmin"
-            class="cr-badge admin-icon"
-            role="img"
-            aria-label="管理员"
-          >
+          <span v-if="member.isAdmin" class="cr-badge admin-icon" role="img" aria-label="管理员">
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -295,7 +290,8 @@ const emit = defineEmits<{
   animation: cr-ban-blink 1.8s ease-in-out infinite;
 }
 @keyframes cr-ban-blink {
-  0%, 100% {
+  0%,
+  100% {
     box-shadow:
       inset 0 0 0 1px rgba(255, 77, 109, 0.45),
       0 0 6px rgba(255, 77, 109, 0.22);

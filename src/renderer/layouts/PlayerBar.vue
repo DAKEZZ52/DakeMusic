@@ -19,16 +19,13 @@ import Tooltip from '@/components/ui/Tooltip.vue';
 import { useDeferredSeek } from '@/composables/useDeferredSeek';
 import { usePlaybackProgressStatus } from '@/composables/usePlaybackProgressStatus';
 import Popover from '@/components/ui/Popover.vue';
-import MvIcon from '@/components/ui/MvIcon.vue';
 import PlayerQueueDrawer from '@/components/music/PlayerQueueDrawer.vue';
 import AddToPlaylistDialog from '@/components/music/AddToPlaylistDialog.vue';
 import {
   iconMusic,
   iconHeart,
   iconHeartFilled,
-  iconCloud,
   iconTriangleAlert,
-  iconMessageCircle,
   iconRepeat,
   iconShuffle,
   iconListRestart,
@@ -38,7 +35,6 @@ import {
   iconPlay,
   iconPause,
   iconList,
-  iconPlaylistAdd,
   iconTypography,
   iconCloudDownload,
   iconDots,
@@ -388,7 +384,11 @@ onUnmounted(() => {
                 <button class="player-more-item" @click="openSleepTimer">
                   <span>定时关闭</span>
                 </button>
-                <button v-if="canAddToPlaylist" class="player-more-item" @click="handleOpenAddToPlaylist">
+                <button
+                  v-if="canAddToPlaylist"
+                  class="player-more-item"
+                  @click="handleOpenAddToPlaylist"
+                >
                   <span>添加到歌单</span>
                 </button>
                 <button class="player-more-item" @click="goToComments">
@@ -400,7 +400,7 @@ onUnmounted(() => {
               </div>
             </Popover>
 
-            <div style="display:none"><SleepTimerPopover ref="sleepTimerRef" /></div>
+            <div style="display: none"><SleepTimerPopover ref="sleepTimerRef" /></div>
 
             <Popover
               v-if="playbackNotice"
@@ -600,12 +600,16 @@ onUnmounted(() => {
             class="player-effect-btn"
             :class="{ active: player.audioEffect === 'none' }"
             @click="setAudioEffect('none')"
-          >原声</button>
+          >
+            原声
+          </button>
           <button
             class="player-effect-btn"
             :class="{ active: player.audioEffect === 'accompaniment' }"
             @click="setAudioEffect('accompaniment')"
-          >伴奏</button>
+          >
+            伴奏
+          </button>
         </div>
         <!-- 功能按钮（变速/音效/音质） -->
         <PitchSpeedPopover />
@@ -824,7 +828,7 @@ onUnmounted(() => {
 }
 
 .player-more-item:hover {
-  background: var(--control-hover-bg, rgba(0,0,0,0.05));
+  background: var(--control-hover-bg, rgba(0, 0, 0, 0.05));
 }
 
 .player-more-sleep-timer :deep(.sleep-timer-trigger) {
@@ -835,14 +839,14 @@ onUnmounted(() => {
 }
 
 .player-more-sleep-timer :deep(.sleep-timer-trigger:hover) {
-  background: var(--control-hover-bg, rgba(0,0,0,0.05));
+  background: var(--control-hover-bg, rgba(0, 0, 0, 0.05));
 }
 
 /* 原声/伴奏切换 */
 .player-effect-toggle {
   display: flex;
   align-items: center;
-  background: var(--control-muted-bg, rgba(0,0,0,0.06));
+  background: var(--control-muted-bg, rgba(0, 0, 0, 0.06));
   border-radius: 8px;
   padding: 2px;
   margin-right: 4px;

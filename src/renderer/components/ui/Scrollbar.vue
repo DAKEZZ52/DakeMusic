@@ -17,7 +17,10 @@ interface Props {
 }
 
 type ContentRefTarget =
-  ((el: HTMLElement | null) => void) | { value: HTMLElement | null } | null | undefined;
+  | ((el: HTMLElement | null) => void)
+  | { value: HTMLElement | null }
+  | null
+  | undefined;
 
 const props = withDefaults(defineProps<Props>(), {
   hideScrollbar: false,

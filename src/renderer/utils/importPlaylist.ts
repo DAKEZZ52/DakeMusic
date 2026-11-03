@@ -12,7 +12,13 @@ import {
 } from '@/utils/songMatching';
 
 export type ImportItemStatus =
-  'pending' | 'matching' | 'adding' | 'success' | 'low' | 'skipped' | 'failed';
+  | 'pending'
+  | 'matching'
+  | 'adding'
+  | 'success'
+  | 'low'
+  | 'skipped'
+  | 'failed';
 
 export interface ImportItemResult {
   external: ExternalTrack;

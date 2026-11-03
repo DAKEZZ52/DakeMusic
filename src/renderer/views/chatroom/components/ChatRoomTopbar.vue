@@ -143,8 +143,13 @@ const emit = defineEmits<{
   animation: cr-pulse 1.6s infinite;
 }
 @keyframes cr-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
 }
 .cr-song-btn {
   flex-shrink: 0;

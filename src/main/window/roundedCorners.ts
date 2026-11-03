@@ -19,9 +19,7 @@ export function applyWindowsRoundedCorners(win: BrowserWindow): void {
     const handle = win.getNativeWindowHandle();
     // x64: 8 字节指针；ia32: 4 字节
     hwndText =
-      handle.length >= 8
-        ? handle.readBigUInt64LE(0).toString()
-        : handle.readUInt32LE(0).toString();
+      handle.length >= 8 ? handle.readBigUInt64LE(0).toString() : handle.readUInt32LE(0).toString();
   } catch (error) {
     log.warn('[Window] 读取窗口句柄失败，跳过圆角设置', error);
     return;

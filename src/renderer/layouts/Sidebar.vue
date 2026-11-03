@@ -925,245 +925,246 @@ watch(
         <SidebarUserCard />
 
         <div class="sidebar-body-scroll app-scrollbar no-drag">
-
-        <div class="sidebar-nav-scroll no-drag">
-          <div class="px-4">
-            <div v-for="group in allMenuGroups" :key="group.id" class="mb-1.5 last:mb-0">
-              <h2
-                class="sidebar-section-header px-3.5 text-[11px] font-semibold text-text-main/60 uppercase tracking-[0.5px] mb-2 flex items-center gap-1 select-none"
-                :class="group.collapsible ? 'cursor-pointer' : 'cursor-default'"
-                @click="toggleSection(group)"
-              >
-                {{ group.title }}
-                <Icon
-                  v-if="group.collapsible"
-                  :icon="iconChevronDown"
-                  width="10"
-                  height="10"
-                  class="sidebar-collapse-arrow transition-transform duration-200 ml-auto"
-                  :class="{ '-rotate-90': isSectionCollapsed(group) }"
-                />
-              </h2>
-              <nav
-                class="sidebar-section-body"
-                :class="{ 'is-collapsed': isSectionCollapsed(group) }"
-              >
-                <div class="space-y-0.5">
-                  <template v-for="item in group.items" :key="item.key">
-                    <component
-                      :is="item.component"
-                      v-if="item.component"
-                      :item="item"
-                      :section="group"
-                      :collapsed="false"
-                    />
-                    <Button
-                      v-else
-                      variant="unstyled"
-                      size="none"
-                      :disabled="isMenuItemDisabled(item)"
-                      :class="[
-                        'sidebar-nav-item w-full flex items-center gap-3.5 px-3.5 py-2 rounded-[14px] transition-all duration-200 group active:scale-[0.98]',
-                        isMenuItemDisabled(item)
-                          ? 'is-disabled cursor-not-allowed opacity-35 text-text-main/55'
-                          : isMenuItemActive(item)
-                            ? 'is-active cursor-pointer bg-primary/12 text-primary-text'
-                            : 'cursor-pointer text-text-main/90',
-                      ]"
-                      @click="handleMenuClick(item)"
-                    >
-                      <Icon
-                        v-if="item.builtinIcon"
-                        :icon="iconMap[item.builtinIcon]"
-                        width="18"
-                        height="18"
-                        :class="[
-                          isMenuItemDisabled(item)
-                            ? 'text-text-main opacity-40'
-                            : isMenuItemActive(item)
-                              ? 'text-primary-text'
-                              : 'text-text-main opacity-60 group-hover:opacity-100',
-                        ]"
+          <div class="sidebar-nav-scroll no-drag">
+            <div class="px-4">
+              <div v-for="group in allMenuGroups" :key="group.id" class="mb-1.5 last:mb-0">
+                <h2
+                  class="sidebar-section-header px-3.5 text-[11px] font-semibold text-text-main/60 uppercase tracking-[0.5px] mb-2 flex items-center gap-1 select-none"
+                  :class="group.collapsible ? 'cursor-pointer' : 'cursor-default'"
+                  @click="toggleSection(group)"
+                >
+                  {{ group.title }}
+                  <Icon
+                    v-if="group.collapsible"
+                    :icon="iconChevronDown"
+                    width="10"
+                    height="10"
+                    class="sidebar-collapse-arrow transition-transform duration-200 ml-auto"
+                    :class="{ '-rotate-90': isSectionCollapsed(group) }"
+                  />
+                </h2>
+                <nav
+                  class="sidebar-section-body"
+                  :class="{ 'is-collapsed': isSectionCollapsed(group) }"
+                >
+                  <div class="space-y-0.5">
+                    <template v-for="item in group.items" :key="item.key">
+                      <component
+                        :is="item.component"
+                        v-if="item.component"
+                        :item="item"
+                        :section="group"
+                        :collapsed="false"
                       />
-                      <span
-                        class="text-[14px]"
-                        :class="[isMenuItemActive(item) ? 'font-semibold' : 'font-normal']"
+                      <Button
+                        v-else
+                        variant="unstyled"
+                        size="none"
+                        :disabled="isMenuItemDisabled(item)"
+                        :class="[
+                          'sidebar-nav-item w-full flex items-center gap-3.5 px-3.5 py-2 rounded-[14px] transition-all duration-200 group active:scale-[0.98]',
+                          isMenuItemDisabled(item)
+                            ? 'is-disabled cursor-not-allowed opacity-35 text-text-main/55'
+                            : isMenuItemActive(item)
+                              ? 'is-active cursor-pointer bg-primary/12 text-primary-text'
+                              : 'cursor-pointer text-text-main/90',
+                        ]"
+                        @click="handleMenuClick(item)"
                       >
-                        {{ item.title }}
-                      </span>
-                    </Button>
-                  </template>
-                </div>
-              </nav>
+                        <Icon
+                          v-if="item.builtinIcon"
+                          :icon="iconMap[item.builtinIcon]"
+                          width="18"
+                          height="18"
+                          :class="[
+                            isMenuItemDisabled(item)
+                              ? 'text-text-main opacity-40'
+                              : isMenuItemActive(item)
+                                ? 'text-primary-text'
+                                : 'text-text-main opacity-60 group-hover:opacity-100',
+                          ]"
+                        />
+                        <span
+                          class="text-[14px]"
+                          :class="[isMenuItemActive(item) ? 'font-semibold' : 'font-normal']"
+                        >
+                          {{ item.title }}
+                        </span>
+                      </Button>
+                    </template>
+                  </div>
+                </nav>
+              </div>
             </div>
           </div>
-        </div>
 
-        <SidebarPlaylistHeader
-          :active-tab="activePlaylistTab"
-          :is-logged-in="isLoggedIn"
-          v-model:show-create-menu="showCreateMenu"
-          @tab-change="activePlaylistTab = $event"
-          @open-order="openPlaylistOrder"
-          @refresh="refreshUserPlaylists"
-          @create-playlist="openCreatePlaylistDialog"
-          @import-playlist="showImportDialog = true"
-        />
+          <SidebarPlaylistHeader
+            :active-tab="activePlaylistTab"
+            :is-logged-in="isLoggedIn"
+            v-model:show-create-menu="showCreateMenu"
+            @tab-change="activePlaylistTab = $event"
+            @open-order="openPlaylistOrder"
+            @refresh="refreshUserPlaylists"
+            @create-playlist="openCreatePlaylistDialog"
+            @import-playlist="showImportDialog = true"
+          />
 
-        <Scrollbar class="sidebar-playlist-scroll no-drag flex-1 min-h-0" :scrollbar-inset="3">
-          <nav v-if="isLoggedIn" class="sidebar-scroll-inner space-y-0.5">
-            <!-- 自建歌单 -->
-            <template v-if="activePlaylistTab === 0">
-              <div
-                v-for="playlist in createdPlaylists.pinned"
-                :key="playlist.listid || playlist.id"
-                :class="[
-                  'sidebar-library-item relative w-full flex items-center gap-3 px-3.5 py-1.5 rounded-xl group cursor-pointer active:scale-[0.98] transition-all',
-                  isActivePlaylist(playlist)
-                    ? 'is-active bg-primary/12 text-primary-text'
-                    : 'text-text-main/90',
-                ]"
-                @click="navigateToPlaylist(playlist)"
-              >
-                <Cover
-                  :url="playlistCoversStore.coverFor(playlist, userStore.info?.userid)"
-                  :size="100"
-                  :width="28"
-                  :height="28"
-                  :borderRadius="6"
-                  class="shrink-0"
-                />
-                <div class="sidebar-playlist-label-wrap">
-                  <span
-                    :class="[
-                      'text-[13px] truncate w-full font-medium tracking-tight',
-                      isActivePlaylist(playlist) ? 'text-primary-text' : 'text-text-main/90',
-                    ]"
-                  >
-                    {{ playlist.name }}
-                  </span>
-                </div>
-              </div>
-
-              <div
-                v-if="createdPlaylists.pinned.length > 0 && createdPlaylists.normal.length > 0"
-                class="sidebar-playlist-divider"
-              ></div>
-
-              <div
-                v-for="playlist in createdPlaylists.normal"
-                :key="playlist.listid || playlist.id"
-                :class="[
-                  'sidebar-library-item relative w-full flex items-center gap-3 px-3.5 py-1.5 rounded-xl group cursor-pointer active:scale-[0.98] transition-all',
-                  isActivePlaylist(playlist)
-                    ? 'is-active bg-primary/12 text-primary-text'
-                    : 'text-text-main/90',
-                ]"
-                @click="navigateToPlaylist(playlist)"
-              >
-                <Cover
-                  :url="playlistCoversStore.coverFor(playlist, userStore.info?.userid)"
-                  :size="100"
-                  :width="28"
-                  :height="28"
-                  :borderRadius="6"
-                  class="shrink-0"
-                />
+          <Scrollbar class="sidebar-playlist-scroll no-drag flex-1 min-h-0" :scrollbar-inset="3">
+            <nav v-if="isLoggedIn" class="sidebar-scroll-inner space-y-0.5">
+              <!-- 自建歌单 -->
+              <template v-if="activePlaylistTab === 0">
                 <div
+                  v-for="playlist in createdPlaylists.pinned"
+                  :key="playlist.listid || playlist.id"
                   :class="[
-                    'sidebar-playlist-label-wrap',
-                    canRemovePlaylist(playlist) ? 'has-action' : '',
+                    'sidebar-library-item relative w-full flex items-center gap-3 px-3.5 py-1.5 rounded-xl group cursor-pointer active:scale-[0.98] transition-all',
+                    isActivePlaylist(playlist)
+                      ? 'is-active bg-primary/12 text-primary-text'
+                      : 'text-text-main/90',
                   ]"
+                  @click="navigateToPlaylist(playlist)"
                 >
-                  <span
+                  <Cover
+                    :url="playlistCoversStore.coverFor(playlist, userStore.info?.userid)"
+                    :size="100"
+                    :width="28"
+                    :height="28"
+                    :borderRadius="6"
+                    class="shrink-0"
+                  />
+                  <div class="sidebar-playlist-label-wrap">
+                    <span
+                      :class="[
+                        'text-[13px] truncate w-full font-medium tracking-tight',
+                        isActivePlaylist(playlist) ? 'text-primary-text' : 'text-text-main/90',
+                      ]"
+                    >
+                      {{ playlist.name }}
+                    </span>
+                  </div>
+                </div>
+
+                <div
+                  v-if="createdPlaylists.pinned.length > 0 && createdPlaylists.normal.length > 0"
+                  class="sidebar-playlist-divider"
+                ></div>
+
+                <div
+                  v-for="playlist in createdPlaylists.normal"
+                  :key="playlist.listid || playlist.id"
+                  :class="[
+                    'sidebar-library-item relative w-full flex items-center gap-3 px-3.5 py-1.5 rounded-xl group cursor-pointer active:scale-[0.98] transition-all',
+                    isActivePlaylist(playlist)
+                      ? 'is-active bg-primary/12 text-primary-text'
+                      : 'text-text-main/90',
+                  ]"
+                  @click="navigateToPlaylist(playlist)"
+                >
+                  <Cover
+                    :url="playlistCoversStore.coverFor(playlist, userStore.info?.userid)"
+                    :size="100"
+                    :width="28"
+                    :height="28"
+                    :borderRadius="6"
+                    class="shrink-0"
+                  />
+                  <div
                     :class="[
-                      'text-[13px] truncate w-full font-medium tracking-tight',
-                      isActivePlaylist(playlist) ? 'text-primary-text' : 'text-text-main/90',
+                      'sidebar-playlist-label-wrap',
+                      canRemovePlaylist(playlist) ? 'has-action' : '',
                     ]"
                   >
-                    {{ playlist.name }}
-                  </span>
-                </div>
-                <Button
-                  v-if="canRemovePlaylist(playlist)"
-                  variant="unstyled"
-                  size="none"
-                  type="button"
-                  class="sidebar-playlist-action"
-                  :tooltip="isOwnerPlaylist(playlist) ? '删除歌单' : '取消收藏'"
-                  @click.stop="openRemovePlaylistDialog(playlist)"
-                >
-                  <Icon :icon="iconTrash" width="14" height="14" />
-                </Button>
-              </div>
-
-              <div
-                v-if="createdPlaylists.pinned.length === 0 && createdPlaylists.normal.length === 0"
-                class="py-8 text-center opacity-40 text-[12px] italic"
-              >
-                暂无自建歌单
-              </div>
-            </template>
-
-            <!-- 收藏歌单 -->
-            <template v-else>
-              <div
-                v-for="playlist in favoritedPlaylists"
-                :key="playlist.listid || playlist.id"
-                :class="[
-                  'sidebar-library-item relative w-full flex items-center gap-3 px-3.5 py-1.5 rounded-xl group cursor-pointer active:scale-[0.98] transition-all',
-                  isActivePlaylist(playlist)
-                    ? 'is-active bg-primary/12 text-primary-text'
-                    : 'text-text-main/90',
-                ]"
-                @click="navigateToPlaylist(playlist)"
-              >
-                <Cover
-                  :url="playlistCoversStore.coverFor(playlist, userStore.info?.userid)"
-                  :size="100"
-                  :width="28"
-                  :height="28"
-                  :borderRadius="6"
-                  class="shrink-0"
-                />
-                <div class="sidebar-playlist-label-wrap has-action">
-                  <span
-                    :class="[
-                      'text-[13px] truncate w-full font-medium tracking-tight',
-                      isActivePlaylist(playlist) ? 'text-primary-text' : 'text-text-main/90',
-                    ]"
+                    <span
+                      :class="[
+                        'text-[13px] truncate w-full font-medium tracking-tight',
+                        isActivePlaylist(playlist) ? 'text-primary-text' : 'text-text-main/90',
+                      ]"
+                    >
+                      {{ playlist.name }}
+                    </span>
+                  </div>
+                  <Button
+                    v-if="canRemovePlaylist(playlist)"
+                    variant="unstyled"
+                    size="none"
+                    type="button"
+                    class="sidebar-playlist-action"
+                    :tooltip="isOwnerPlaylist(playlist) ? '删除歌单' : '取消收藏'"
+                    @click.stop="openRemovePlaylistDialog(playlist)"
                   >
-                    {{ playlist.name }}
-                  </span>
+                    <Icon :icon="iconTrash" width="14" height="14" />
+                  </Button>
                 </div>
-                <Button
-                  v-if="canRemovePlaylist(playlist)"
-                  variant="unstyled"
-                  size="none"
-                  type="button"
-                  class="sidebar-playlist-action"
-                  tooltip="取消收藏"
-                  @click.stop="openRemovePlaylistDialog(playlist)"
+
+                <div
+                  v-if="
+                    createdPlaylists.pinned.length === 0 && createdPlaylists.normal.length === 0
+                  "
+                  class="py-8 text-center opacity-40 text-[12px] italic"
                 >
-                  <Icon :icon="iconTrash" width="14" height="14" />
-                </Button>
-              </div>
+                  暂无自建歌单
+                </div>
+              </template>
 
-              <div
-                v-if="favoritedPlaylists.length === 0"
-                class="py-8 text-center opacity-40 text-[12px] italic"
-              >
-                暂无收藏内容
-              </div>
-            </template>
-          </nav>
+              <!-- 收藏歌单 -->
+              <template v-else>
+                <div
+                  v-for="playlist in favoritedPlaylists"
+                  :key="playlist.listid || playlist.id"
+                  :class="[
+                    'sidebar-library-item relative w-full flex items-center gap-3 px-3.5 py-1.5 rounded-xl group cursor-pointer active:scale-[0.98] transition-all',
+                    isActivePlaylist(playlist)
+                      ? 'is-active bg-primary/12 text-primary-text'
+                      : 'text-text-main/90',
+                  ]"
+                  @click="navigateToPlaylist(playlist)"
+                >
+                  <Cover
+                    :url="playlistCoversStore.coverFor(playlist, userStore.info?.userid)"
+                    :size="100"
+                    :width="28"
+                    :height="28"
+                    :borderRadius="6"
+                    class="shrink-0"
+                  />
+                  <div class="sidebar-playlist-label-wrap has-action">
+                    <span
+                      :class="[
+                        'text-[13px] truncate w-full font-medium tracking-tight',
+                        isActivePlaylist(playlist) ? 'text-primary-text' : 'text-text-main/90',
+                      ]"
+                    >
+                      {{ playlist.name }}
+                    </span>
+                  </div>
+                  <Button
+                    v-if="canRemovePlaylist(playlist)"
+                    variant="unstyled"
+                    size="none"
+                    type="button"
+                    class="sidebar-playlist-action"
+                    tooltip="取消收藏"
+                    @click.stop="openRemovePlaylistDialog(playlist)"
+                  >
+                    <Icon :icon="iconTrash" width="14" height="14" />
+                  </Button>
+                </div>
 
-          <div v-else class="sidebar-scroll-empty px-3.5 py-8 text-center">
-            <span class="text-[12px] font-normal text-text-main opacity-50 italic">
-              登录同步云端歌单
-            </span>
-          </div>
-        </Scrollbar>
+                <div
+                  v-if="favoritedPlaylists.length === 0"
+                  class="py-8 text-center opacity-40 text-[12px] italic"
+                >
+                  暂无收藏内容
+                </div>
+              </template>
+            </nav>
+
+            <div v-else class="sidebar-scroll-empty px-3.5 py-8 text-center">
+              <span class="text-[12px] font-normal text-text-main opacity-50 italic">
+                登录同步云端歌单
+              </span>
+            </div>
+          </Scrollbar>
         </div>
       </div>
     </template>

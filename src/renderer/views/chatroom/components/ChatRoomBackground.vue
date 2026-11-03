@@ -80,8 +80,13 @@ const settingStore = useSettingStore();
   animation: cr-twinkle 7s ease-in-out infinite 1.5s;
 }
 @keyframes cr-twinkle {
-  0%, 100% { opacity: 0.45; }
-  50% { opacity: 1; }
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
 }
 .cr-aurora-band {
   position: absolute;
@@ -119,7 +124,12 @@ const settingStore = useSettingStore();
   animation: cr-aurora-breath 17s ease-in-out infinite reverse;
 }
 @keyframes cr-aurora-breath {
-  0%, 100% { opacity: 0.42; }
-  50% { opacity: 0.72; }
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.72;
+  }
 }
 </style>

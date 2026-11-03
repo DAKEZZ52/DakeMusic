@@ -399,14 +399,16 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       const list = Array.isArray(r?.list) ? r.list : [];
       const history: ChatMessage[] = list
         .filter((m: any) => m && typeof m.content === 'string' && m.content)
-        .map((m: any): ChatMessage => ({
-          id: `history_${m.id}`,
-          senderIdentity: m.is_system ? 'system' : m.user_id ? `user_${m.user_id}` : 'system',
-          senderName: m.user_name || '系统',
-          content: m.content,
-          timestamp: Date.parse(m.created_at) || Date.now(),
-          type: m.is_system ? 'system' : 'text',
-        }));
+        .map(
+          (m: any): ChatMessage => ({
+            id: `history_${m.id}`,
+            senderIdentity: m.is_system ? 'system' : m.user_id ? `user_${m.user_id}` : 'system',
+            senderName: m.user_name || '系统',
+            content: m.content,
+            timestamp: Date.parse(m.created_at) || Date.now(),
+            type: m.is_system ? 'system' : 'text',
+          }),
+        );
       // 拉取期间可能刚收到实时消息，按“同内容 + 同发送者 + 10 秒内”去重，避免重复上屏
       const live = messages.value;
       messages.value = [

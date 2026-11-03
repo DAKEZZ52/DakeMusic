@@ -9,7 +9,6 @@ import { ref, nextTick, onMounted, onUnmounted, computed, watch } from 'vue';
 const myAvatarImage = ref('');
 import { useRouter } from 'vue-router';
 import { useChatRoomStore } from '@/stores/chatRoom';
-import { useSettingStore } from '@/stores/setting';
 import Button from '@/components/ui/Button.vue';
 import Tooltip from '@/components/ui/Tooltip.vue';
 import { roomApi } from '@/utils/roomApi';
@@ -109,7 +108,6 @@ window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: curren
 onMounted(() => window.addEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
 onUnmounted(() => window.removeEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
 // DakeMusic: 设置 store（用于自定义背景）
-const settingStore = useSettingStore();
 
 const messageInput = ref('');
 const messageInputEl = ref<HTMLInputElement | null>(null);

@@ -979,7 +979,7 @@ onUnmounted(() => {
 }
 .tb-search-input-wrap:hover:not(:focus-within) {
   border-color: color-mix(in srgb, var(--text-main) 20%, transparent);
-} 
+}
 
 .tb-search-input-wrap:focus-within {
   background: var(--control-muted-bg);

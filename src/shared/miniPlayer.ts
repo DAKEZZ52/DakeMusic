@@ -24,9 +24,9 @@ export type MiniPlayerSimpleCommand =
 // Mini 播放器窗口尺寸：主进程用于窗口 setBounds，渲染层用于卡片高度，保持单一来源。
 // 无投影、卡片铺满窗口（仅描边），故折叠高度即控制条高度、无外边距。
 export const MINI_PLAYER_DIMENSIONS = {
-  width: 396,  // ← 宽度
-  collapsedHeight: 70,    // ← 折叠高度
-  expandedHeight: 390,    // ← 展开高度
+  width: 396, // ← 宽度
+  collapsedHeight: 70, // ← 折叠高度
+  expandedHeight: 390, // ← 展开高度
   shellPadding: 0,
   controlsHeight: 70,
 } as const;
