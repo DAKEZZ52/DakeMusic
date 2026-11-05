@@ -351,6 +351,33 @@ app.use(express.json({ limit: '20mb' }));
 app.use(apiLimiter);
 app.use(logReq);
 
+// ===== DakeMusic: 客户端构建标识（观察期只记录，不拒绝） =====
+// 官方构建会带 X-Dake-Build: v=2.4.7;b=20261106T1200;ch=release
+// 缺失或格式不对的请求先只记日志，用来观察真实用户里有多少是非官方构建。
+const clientBuildSeen = new Map();
+function noteClientBuild(req, tag) {
+  const present = typeof tag === 'string' && /^v=[^;]+;b=[^;]+;ch=(release|beta|dev)$/.test(tag);
+  const key = (present ? 'present' : 'missing') + '|' + (req.baseUrl || '') + req.path;
+  const now = Date.now();
+  if (now - (clientBuildSeen.get(key) || 0) < 60_000) return;
+  clientBuildSeen.set(key, now);
+  logger.info(present ? 'client_build_present' : 'client_build_missing', {
+    reqId: req.id,
+    path: req.path,
+    ip: req.headers['x-real-ip'] || req.ip,
+    build: typeof tag === 'string' ? tag.slice(0, 60) : null,
+    ua: String(req.headers['user-agent'] || '').slice(0, 60),
+  });
+}
+
+app.use((req, _res, next) => {
+  const tag = req.headers['x-dake-build'];
+  req.clientBuild = typeof tag === 'string' ? tag : '';
+  req.clientBuildValid = /^v=[^;]+;b=[^;]+;ch=(release|beta|dev)$/.test(req.clientBuild);
+  noteClientBuild(req, tag);
+  next();
+});
+
 // DakeMusic: 管理后台（同源访问，不走 CORS）
 initAdmin({ db, rooms: () => rooms, jwtSecret: JWT_SECRET });
 app.use('/admin', adminRouter);

@@ -1,4 +1,17 @@
 import { defineConfig } from 'vite';
+import { readFileSync } from 'node:fs';
+
+// DakeMusic: 构建标识（服务端据此区分官方构建与第三方改包）
+const pkgVersion = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+).version;
+const buildStamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').slice(0, 13);
+const buildChannel = process.env.BETA ? 'beta' : 'release';
+const buildDefines = {
+  __DAKE_VERSION__: JSON.stringify(pkgVersion),
+  __DAKE_BUILD__: JSON.stringify(buildStamp),
+  __DAKE_CHANNEL__: JSON.stringify(buildChannel),
+};
 import vue from '@vitejs/plugin-vue';
 import electron from 'vite-plugin-electron';
 import renderer from 'vite-plugin-electron-renderer';
@@ -38,6 +51,7 @@ const bundleAnalysisPlugin = () => ({
 });
 
 export default defineConfig({
+  define: buildDefines,
   build: {
     rollupOptions: {
       input: {
@@ -57,6 +71,7 @@ export default defineConfig({
           options.startup(['.', '--no-sandbox', '--no-stdio-init']);
         },
         vite: {
+          define: buildDefines,
           build: {
             outDir: 'dist-electron/main',
             emptyOutDir: true,

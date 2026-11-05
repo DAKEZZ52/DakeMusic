@@ -5,6 +5,7 @@
  * 描述：房间管理后端 API 封装 - JWT 会话鉴权 + 内存缓存
  */
 import { DAKE_API_BASE_URL } from '../../shared/endpoints';
+import { CLIENT_BUILD_HEADER, getClientBuildTag } from '../../shared/buildInfo';
 
 const API_BASE = DAKE_API_BASE_URL;
 
@@ -37,6 +38,8 @@ async function request(path: string, options: RequestOptions = {}) {
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    // 构建标识：服务端据此区分官方构建与改包（观察期只记录）
+    [CLIENT_BUILD_HEADER]: getClientBuildTag(),
     ...(options.headers || {}),
   };
   if (options.auth !== false) {
