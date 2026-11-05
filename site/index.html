@@ -10,7 +10,8 @@
     />
     <meta name="robots" content="index, follow" />
     <meta name="author" content="知之Dake" />
-    <meta name="theme-color" content="#000000" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <link rel="canonical" href="https://dkyy.top/" />
     <link rel="icon" type="image/png" href="assets/img/logo.png" />
     <link rel="apple-touch-icon" href="assets/img/logo.png" />
@@ -51,7 +52,62 @@
         "author": { "@type": "Person", "name": "知之Dake" }
       }
     </script>
-  </head>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "DakeMusic 收费吗？是不是真的开源？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "完全免费，没有会员也没有广告。程序以 GPL-3.0 协议开源，任何人都可以自行编译和修改。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "DakeMusic 支持哪些系统？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "目前正式发布的是 Windows 10 与 Windows 11 的 64 位版本。macOS 版本还没有发布安装包。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "使用 DakeMusic 必须注册账号吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "放本地歌不需要。在线曲库、云端歌单和语聊房需要登录，登录只用于这些联网功能。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "DakeMusic 会上传我的本地音乐吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "不会。本地曲库只读取你添加的文件夹，播放记录和设置存在本机的数据库文件里。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "人声分离需要联网吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "第一次使用需要联网下载模型文件，之后分离都在本机算，音频不会上传到服务器。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "怎么更新到新版本？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "应用内会自动检查更新，下载完成后弹出安装提示，也可以随时从下载页取最新安装包覆盖安装。"
+            }
+          }
+        ]
+      }
+    </script>  </head>
   <body>
     <a class="skip-link" href="#main">跳到主要内容</a>
 
@@ -237,64 +293,64 @@
 
         <div class="faq">
           <div class="faq-item reveal" data-open="false">
-            <button class="faq-q" type="button" aria-expanded="false">
+            <h3 class="faq-h"><button class="faq-q" type="button" aria-expanded="false">
               收费吗？是不是真的开源？
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </button>
+            </button></h3>
             <div class="faq-a"><div><p class="body-6">完全免费，没有会员也没有广告。程序以 GPL-3.0 协议开源，任何人都可以自行编译和修改。</p></div></div>
           </div>
 
           <div class="faq-item reveal" data-open="false">
-            <button class="faq-q" type="button" aria-expanded="false">
+            <h3 class="faq-h"><button class="faq-q" type="button" aria-expanded="false">
               支持哪些系统？
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </button>
+            </button></h3>
             <div class="faq-a"><div><p class="body-6">目前正式发布的是 Windows 10 与 Windows 11 的 64 位版本。macOS 版本还没有发布安装包，不建议拿别人的包来试。</p></div></div>
           </div>
 
           <div class="faq-item reveal" data-open="false">
-            <button class="faq-q" type="button" aria-expanded="false">
+            <h3 class="faq-h"><button class="faq-q" type="button" aria-expanded="false">
               必须注册账号吗？
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </button>
+            </button></h3>
             <div class="faq-a"><div><p class="body-6">放本地歌不需要。在线曲库、云端歌单和语聊房需要登录，登录只用于这些联网功能。</p></div></div>
           </div>
 
           <div class="faq-item reveal" data-open="false">
-            <button class="faq-q" type="button" aria-expanded="false">
+            <h3 class="faq-h"><button class="faq-q" type="button" aria-expanded="false">
               会上传我的本地音乐吗？
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </button>
+            </button></h3>
             <div class="faq-a"><div><p class="body-6">不会。本地曲库只读取你添加的文件夹，播放记录和设置存在本机的数据库文件里，删掉应用目录就一起删掉了。</p></div></div>
           </div>
 
           <div class="faq-item reveal" data-open="false">
-            <button class="faq-q" type="button" aria-expanded="false">
+            <h3 class="faq-h"><button class="faq-q" type="button" aria-expanded="false">
               人声分离要联网吗？
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </button>
+            </button></h3>
             <div class="faq-a"><div><p class="body-6">第一次使用需要联网下载模型文件，之后分离都在本机算，音频不会上传到服务器。</p></div></div>
           </div>
 
 
 
           <div class="faq-item reveal" data-open="false">
-            <button class="faq-q" type="button" aria-expanded="false">
+            <h3 class="faq-h"><button class="faq-q" type="button" aria-expanded="false">
               怎么更新到新版本？
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
                 <path d="M12 5v14M5 12h14" />
               </svg>
-            </button>
+            </button></h3>
             <div class="faq-a"><div><p class="body-6">应用内会自动检查更新，下载完成后弹出安装提示，也可以随时从下载页取最新安装包覆盖安装。</p></div></div>
           </div>
 
