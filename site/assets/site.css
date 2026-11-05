@@ -443,7 +443,7 @@ a {
 
 /* ---------- Hero ---------- */
 .hero {
-  padding: var(--s-900) 0 var(--s-800);
+  padding: var(--s-900) 0 var(--s-400);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   gap: var(--s-800);
@@ -516,7 +516,7 @@ a {
 
 /* ---------- 标语逐字显现 ---------- */
 .tagline {
-  padding: var(--s-900) 0;
+  padding: var(--s-700) 0;
   max-width: 900px;
   margin: 0 auto;
 }
@@ -622,7 +622,7 @@ a {
 /* ---------- 截图墙 ---------- */
 .gallery {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--s-300);
 }
 
@@ -741,6 +741,20 @@ a {
   max-width: var(--page);
   margin: 0 auto;
   padding: 0 var(--s-300);
+}
+
+.footer-meta {
+  max-width: var(--page);
+  margin: var(--s-300) auto 0;
+  padding: var(--s-300) var(--s-300) 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-dim);
+}
+
+.footer-meta a {
+  color: var(--text-muted);
 }
 
 .footer-links {
