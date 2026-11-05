@@ -56,4 +56,19 @@
     <priority>0.8</priority>
     <mobile:mobile type="pc,mobile" />
   </url>
+  <url>
+    <loc>https://dkyy.top/privacy.html</loc>
+    <lastmod>2026-11-05</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <mobile:mobile type="pc,mobile" />
+  </url>
+  <url>
+    <loc>https://dkyy.top/terms.html</loc>
+    <lastmod>2026-11-05</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+    <mobile:mobile type="pc,mobile" />
+  </url>
 </urlset>
+

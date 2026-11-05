@@ -1,135 +1,144 @@
 (() => {
   'use strict';
 
-  /* ---------- 导航 ---------- */
-  const nav = document.getElementById('nav');
-  const toggle = document.getElementById('navToggle');
-  const menu = document.getElementById('navMenu');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  const onScroll = () => {
-    nav.classList.toggle('scrolled', window.scrollY > 12);
-  };
-  onScroll();
-  window.addEventListener('scroll', onScroll, { passive: true });
+  /* ---------- 移动端菜单 ---------- */
+  const toggle = document.querySelector('.nav-toggle');
+  const menu = document.getElementById('mobile-menu');
 
-  const toggleIcon = toggle.querySelector('use');
+  if (toggle && menu) {
+    const links = Array.from(menu.querySelectorAll('a'));
 
-  const closeMenu = () => {
-    menu.hidden = true;
-    toggle.setAttribute('aria-expanded', 'false');
-    toggle.setAttribute('aria-label', '打开菜单');
-    if (toggleIcon) toggleIcon.setAttribute('href', '#i-menu');
-  };
+    const setOpen = (open) => {
+      menu.dataset.open = String(open);
+      toggle.setAttribute('aria-expanded', String(open));
+      toggle.setAttribute('aria-label', open ? '关闭菜单' : '打开菜单');
+      document.body.style.overflow = open ? 'hidden' : '';
+      // 链接按阅读顺序依次入场，每项间隔 60ms，总时长不超过 400ms
+      links.forEach((link, index) => {
+        link.style.transitionDelay = open ? `${Math.min(index * 60, 360)}ms` : '0ms';
+      });
+    };
 
-  toggle.addEventListener('click', () => {
-    const open = menu.hidden;
-    menu.hidden = !open;
-    toggle.setAttribute('aria-expanded', String(open));
-    toggle.setAttribute('aria-label', open ? '关闭菜单' : '打开菜单');
-    if (toggleIcon) toggleIcon.setAttribute('href', open ? '#i-close' : '#i-menu');
-  });
-
-  menu.addEventListener('click', (e) => {
-    if (e.target.closest('a')) closeMenu();
-  });
-
-  document.addEventListener('click', (e) => {
-    if (menu.hidden) return;
-    if (!e.target.closest('#nav')) closeMenu();
-  });
-
-  window.addEventListener('resize', () => {
-    if (window.innerWidth > 860) closeMenu();
-  });
-
-  /* ---------- 滚动入场 ---------- */
-  const revealItems = document.querySelectorAll('.reveal');
-
-  if ('IntersectionObserver' in window) {
-    const io = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          entry.target.classList.add('in');
-          io.unobserve(entry.target);
-        }
-      },
-      { rootMargin: '0px 0px -8% 0px', threshold: 0.08 },
-    );
-    revealItems.forEach((el) => io.observe(el));
-  } else {
-    revealItems.forEach((el) => el.classList.add('in'));
+    toggle.addEventListener('click', () => setOpen(menu.dataset.open !== 'true'));
+    links.forEach((link) => link.addEventListener('click', () => setOpen(false)));
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && menu.dataset.open === 'true') setOpen(false);
+    });
   }
 
-  /* ---------- 截图灯箱 ---------- */
-  const dialog = document.getElementById('lightbox');
-  const image = document.getElementById('lightboxImage');
-  const caption = document.getElementById('lightboxCaption');
-  const btnClose = document.getElementById('lightboxClose');
-  const btnPrev = document.getElementById('lightboxPrev');
-  const btnNext = document.getElementById('lightboxNext');
-  const shots = Array.from(document.querySelectorAll('.shot'));
+  /* ---------- 滚动显现（每段只播一次） ---------- */
+  const revealItems = document.querySelectorAll('.reveal');
 
-  let current = 0;
-  let lastFocus = null;
+  if (reduceMotion || !('IntersectionObserver' in window)) {
+    revealItems.forEach((item) => item.classList.add('is-in'));
+  } else {
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add('is-in');
+          revealObserver.unobserve(entry.target);
+        });
+      },
+      { rootMargin: '0px 0px -12% 0px', threshold: 0.15 },
+    );
+    revealItems.forEach((item) => revealObserver.observe(item));
+  }
 
-  const render = (index) => {
-    current = (index + shots.length) % shots.length;
-    const shot = shots[current];
-    const img = shot.querySelector('img');
-    image.src = shot.dataset.full;
-    image.alt = img ? img.alt : shot.dataset.title;
-    caption.textContent = shot.dataset.title;
-  };
+  /* ---------- 标语：逐字点亮 ---------- */
+  const tagline = document.querySelector('[data-tagline]');
 
-  const open = (index) => {
-    lastFocus = shots[index];
-    render(index);
-    if (typeof dialog.showModal === 'function') {
-      dialog.showModal();
+  if (tagline) {
+    const text = tagline.textContent.trim();
+    tagline.textContent = '';
+
+    const words = [];
+    // 中文按字切分，英文与数字按词切分，标点跟随前一个字
+    const tokens = text.match(/[A-Za-z0-9]+[\s,.]?|[\s]|[^\s]/g) || [];
+
+    tokens.forEach((token) => {
+      if (/^\s$/.test(token)) {
+        tagline.appendChild(document.createTextNode(' '));
+        return;
+      }
+      const span = document.createElement('span');
+      span.className = 'word';
+      span.textContent = token;
+      tagline.appendChild(span);
+      words.push(span);
+    });
+
+    if (reduceMotion || !('IntersectionObserver' in window)) {
+      words.forEach((word) => word.classList.add('is-on'));
     } else {
-      dialog.setAttribute('open', '');
+      let activated = 0;
+
+      const wordObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (!entry.isIntersecting) return;
+            entry.target.classList.add('is-on');
+            wordObserver.unobserve(entry.target);
+            activated += 1;
+          });
+        },
+        { rootMargin: '0px 0px -35% 0px', threshold: 0 },
+      );
+
+      words.forEach((word) => wordObserver.observe(word));
+
+      // 兜底：如果整段已经在视口内但观察器没触发，直接全亮
+      requestAnimationFrame(() => {
+        if (activated > 0) return;
+        const rect = tagline.getBoundingClientRect();
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          words.forEach((word) => word.classList.add('is-on'));
+        }
+      });
     }
-    document.body.style.overflow = 'hidden';
-  };
+  }
 
-  const close = () => {
-    if (typeof dialog.close === 'function') {
-      dialog.close();
-    } else {
-      dialog.removeAttribute('open');
-    }
-    document.body.style.overflow = '';
-    if (lastFocus) lastFocus.focus();
-  };
+  /* ---------- FAQ 手风琴 ---------- */
+  document.querySelectorAll('.faq-item').forEach((item) => {
+    const button = item.querySelector('.faq-q');
+    if (!button) return;
 
-  shots.forEach((shot, index) => {
-    shot.addEventListener('click', () => open(index));
+    button.addEventListener('click', () => {
+      const open = item.dataset.open === 'true';
+      // 同一时间只开一个，避免页面被撑得很长
+      document.querySelectorAll('.faq-item').forEach((other) => {
+        other.dataset.open = 'false';
+        const otherButton = other.querySelector('.faq-q');
+        if (otherButton) otherButton.setAttribute('aria-expanded', 'false');
+      });
+      if (!open) {
+        item.dataset.open = 'true';
+        button.setAttribute('aria-expanded', 'true');
+      }
+    });
   });
 
-  btnClose.addEventListener('click', close);
-  btnPrev.addEventListener('click', () => render(current - 1));
-  btnNext.addEventListener('click', () => render(current + 1));
+  /* ---------- 当前区块高亮 ---------- */
+  const sections = Array.from(document.querySelectorAll('section[id]'));
+  const navLinks = Array.from(document.querySelectorAll('.nav-link'));
 
-  dialog.addEventListener('click', (e) => {
-    if (e.target === dialog) close();
-  });
-
-  dialog.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault();
-      render(current - 1);
-    } else if (e.key === 'ArrowRight') {
-      e.preventDefault();
-      render(current + 1);
-    }
-  });
-
-  dialog.addEventListener('close', () => {
-    document.body.style.overflow = '';
-  });
-
-  /* ---------- 年份 ---------- */
-  const year = document.getElementById('year');
-  if (year) year.textContent = String(new Date().getFullYear());
+  if (sections.length && navLinks.length && 'IntersectionObserver' in window) {
+    const sectionObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const id = entry.target.id;
+          navLinks.forEach((link) => {
+            const active = link.getAttribute('href') === `#${id}`;
+            if (active) link.setAttribute('aria-current', 'page');
+            else link.removeAttribute('aria-current');
+          });
+        });
+      },
+      { rootMargin: '-45% 0px -45% 0px' },
+    );
+    sections.forEach((section) => sectionObserver.observe(section));
+  }
 })();
