@@ -1,0 +1,166 @@
+/* 方案 C · 展示型（深色）
+   在 assets/site.css 之上做覆盖：首屏大图、事实条、紧凑功能格、横向截图带 */
+
+/* 首屏：居中标题 + 整幅截图 */
+.showcase-hero {
+  padding: var(--s-900) var(--s-300) var(--s-600);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-500);
+  text-align: center;
+}
+
+.showcase-copy {
+  max-width: var(--measure);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-200);
+}
+
+.showcase-shot {
+  width: 100%;
+  max-width: 1140px;
+  border-radius: var(--r-3xl);
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  box-shadow: 0 32px 100px rgba(0, 0, 0, 0.6);
+}
+
+.showcase-shot img {
+  width: 100%;
+}
+/* 事实条 */
+.facts {
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.facts-inner {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 0 var(--s-300);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.fact {
+  padding: var(--s-400) var(--s-300) var(--s-400) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-50);
+}
+
+.fact + .fact {
+  padding-left: var(--s-300);
+  border-left: 1px solid var(--border);
+}
+
+.fact-value {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+/* 紧凑功能格：只有图标与一句话 */
+.compact-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-300);
+}
+
+.compact {
+  display: flex;
+  gap: var(--s-200);
+  padding: var(--s-300);
+  border-radius: var(--r-2xl);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  transition: border-color var(--dur-short) var(--ease);
+}
+
+.compact:hover {
+  border-color: var(--surface-5);
+}
+
+.compact-icon {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-lg);
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: #7ec0ff;
+}
+
+.compact-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-25);
+}
+
+/* 横向截图带 */
+.strip {
+  display: flex;
+  gap: var(--s-300);
+  overflow-x: auto;
+  padding: var(--s-100) var(--s-300) var(--s-300);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.strip figure {
+  flex: 0 0 min(560px, 78vw);
+  margin: 0;
+  scroll-snap-align: start;
+}
+
+.strip img {
+  border-radius: var(--r-xl);
+  border: 1px solid var(--border);
+}
+
+.strip figcaption {
+  margin-top: var(--s-75);
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+/* 两栏 FAQ */
+.faq-lite {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-400) var(--s-600);
+}
+
+.qa-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-75);
+  padding-top: var(--s-200);
+  border-top: 1px solid var(--border);
+}
+
+@media (max-width: 1024px) {
+  .facts-inner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .fact + .fact {
+    padding-left: 0;
+    border-left: none;
+  }
+  .fact:nth-child(even) {
+    padding-left: var(--s-300);
+    border-left: 1px solid var(--border);
+  }
+  .compact-grid,
+  .faq-lite {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .showcase-hero {
+    padding-top: var(--s-800);
+  }
+}

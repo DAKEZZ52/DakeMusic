@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>官网模板备选 · DakeMusic</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/png" href="../assets/img/logo.png" />
+    <link rel="stylesheet" href="../assets/site.css" />
+    <style>
+      .pick {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 24px;
+        margin-top: 48px;
+      }
+      .pick a {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 32px;
+        border-radius: 24px;
+        background: var(--surface-2);
+        border: 1px solid var(--border);
+        transition:
+          transform 500ms cubic-bezier(0.22, 1, 0.36, 1),
+          border-color 300ms cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      .pick a:hover {
+        transform: translateY(-2px);
+        border-color: var(--surface-5);
+      }
+      .pick .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        line-height: 16px;
+        font-weight: 600;
+        color: #7ec0ff;
+        letter-spacing: 0.06em;
+      }
+      .pick .name {
+        font-size: 24px;
+        line-height: 32px;
+        font-weight: 600;
+      }
+      .pick .desc {
+        font-size: 14px;
+        line-height: 20px;
+        color: var(--text-muted);
+      }
+      .pick .cur {
+        font-size: 12px;
+        line-height: 16px;
+        color: var(--text-dim);
+      }
+      @media (max-width: 900px) {
+        .pick {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page" style="padding-top: 160px; padding-bottom: 96px">
+      <h1 class="heading-3">官网模板备选</h1>
+      <p class="body-3 muted" style="margin-top: 16px; max-width: 680px">
+        同一套内容和事实，三种排版。线上正式用的是 A；B、C
+        只是备选，随时可以换上其中一套。
+      </p>
+
+      <div class="pick">
+        <a href="/">
+          <span class="tag">A · 当前线上</span>
+          <span class="name">深色分栏版</span>
+          <span class="desc">左文右图 Hero、四张功能卡、2×2 截图墙、手风琴 FAQ。信息密度最高。</span>
+          <span class="cur">→ 打开首页</span>
+        </a>
+        <a href="./b-editorial.html">
+          <span class="tag">B · 备选</span>
+          <span class="name">浅色编辑版</span>
+          <span class="desc">白底细线、编号列表、图与文左右交替、静态问答。更像产品说明文档。</span>
+          <span class="cur">→ 预览 B</span>
+        </a>
+        <a href="./c-showcase.html">
+          <span class="tag">C · 备选</span>
+          <span class="name">深色展示版</span>
+          <span class="desc">居中大标题、首屏整幅截图、版本事实条、横向截图带。视觉冲击最强。</span>
+          <span class="cur">→ 预览 C</span>
+        </a>
+      </div>
+
+      <p class="caption-2 dim" style="margin-top: 48px">
+        切到某一套：把对应的 html 与 css 覆盖到 /var/www/html/index.html 与 assets/ 即可，内容完全一致，只是排版不同。
+      </p>
+    </div>
+  </body>
+</html>
