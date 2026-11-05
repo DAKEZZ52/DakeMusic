@@ -1,26 +1,30 @@
 /**
- * 客户端构建标识
+ * 客户端构建标识（带 Ed25519 签名）
  *
- * 目的：让服务端能区分「官方发布构建」和「第三方重新打包的构建」。
- * 现阶段只用于日志观察（服务端记录缺失/存在，不拒绝请求）；
- * 观察期确认没有误伤之后，才可能对明显改包做拦截。
+ * 打包时由 vite 注入 __DAKE_BUILD_TAG__：
+ *   v=2.4.8;b=20261106T0031;ch=release;sig=<base64url>
  *
- * 构建时由 vite define 注入 __DAKE_VERSION__ / __DAKE_BUILD__ / __DAKE_CHANNEL__；
- * 开发环境下没有注入，回退成 dev 标识。
+ * 服务端用公钥验签：
+ *   - 签名有效 → 官方构建，放行
+ *   - 版本低于强制线（默认 2.4.8）→ 老版本放行（它们本来没这个头）
+ *   - 其余 → 403，判定为非官方构建
+ *
+ * 开发环境没有注入，回退 dev 标识，服务端会拒绝——开发构建本就不该连生产。
  */
 
-declare const __DAKE_VERSION__: string | undefined;
-declare const __DAKE_BUILD__: string | undefined;
-declare const __DAKE_CHANNEL__: string | undefined;
-
-const version = typeof __DAKE_VERSION__ === 'string' && __DAKE_VERSION__ ? __DAKE_VERSION__ : 'dev';
-const build = typeof __DAKE_BUILD__ === 'string' && __DAKE_BUILD__ ? __DAKE_BUILD__ : 'dev';
-const channel = typeof __DAKE_CHANNEL__ === 'string' && __DAKE_CHANNEL__ ? __DAKE_CHANNEL__ : 'dev';
-
-/** 形如 `v=2.4.7;b=20261106T1234;ch=release`，放在 X-Dake-Build 头里 */
-export const CLIENT_BUILD_TAG = `v=${version};b=${build};ch=${channel}`;
+declare const __DAKE_BUILD_TAG__: string | undefined;
 
 /** 请求头名字，客户端与服务端共用 */
 export const CLIENT_BUILD_HEADER = 'X-Dake-Build';
 
+/** 形如 `v=2.4.8;b=...;ch=release;sig=...`，放在 X-Dake-Build 头里 */
+export const CLIENT_BUILD_TAG =
+  typeof __DAKE_BUILD_TAG__ === 'string' && __DAKE_BUILD_TAG__
+    ? __DAKE_BUILD_TAG__
+    : 'v=dev;b=dev;ch=dev';
+
 export const getClientBuildTag = (): string => CLIENT_BUILD_TAG;
+
+/** 服务端返回 NON_OFFICIAL_BUILD 时给用户看的提示 */
+export const NON_OFFICIAL_BUILD_MESSAGE =
+  '当前版本不是官方发布版本，在线功能已停用。请到 dkyy.top 下载官方安装包。';

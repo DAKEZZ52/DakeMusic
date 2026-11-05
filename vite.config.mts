@@ -1,16 +1,34 @@
 import { defineConfig } from 'vite';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 
-// DakeMusic: 构建标识（服务端据此区分官方构建与第三方改包）
-const pkgVersion = JSON.parse(
-  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
-).version;
+// DakeMusic: 构建标识 + Ed25519 签名
+// 私钥只在打包机（.keys/build-ed25519.pem），服务器只存公钥；
+// 改过的包无法伪造签名，服务端据此拒绝非官方构建。
+const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
 const buildStamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\..+$/, '').slice(0, 13);
 const buildChannel = process.env.BETA ? 'beta' : 'release';
+
+function buildSignedTag(): string {
+  const base = `v=${pkgVersion};b=${buildStamp};ch=${buildChannel}`;
+  const keyPath = process.env.DAKE_BUILD_KEY_PATH || resolve(__dirname, '.keys/build-ed25519.pem');
+  try {
+    if (!existsSync(keyPath)) {
+      // 没有私钥：标成 dev，服务端会拒绝（开发构建本就不该连生产）
+      console.warn('[build] 未找到签名私钥，构建标识降级为 dev:', keyPath);
+      return `v=${pkgVersion};b=${buildStamp};ch=dev`;
+    }
+    const { createPrivateKey, sign } = require('node:crypto') as typeof import('node:crypto');
+    const key = createPrivateKey(readFileSync(keyPath));
+    const sig = sign(null, Buffer.from(base), key).toString('base64url');
+    return `${base};sig=${sig}`;
+  } catch (error) {
+    console.warn('[build] 签名失败，构建标识降级为 dev:', error);
+    return `v=${pkgVersion};b=${buildStamp};ch=dev`;
+  }
+}
+
 const buildDefines = {
-  __DAKE_VERSION__: JSON.stringify(pkgVersion),
-  __DAKE_BUILD__: JSON.stringify(buildStamp),
-  __DAKE_CHANNEL__: JSON.stringify(buildChannel),
+  __DAKE_BUILD_TAG__: JSON.stringify(buildSignedTag()),
 };
 import vue from '@vitejs/plugin-vue';
 import electron from 'vite-plugin-electron';

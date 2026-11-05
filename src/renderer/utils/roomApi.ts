@@ -5,7 +5,11 @@
  * 描述：房间管理后端 API 封装 - JWT 会话鉴权 + 内存缓存
  */
 import { DAKE_API_BASE_URL } from '../../shared/endpoints';
-import { CLIENT_BUILD_HEADER, getClientBuildTag } from '../../shared/buildInfo';
+import {
+  CLIENT_BUILD_HEADER,
+  getClientBuildTag,
+  NON_OFFICIAL_BUILD_MESSAGE,
+} from '../../shared/buildInfo';
 
 const API_BASE = DAKE_API_BASE_URL;
 
@@ -65,6 +69,10 @@ async function request(path: string, options: RequestOptions = {}) {
       localStorage.removeItem('chat_session');
       // 401 时清空缓存
       cache.clear();
+    }
+    if (res.status === 403 && data.error === 'NON_OFFICIAL_BUILD') {
+      // 服务端判定当前构建不是官方发布版：提示用户去官网下载
+      throw new Error(NON_OFFICIAL_BUILD_MESSAGE);
     }
     throw new Error(data.error || '请求失败');
   }

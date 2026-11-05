@@ -351,24 +351,105 @@ app.use(express.json({ limit: '20mb' }));
 app.use(apiLimiter);
 app.use(logReq);
 
-// ===== DakeMusic: 客户端构建标识（观察期只记录，不拒绝） =====
-// 官方构建会带 X-Dake-Build: v=2.4.7;b=20261106T1200;ch=release
-// 缺失或格式不对的请求先只记日志，用来观察真实用户里有多少是非官方构建。
+// ===== DakeMusic: 客户端构建标识（Ed25519 验签，可拦截） =====
+// 官方构建头：v=2.4.8;b=20261106T0031;ch=release;sig=<base64url>
+// 规则：
+//   1) 网页版语聊房（同源 Origin/Referer）放行 —— 浏览器无法签名
+//   2) 签名有效 → 放行
+//   3) 版本低于强制线（DAKE_BUILD_ENFORCE_FROM，默认 2.4.8）→ 放行（老包没有这个头）
+//   4) 其余 → 403 NON_OFFICIAL_BUILD
+const BUILD_ENFORCE_FROM = process.env.DAKE_BUILD_ENFORCE_FROM || '2.4.8';
+const BUILD_PUBKEY_PEM = String(process.env.DAKE_BUILD_PUBKEY || '').replace(/\\n/g, '\n');
+let buildPublicKey = null;
+try {
+  if (BUILD_PUBKEY_PEM) buildPublicKey = crypto.createPublicKey(BUILD_PUBKEY_PEM);
+  else logger.warn('build_pubkey_missing', { hint: '设置 DAKE_BUILD_PUBKEY 后才会真正拦截' });
+} catch (error) {
+  logger.error('build_pubkey_invalid', { error: error?.message || String(error) });
+}
+
+function parseSemver(value) {
+  const m = /^(\d+)\.(\d+)\.(\d+)/.exec(String(value || ''));
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+
+function versionGte(a, b) {
+  const A = parseSemver(a);
+  const B = parseSemver(b);
+  if (!A || !B) return false;
+  for (let i = 0; i < 3; i += 1) {
+    if (A[i] !== B[i]) return A[i] > B[i];
+  }
+  return true;
+}
+
+function verifyBuildTag(tag) {
+  const raw = String(tag || '');
+  if (!raw) return { ok: false, reason: 'missing', version: '' };
+  const sigIdx = raw.indexOf(';sig=');
+  const base = sigIdx >= 0 ? raw.slice(0, sigIdx) : raw;
+  const sig = sigIdx >= 0 ? raw.slice(sigIdx + 5) : '';
+  const m = /^v=([^;]+);b=[^;]+;ch=(release|beta|dev)$/.exec(base);
+  if (!m) return { ok: false, reason: 'malformed', version: '' };
+  const version = m[1];
+  if (!sig) return { ok: false, reason: 'unsigned', version };
+  if (!buildPublicKey) return { ok: false, reason: 'no-pubkey', version };
+  try {
+    const ok = crypto.verify(null, Buffer.from(base), buildPublicKey, Buffer.from(sig, 'base64url'));
+    return ok ? { ok: true, reason: 'verified', version } : { ok: false, reason: 'bad-signature', version };
+  } catch (error) {
+    return { ok: false, reason: 'verify-error', version };
+  }
+}
+
 const clientBuildSeen = new Map();
-function noteClientBuild(req, tag) {
-  const present = typeof tag === 'string' && /^v=[^;]+;b=[^;]+;ch=(release|beta|dev)$/.test(tag);
-  const key = (present ? 'present' : 'missing') + '|' + (req.baseUrl || '') + req.path;
+function noteClientBuild(req, decision, detail) {
+  const key = decision + '|' + (req.baseUrl || '') + req.path;
   const now = Date.now();
   if (now - (clientBuildSeen.get(key) || 0) < 60_000) return;
   clientBuildSeen.set(key, now);
-  logger.info(present ? 'client_build_present' : 'client_build_missing', {
+  logger.info('client_build_' + decision, {
     reqId: req.id,
     path: req.path,
     ip: req.headers['x-real-ip'] || req.ip,
-    build: typeof tag === 'string' ? tag.slice(0, 60) : null,
-    ua: String(req.headers['user-agent'] || '').slice(0, 60),
+    ...detail,
   });
 }
+
+app.use((req, res, next) => {
+  if (!req.path.startsWith('/api/')) return next();
+  if (req.method === 'OPTIONS') return next();
+
+  const origin = String(req.headers.origin || req.headers.referer || '');
+  if (/^https?:\/\/([a-z0-9-]+\.)?dkyy\.top(\/|$)/i.test(origin)) {
+    noteClientBuild(req, 'web', {});
+    return next();
+  }
+
+  const result = verifyBuildTag(req.headers['x-dake-build']);
+  if (result.ok) {
+    noteClientBuild(req, 'present', { build: result.version });
+    return next();
+  }
+
+  // 老客户端兜底：请求头没有版本时，用 User-Agent 里的应用版本判断
+  const uaVersion = (String(req.headers['user-agent'] || '').match(/DakeMusic\/(\d+\.\d+\.\d+)/) || [])[1] || '';
+  const effective = result.version || uaVersion;
+  if (!versionGte(effective, BUILD_ENFORCE_FROM)) {
+    noteClientBuild(req, 'legacy', { version: effective || 'unknown', reason: result.reason });
+    return next();
+  }
+
+  noteClientBuild(req, 'blocked', {
+    version: effective,
+    reason: result.reason,
+    ua: String(req.headers['user-agent'] || '').slice(0, 60),
+  });
+  return res.status(403).json({
+    error: 'NON_OFFICIAL_BUILD',
+    message: '当前版本不是官方发布版本，在线功能已停用。请到 dkyy.top 下载官方安装包。',
+  });
+});
 
 app.use((req, _res, next) => {
   const tag = req.headers['x-dake-build'];
