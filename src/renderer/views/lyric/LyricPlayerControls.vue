@@ -596,7 +596,7 @@ const handleCopySongInfo = async () => {
 
 .bar-song-sep {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.72);
   flex-shrink: 0;
 }
 
@@ -640,7 +640,7 @@ const handleCopySongInfo = async () => {
 }
 
 :deep(.bar-action-muted) {
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 :deep(.bar-action-muted:hover) {
@@ -695,7 +695,7 @@ const handleCopySongInfo = async () => {
 }
 
 .bar-ctrl-muted {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 .bar-ctrl-muted:hover {
@@ -792,7 +792,7 @@ const handleCopySongInfo = async () => {
 }
 
 :deep(.bar-func-muted) {
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 255, 255, 0.72);
 }
 
 :deep(.bar-func-muted:hover) {

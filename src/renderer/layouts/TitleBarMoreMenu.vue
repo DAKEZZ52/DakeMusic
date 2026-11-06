@@ -188,7 +188,7 @@ const reorderByKeyboard = (event: KeyboardEvent, index: number) => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  color: var(--color-text-main);
+  color: var(--window-action-color, color-mix(in srgb, var(--color-text-main) 55%, transparent));
 }
 .more-trigger:hover,
 .more-trigger[data-state='open'] {

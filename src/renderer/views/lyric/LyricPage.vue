@@ -785,7 +785,7 @@ onUnmounted(() => {
 
 /* The return/close, Mini and fullscreen actions share the same foreground states. */
 .lyric-page {
-  --window-action-color: rgba(255, 255, 255, 0.7);
+  --window-action-color: rgba(255, 255, 255, 0.55);
   --window-action-hover-color: #fff;
 }
 

@@ -1470,6 +1470,6 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
    ========================================================================== */
 .more-trigger,
 .window-action-soft {
-  color: var(--window-action-color, var(--color-text-main));
+  color: var(--window-action-color, color-mix(in srgb, var(--color-text-main) 55%, transparent));
 }
 

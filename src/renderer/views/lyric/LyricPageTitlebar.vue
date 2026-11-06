@@ -32,7 +32,7 @@ defineEmits<{ close: [] }>();
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  color: var(--window-action-color, rgba(255, 255, 255, 0.7));
+  color: var(--window-action-color, color-mix(in srgb, var(--color-text-main) 55%, transparent));
   transition: all 0.2s ease;
 }
 .close-btn:hover {

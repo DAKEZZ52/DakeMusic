@@ -92,7 +92,7 @@ const showCustomControls = computed(() => !isMac);
   justify-content: center;
   /* 默认态与顶栏其他按钮（.titlebar-action / .more-trigger）一致：主文字色，hover 提亮。
      歌词页通过 --window-action-color / --window-action-hover-color 覆盖为白色系。 */
-  color: var(--window-action-color, var(--color-text-main));
+  color: var(--window-action-color, color-mix(in srgb, var(--color-text-main) 55%, transparent));
   background: transparent;
   transition:
     color 0.2s,

@@ -231,7 +231,7 @@ watch(
   transition:
     color 0.2s ease,
     transform 0.2s ease;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.72);
   border-radius: 5px;
   filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
 }
