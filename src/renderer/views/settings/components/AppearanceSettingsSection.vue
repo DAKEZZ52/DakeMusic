@@ -14,6 +14,7 @@ import Slider from '@/components/ui/Slider.vue';
 import ColorPickerDialog from '@/components/ui/ColorPickerDialog.vue';
 import { ACCENT_PRESETS } from '@/utils/color';
 import { iconPalette } from '@/icons';
+import ThemePresetGallery from '@/components/settings/ThemePresetGallery.vue';
 import { Icon } from '@iconify/vue';
 import SettingsSectionShell from './SettingsSectionShell.vue';
 import { accentModeOptions, sectionTitles, themeOptions } from '../constants';
@@ -42,6 +43,7 @@ const restartForBackground = async () => {
   }
 };
 const showAccentPicker = ref(false);
+const showThemeGallery = ref(false);
 const showBackgroundPicker = ref(false);
 const copyBackgroundDiagnostics = async () => {
   try {
@@ -370,6 +372,23 @@ const handleChatroomBgUpload = (event: Event) => {
     <div class="settings-divider"></div>
     <div class="settings-item">
       <div class="space-y-1">
+        <h3 class="font-semibold">主题预设</h3>
+        <p class="text-sm text-text-secondary">
+          十套成套外观：强调色 + 顶部渐变 + 深浅模式，一键换好再微调
+        </p>
+      </div>
+      <button
+        type="button"
+        class="settings-action settings-action-primary"
+        aria-label="打开主题预设画廊"
+        @click="showThemeGallery = true"
+      >
+        打开画廊
+      </button>
+    </div>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
         <h3 class="font-semibold">主题色来源</h3>
         <p class="text-sm text-text-secondary">关闭动态主题色，或固定为封面 / 预设 / 自定义颜色</p>
       </div>
@@ -690,6 +709,7 @@ const handleChatroomBgUpload = (event: Event) => {
       @update:open="(open) => (showAccentPicker = open)"
       @confirm="(color: string) => themeStore.setCustomColor(color)"
     />
+    <ThemePresetGallery v-model:open="showThemeGallery" />
   </SettingsSectionShell>
 </template>
 
