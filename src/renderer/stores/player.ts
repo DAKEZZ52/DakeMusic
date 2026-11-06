@@ -1466,6 +1466,8 @@ export const usePlayerStore = defineStore(
       selectSpatialAudioEffect,
       // State-like (actually actions but Pinia treats them as actions)
       getEffectiveAudioQuality: resolver.getEffectiveAudioQuality,
+      /** 最近一次声卡输出统计（采样率/格式/缓冲），用于音质链路面板 */
+      getAudioOutputStats: () => state.playbackDiagnostics.output,
       getResolvedAudioQuality: resolver.getResolvedAudioQuality,
       ensureTrackRelateGoods: resolver.ensureTrackRelateGoods,
       resolveAudioUrl: resolver.resolveAudioUrl,

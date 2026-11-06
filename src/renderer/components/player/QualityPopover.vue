@@ -2,8 +2,9 @@
 描述：音质/音源切换（标准、高品质、无损等），触发按钮带音质徽标 * 作者：知之（DAKE知之） * 版权：©
 2026 DakeMusic. All rights reserved. */
 <script setup lang="ts">
-import { computed, watch } from 'vue';
+import { computed, watch, ref } from 'vue';
 import Popover from '@/components/ui/Popover.vue';
+import SignalPathPanel from '@/components/player/SignalPathPanel.vue';
 import Tag from '@/components/ui/Tag.vue';
 import Badge from '@/components/ui/Badge.vue';
 import AudioWaveIcon from '@/components/ui/AudioWaveIcon.vue';
@@ -38,6 +39,7 @@ interface Props {
   side?: 'top' | 'bottom';
 }
 
+const showSignalPath = ref(false);
 const props = withDefaults(defineProps<Props>(), {
   open: undefined,
   variant: 'bar',
@@ -102,7 +104,7 @@ const buttonClass = computed(() => {
     align="center"
     :side-offset="8"
     :show-arrow="true"
-    content-class="quality-popover"
+    :content-class="showSignalPath ? 'quality-popover is-wide' : 'quality-popover'"
   >
     <template #trigger>
       <Button
@@ -206,11 +208,42 @@ const buttonClass = computed(() => {
           <template v-else>✓</template>
         </span>
       </button>
+
+      <div class="pm-divider"></div>
+      <button
+        type="button"
+        class="pm-item pm-signal-toggle"
+        :aria-expanded="showSignalPath"
+        @click="showSignalPath = !showSignalPath"
+      >
+        <span class="pm-label">输出链路</span>
+        <span class="pm-chevron" :class="{ 'is-open': showSignalPath }">⌄</span>
+      </button>
+      <SignalPathPanel v-if="showSignalPath" />
     </div>
   </Popover>
 </template>
 
 <style scoped>
+:global(.quality-popover.is-wide.echo-popover-content) {
+  width: 268px;
+}
+
+.pm-signal-toggle {
+  justify-content: space-between;
+}
+
+.pm-chevron {
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-secondary);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pm-chevron.is-open {
+  transform: rotate(180deg);
+}
+
 :global(.quality-popover.echo-popover-content) {
   width: 208px;
   padding: 8px 0;
