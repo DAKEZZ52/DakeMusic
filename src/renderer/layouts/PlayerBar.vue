@@ -20,6 +20,14 @@ import { useDeferredSeek } from '@/composables/useDeferredSeek';
 import { usePlaybackProgressStatus } from '@/composables/usePlaybackProgressStatus';
 import Popover from '@/components/ui/Popover.vue';
 import PlayerQueueDrawer from '@/components/music/PlayerQueueDrawer.vue';
+import PlayerSlotPanel from '@/components/player/PlayerSlotPanel.vue';
+import {
+  playerSlotA,
+  playerSlotB,
+  resetPlayerSlots,
+  setPlayerSlot,
+  type PlayerSlotAction,
+} from '@/composables/usePlayerSlots';
 import AddToPlaylistDialog from '@/components/music/AddToPlaylistDialog.vue';
 import {
   iconMusic,
@@ -37,6 +45,9 @@ import {
   iconList,
   iconTypography,
   iconCloudDownload,
+  iconClock,
+  iconPlaylistAdd,
+  iconMessageCircle,
   iconDots,
 } from '@/icons';
 import { usePlayerControls } from '@/composables/usePlayerControls';
@@ -73,6 +84,20 @@ const {
 const downloadStore = useDownloadStore();
 const sleepTimerRef = ref<InstanceType<typeof SleepTimerPopover> | null>(null);
 const openSleepTimer = () => sleepTimerRef.value?.openDialog();
+
+// 播放栏自定义槽位：右键槽位或点末尾「⋯」打开选择面板
+const SLOT_KEYS = ['a', 'b'] as const;
+const slotPanelOpen = ref(false);
+const slotPanelSlot = ref<'a' | 'b'>('a');
+const slotAction = (slot: 'a' | 'b') => (slot === 'a' ? playerSlotA.value : playerSlotB.value);
+const openSlotPanel = (slot: 'a' | 'b') => {
+  slotPanelSlot.value = slot;
+  slotPanelOpen.value = true;
+};
+const handleSlotSelect = (action: PlayerSlotAction) => {
+  setPlayerSlot(slotPanelSlot.value, action);
+  slotPanelOpen.value = false;
+};
 
 /** 当前歌曲的下载任务（用于按钮显示下载/暂停/继续）。 */
 const currentDownloadTask = computed(() =>
@@ -611,10 +636,137 @@ onUnmounted(() => {
             伴奏
           </button>
         </div>
-        <!-- 功能按钮（变速/音效/音质） -->
+        <!-- 功能按钮：变速固定，另两个位置可自定义（默认 音质 / 音效） -->
         <PitchSpeedPopover />
-        <EffectPopover />
-        <QualityPopover />
+        <div
+          v-for="slot in SLOT_KEYS"
+          :key="slot"
+          class="relative inline-flex items-center"
+          @contextmenu.prevent="openSlotPanel(slot)"
+        >
+          <QualityPopover v-if="slotAction(slot) === 'quality'" />
+          <EffectPopover v-else-if="slotAction(slot) === 'effect'" />
+          <PitchSpeedPopover v-else-if="slotAction(slot) === 'pitch'" />
+          <Button
+            v-else-if="slotAction(slot) === 'theme'"
+            variant="unstyled"
+            size="none"
+            class="p-2 transition-all hover:scale-110 active:scale-90"
+            :class="
+              desktopLyricStore.settings.enabled
+                ? 'text-primary-text'
+                : 'text-text-main/50 hover:text-primary-text'
+            "
+            :tooltip="desktopLyricStore.settings.enabled ? '关闭桌面歌词' : '开启桌面歌词'"
+            @click="toggleDesktopLyric"
+          >
+            <Icon :icon="iconTypography" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'queue'"
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
+            tooltip="播放队列"
+            @click="openQueue"
+          >
+            <Icon :icon="iconList" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'favorite'"
+            variant="unstyled"
+            size="none"
+            class="p-2 transition-all hover:scale-110 active:scale-90"
+            :class="isFavorite ? 'text-primary-text' : 'text-text-main/50 hover:text-primary-text'"
+            :tooltip="isFavorite ? '取消收藏' : '收藏'"
+            @click="toggleFavorite"
+          >
+            <Icon :icon="isFavorite ? iconHeartFilled : iconHeart" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'download'"
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
+            :tooltip="currentDownloadTooltip"
+            @click="handleDownloadCurrent"
+          >
+            <Icon :icon="iconCloudDownload" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'sleep'"
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
+            tooltip="睡眠定时"
+            @click="openSleepTimer"
+          >
+            <Icon :icon="iconClock" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'comments'"
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
+            tooltip="查看评论"
+            @click="goToComments"
+          >
+            <Icon :icon="iconMessageCircle" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'mv'"
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90 disabled:opacity-30"
+            tooltip="播放 MV"
+            :disabled="!hasCurrentTrackMv"
+            @click="goToMv"
+          >
+            <Icon :icon="iconPlay" width="24" height="24" />
+          </Button>
+          <Button
+            v-else-if="slotAction(slot) === 'playlist'"
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90 disabled:opacity-30"
+            tooltip="加入歌单"
+            :disabled="!canAddToPlaylist || isPlaylistLoading"
+            @click="handleOpenAddToPlaylist"
+          >
+            <Icon :icon="iconPlaylistAdd" width="24" height="24" />
+          </Button>
+          <span v-else class="inline-block w-2" aria-hidden="true"></span>
+        </div>
+        <!-- 自定义入口：点末尾 ⋯ 或右键槽位 -->
+        <Popover
+          trigger="manual"
+          :open="slotPanelOpen"
+          side="top"
+          align="end"
+          :side-offset="10"
+          :show-arrow="false"
+          @update:open="slotPanelOpen = $event"
+        >
+          <template #trigger>
+            <Button
+              variant="unstyled"
+              size="none"
+              class="p-2 text-text-main/40 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
+              tooltip="自定义播放栏按钮"
+              aria-label="自定义播放栏按钮"
+              @click="openSlotPanel(slotPanelSlot)"
+            >
+              <Icon :icon="iconDots" width="22" height="22" />
+            </Button>
+          </template>
+          <PlayerSlotPanel
+            :target="slotPanelSlot"
+            :current="slotAction(slotPanelSlot)"
+            @select="handleSlotSelect"
+            @switch-slot="slotPanelSlot = $event"
+            @reset="resetPlayerSlots"
+          />
+        </Popover>
         <div class="relative">
           <Button
             variant="unstyled"
