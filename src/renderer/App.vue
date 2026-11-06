@@ -50,6 +50,7 @@ const KugouVerificationFlow = defineAsyncComponent(
   () => import('@/components/app/KugouVerificationFlow.vue'),
 );
 const UpdateDialog = defineAsyncComponent(() => import('@/components/app/UpdateDialog.vue'));
+const CommandPalette = defineAsyncComponent(() => import('@/components/app/CommandPalette.vue'));
 const LyricView = defineAsyncComponent(() => import('@/views/lyric/LyricPage.vue'));
 const route = useRoute();
 const router = useRouter();
@@ -710,6 +711,7 @@ watch(
     <ToastViewport v-if="!isMiniPlayerRoute" :lyric-view-open="Boolean(player?.isLyricViewOpen)" />
     <UpdateDialog v-if="!isMiniPlayerRoute" dismiss-label="稍后" />
     <SettingsDialog v-if="!isMiniPlayerRoute" />
+    <CommandPalette v-if="!isMiniPlayerRoute" />
   </TooltipScope>
 
   <!-- 输入 dake 彩蛋（远程开关 + 上报 + 红色飘雪） -->

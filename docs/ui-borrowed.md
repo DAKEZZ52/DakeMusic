@@ -21,3 +21,14 @@
 ## 记录规则
 
 以后每借鉴一处，在这里加一条：参考项目、文件路径、我们对应的实现文件、差异说明。
+
+## 2. 命令面板（Ctrl / ⌘ + K）
+
+- **参考**：Folia `src/components/command-palette/`（109 个文件：命令工厂、按使用频率排序、队列视图）
+- **实现**：`src/renderer/composables/useCommandPalette.ts` + `src/renderer/components/app/CommandPalette.vue`（挂在 `App.vue`）
+- **差异**：
+  - 只做 MVP：一个输入框、两段分组（播放 / 前往）、18 个命令
+  - 没做「按使用频率排序」「最近使用」「队列视图」——这些是 Folia 的 109 个文件所在
+  - 关键词直接拼中文/英文别名（如「下载 / download」），不做模糊评分算法
+  - 输入框有内容但没匹配命令时，自动出现一条「搜索「xxx」」，回车跳到搜索页并带上 `?q=`
+- **未借鉴**：命令频率统计、命令面板里的队列管理、capsule 框架
