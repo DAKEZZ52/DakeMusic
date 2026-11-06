@@ -126,7 +126,7 @@ for (const arch of ['arm64', 'x64']) {
     assert.equal(result.downloadUrl, `https://proxy.example/${asset(arch).browser_download_url}`);
     assert.equal(main.updater.autoInstallOnAppQuit, false);
     main.handlers.get('update:download')();
-    assert.equal(main.handlers.get('update:install')().ok, false);
+    assert.equal((await main.handlers.get('update:install')()).ok, false);
     assert.equal(
       main.calls.some((call) => ['check', 'download', 'install'].includes(call)),
       false,

@@ -40,13 +40,27 @@
 - WS 发消息另外补了：封禁校验、500 字上限、10 秒 10 条限流
 - 客户端拉消息改为带 token（`roomApi.ts` 的 `auth: true`）
 
+### 6. IPC 来源校验
+
+- `src/main/ipc/registry.ts`：所有 handler / listener 统一检查 `event.senderFrame.url`
+- 只接受：应用目录下的 `file://` 页面、开发服务器同源页面、`about:blank`
+- 拒绝：任意 https 页面、`data:`/`blob:` 页面、其它目录的 `file://`
+- 被拒时记录 `[IPC] 已拒绝不可信来源的调用`，并抛 `IPC_FORBIDDEN:<channel>`
+
+### 7. 更新包完整性（不依赖付费证书）
+
+- `scripts/sign-update-manifest.mjs`：发布前用打包私钥给 `latest.yml` / `beta.yml` 生成 `.sig`
+- `src/main/updateIntegrity.ts`：安装前拉取清单与签名，用内置公钥验签，并核对版本号
+- 签名缺失（老发布）→ 记日志放行；签名无效 / 版本不符 → 阻止安装
+- 发布流程多一步：`pnpm release:sign`，把 `latest.yml.sig` 一起传到 `/dl/`
+
 ## 还没做（按优先级）
 
 | 项 | 说明 |
 |---|---|
-| IPC 来源校验 | `src/main/ipc/registry.ts` 统一 `ipcMain.handle` 未校验 `senderFrame`；建议在这里统一拦 |
-| 验证码隔离 | 腾讯 `TCaptcha.js` 仍加载在主世界；彻底方案是放进无 preload 的独立窗口 |
-| 安装包签名 | `win` 配置没有 `publisherName`，electron-updater 的签名校验无效 |
+| 验证码隔离（待定） | `TCaptcha.js` 仍加载在主世界。彻底方案是独立窗口（无 preload），但会改变验证码的展示形态（弹窗而非内嵌），需要确认 UX |
+
+| 真正的代码签名 | `win.publisherName` 需要付费证书才能生效；当前用自签清单签名替代 |
 | IPC 数量收敛 | 当前 125 个 handler，preload 1271 行，建议按域收口 |
 | 聊天记录全量鉴权 | 公开房仍是公开读；要等客户端都升级到带 token 的版本再收紧 |
 

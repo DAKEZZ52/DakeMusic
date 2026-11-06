@@ -17,6 +17,7 @@ import { execFile } from 'child_process';
 import { dirname, extname, join, resolve, sep, basename } from 'path';
 import { autoUpdater, CancellationToken } from 'electron-updater';
 import { getFonts } from 'font-list';
+import { verifyUpdateIntegrity } from '../updateIntegrity';
 import { coerce as semverCoerce, gt as semverGt, valid as semverValid } from 'semver';
 import type {
   AppInfoResult,
@@ -67,6 +68,9 @@ import {
 } from '../updateInstallQuit';
 import type { IpcContext } from './types';
 import { createImportedAudioEffectId } from '../audioEffectFiles';
+
+/** 最近一次 update-available 报告的版本，用于校验更新清单签名 */
+let pendingUpdateVersion = '';
 
 const openLogDirectory = async () => {
   const logFile = log.transports.file.getFile();
@@ -997,6 +1001,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
 
   // --- autoUpdater 事件 ---
   autoUpdater.on('update-available', (info) => {
+    pendingUpdateVersion = String(info?.version || '');
     const { version: currentVersion } = getAppInfo();
     const silent = getEchoSilent();
 
@@ -1509,7 +1514,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
 
   ipcRegistry.registerHandler(
     'update:install',
-    (_event, payload?: { silent?: boolean }): UpdateInstallResult => {
+    async (_event, payload?: { silent?: boolean }): Promise<UpdateInstallResult> => {
       if (manualMacUpdate || lastCheckResult?.manualDownload) {
         return {
           ok: false,
@@ -1530,6 +1535,19 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
         silent: isSilent,
         platform: process.platform,
       });
+      // 安装前校验更新清单签名（不依赖付费代码签名证书）
+      const integrity = await verifyUpdateIntegrity(pendingUpdateVersion || undefined);
+      if (!integrity.ok) {
+        const error = '更新包校验未通过，已阻止安装。请到 dkyy.top 重新下载。';
+        downloadState = { status: 'error', error };
+        sendToRenderer('update-download-status', downloadState);
+        log.error('[Updater] 更新包校验失败，已中止安装', { reason: integrity.reason });
+        return { ok: false, error };
+      }
+      if (integrity.skipped) {
+        log.warn('[Updater] 更新包校验被跳过', { reason: integrity.skipped });
+      }
+
       markUpdateInstallQuitRequested();
       scheduleUpdateInstallExitTimeout();
 
