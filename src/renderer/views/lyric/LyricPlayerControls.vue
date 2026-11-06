@@ -559,8 +559,11 @@ const handleCopySongInfo = async () => {
   gap: 12px;
   min-width: 0;
   overflow: hidden;
-  justify-content: flex-end;
-  margin-right: 260px;
+  justify-content: flex-start;
+  /* 之前这里是 margin-right: 260px：给中间控制让位，但把左侧挤到 183px，
+     下载 / 换肤 / 定时三个按钮直接被 overflow 裁掉。改为不占位，靠网格自身的列宽分配。 */
+  margin-right: 0;
+  padding-right: 8px;
 }
 
 .bar-song-info {
