@@ -12,6 +12,7 @@ import { Icon } from '@iconify/vue';
 import { iconChevronRight } from '@/icons';
 import SettingsSectionShell from './SettingsSectionShell.vue';
 import { sectionTitles } from '../constants';
+import { openUserGuide, openWhatsNew } from '@/composables/useHelpDialogs';
 
 const settingStore = useSettingStore();
 
@@ -67,6 +68,24 @@ defineProps<{
       <div class="flex items-center gap-2">
         <Button variant="unstyled" size="none" class="settings-action" @click="onShowChangelog">
           更新日志
+        </Button>
+        <Button
+          variant="unstyled"
+          size="none"
+          class="settings-action"
+          aria-label="查看本版亮点"
+          @click="openWhatsNew"
+        >
+          本版亮点
+        </Button>
+        <Button
+          variant="unstyled"
+          size="none"
+          class="settings-action"
+          aria-label="打开使用指南"
+          @click="openUserGuide"
+        >
+          使用指南
         </Button>
         <Button
           variant="unstyled"

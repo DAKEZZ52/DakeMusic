@@ -21,6 +21,8 @@ import { useThemeStore } from './stores/theme';
 import { usePlaylistStore } from './stores/playlist';
 import { useHistoryStore } from './stores/historyStore';
 import { useToastStore } from './stores/toast';
+import { findRelease } from '@/data/whatsNew';
+import { openWhatsNew } from '@/composables/useHelpDialogs';
 import { useUserStore } from './stores/user';
 import { waitForSqlitePersistHydration } from './stores/sqlitePersist';
 import { normalizeQuality } from './stores/player/utils';
@@ -51,6 +53,8 @@ const KugouVerificationFlow = defineAsyncComponent(
 );
 const UpdateDialog = defineAsyncComponent(() => import('@/components/app/UpdateDialog.vue'));
 const NowPlayingToast = defineAsyncComponent(() => import('@/components/app/NowPlayingToast.vue'));
+const WhatsNewDialog = defineAsyncComponent(() => import('@/components/app/WhatsNewDialog.vue'));
+const UserGuideDialog = defineAsyncComponent(() => import('@/components/app/UserGuideDialog.vue'));
 const LyricView = defineAsyncComponent(() => import('@/views/lyric/LyricPage.vue'));
 const route = useRoute();
 const router = useRouter();
@@ -137,6 +141,31 @@ const themeStore = useThemeStore();
 const playlistStore = usePlaylistStore();
 const historyStore = useHistoryStore();
 const toastStore = useToastStore();
+
+// 升级后首次启动：弹一次本版亮点（看过就记版本号）
+const maybeShowWhatsNew = () => {
+  const version = String(settings.appVersion || '');
+  if (!version || !findRelease(version)) return;
+  try {
+    if (localStorage.getItem('dakemusic_whatsnew_seen') === version) return;
+  } catch {
+    // 存储不可用时也弹，用户可以手动关闭
+  }
+  openWhatsNew();
+};
+// 首屏稳定后再弹：等用户第一次点击/按键，避免和启动流程里的其它弹窗抢焦点
+onMounted(() => {
+  let done = false;
+  const trigger = () => {
+    if (done) return;
+    done = true;
+    window.removeEventListener('pointerdown', trigger, true);
+    window.removeEventListener('keydown', trigger, true);
+    window.setTimeout(() => maybeShowWhatsNew(), 400);
+  };
+  window.addEventListener('pointerdown', trigger, true);
+  window.addEventListener('keydown', trigger, true);
+});
 const userStore = useUserStore();
 const contentBlacklistStore = useContentBlacklistStore();
 const onWindowBackgroundChanged = () => {
@@ -709,6 +738,8 @@ watch(
     <AuthExpiredDialog v-if="!isMiniPlayerRoute" />
     <KugouVerificationFlow v-if="!isMiniPlayerRoute" />
     <NowPlayingToast v-if="!isMiniPlayerRoute" />
+    <WhatsNewDialog v-if="!isMiniPlayerRoute" />
+    <UserGuideDialog v-if="!isMiniPlayerRoute" />
     <ToastViewport v-if="!isMiniPlayerRoute" :lyric-view-open="Boolean(player?.isLyricViewOpen)" />
     <UpdateDialog v-if="!isMiniPlayerRoute" dismiss-label="稍后" />
     <SettingsDialog v-if="!isMiniPlayerRoute" />

@@ -1,0 +1,55 @@
+/**
+ * 版本亮点
+ *
+ * 每次发版往数组顶部加一条，version 必须和 package.json 一致。
+ * 应用升级后首次启动会自动弹出当前版本的亮点；也可以在「设置 → 关于」里再看。
+ */
+
+export interface WhatsNewFeature {
+  title: string;
+  desc: string;
+}
+
+export interface WhatsNewRelease {
+  version: string;
+  headline: string;
+  features: WhatsNewFeature[];
+}
+
+export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
+  {
+    version: '2.4.8',
+    headline: '这一版把「安全」和「听感」都补上了',
+    features: [
+      {
+        title: '音质链路面板',
+        desc: '音质弹层里新增「输出链路」：看清当前音源、采样率有没有被系统重采样、输出格式与缓冲。',
+      },
+      {
+        title: '切歌浮卡',
+        desc: '换歌时右下角浮出封面与歌名，4.5 秒自动收起，点一下也能关。',
+      },
+      {
+        title: '官方包签名',
+        desc: '安装包带构建签名，被改过的版本连不上语聊房与账号服务；更新包在安装前也会验签。',
+      },
+      {
+        title: '安全加固',
+        desc: '补上内容安全策略、外链导航拦截、权限白名单与 IPC 来源校验，减少被注入的风险。',
+      },
+    ],
+  },
+  {
+    version: '2.4.7',
+    headline: '界面与交互的一次大整理',
+    features: [
+      { title: 'Windows 11 圆角', desc: '主窗口跟随系统使用原生圆角。' },
+      { title: '布局密度统一', desc: '列表、详情、设置、搜索与首页的间距收敛到同一套刻度。' },
+      { title: '播放栏通栏化', desc: '播放控制栏改为底部通栏样式。' },
+      { title: '侧边栏简化', desc: '合并分组结构，常用入口更靠前。' },
+    ],
+  },
+];
+
+export const findRelease = (version: string): WhatsNewRelease | undefined =>
+  WHATS_NEW_RELEASES.find((item) => item.version === version);
