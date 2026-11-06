@@ -7,6 +7,12 @@ export const HOST_SKIN_KEYS = {
   portrait: 'host:portrait',
   lyric: 'host:lyric',
   amll: 'host:amll',
+  mist: 'host:mist',
+  neon: 'host:neon',
+  paper: 'host:paper',
+  aurora: 'host:aurora',
+  film: 'host:film',
+  space: 'host:space',
 } as const;
 
 /**
@@ -40,6 +46,60 @@ export const LYRIC_SKIN_COVER_DEFAULTS: LyricSkinConfigCover = {
 export type LyricSkinConfigLyric = LyricTextStyleConfig;
 
 export const LYRIC_SKIN_LYRIC_DEFAULTS: LyricSkinConfigLyric = { ...LYRIC_TEXT_STYLE_DEFAULTS };
+
+/** 雾白：浅底深字，字号略大、字重略轻 */
+export const LYRIC_SKIN_MIST_DEFAULTS: LyricSkinConfigLyric = {
+  ...LYRIC_TEXT_STYLE_DEFAULTS,
+  fontScale: 1.05,
+  fontWeightIndex: 7,
+  playedColor: '#1b1f24',
+  unplayedColor: '#9aa3b0',
+};
+
+/** 霓虹：深底高亮字，字重更重 */
+export const LYRIC_SKIN_NEON_DEFAULTS: LyricSkinConfigLyric = {
+  ...LYRIC_TEXT_STYLE_DEFAULTS,
+  fontScale: 1,
+  fontWeightIndex: 8,
+  playedColor: '#e6f9ff',
+  unplayedColor: '#5b6b86',
+};
+
+/** 极光：深青底 + 绿紫光带，字重偏轻 */
+export const LYRIC_SKIN_AURORA_DEFAULTS: LyricSkinConfigLyric = {
+  ...LYRIC_TEXT_STYLE_DEFAULTS,
+  fontScale: 1.02,
+  fontWeightIndex: 7,
+  playedColor: '#d1fae5',
+  unplayedColor: '#4c7a72',
+};
+
+/** 胶片：暖褐底 + 颗粒，颗粒感强、对比低 */
+export const LYRIC_SKIN_FILM_DEFAULTS: LyricSkinConfigLyric = {
+  ...LYRIC_TEXT_STYLE_DEFAULTS,
+  fontScale: 1,
+  fontWeightIndex: 7,
+  playedColor: '#f5e6cf',
+  unplayedColor: '#8a7460',
+};
+
+/** 深空：近黑底 + 星点，冷色高光 */
+export const LYRIC_SKIN_SPACE_DEFAULTS: LyricSkinConfigLyric = {
+  ...LYRIC_TEXT_STYLE_DEFAULTS,
+  fontScale: 1,
+  fontWeightIndex: 7,
+  playedColor: '#dbeafe',
+  unplayedColor: '#475569',
+};
+
+/** 纸上：暖白纸面 + 墨色字，字号略小 */
+export const LYRIC_SKIN_PAPER_DEFAULTS: LyricSkinConfigLyric = {
+  ...LYRIC_TEXT_STYLE_DEFAULTS,
+  fontScale: 0.95,
+  fontWeightIndex: 6,
+  playedColor: '#2a241c',
+  unplayedColor: '#a1968a',
+};
 
 export interface LyricSkinConfigPortrait extends LyricTextStyleConfig {
   backdropOpacity: number;

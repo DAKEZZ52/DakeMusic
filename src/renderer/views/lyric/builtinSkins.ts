@@ -3,6 +3,12 @@ import type { BuiltinLyricSkin } from '@/plugins/lyricsPage';
 import CoverMode from './CoverMode.vue';
 import PortraitMode from './PortraitMode.vue';
 import LyricMode from './LyricMode.vue';
+import MistMode from './MistMode.vue';
+import NeonMode from './NeonMode.vue';
+import PaperMode from './PaperMode.vue';
+import AuroraMode from './AuroraMode.vue';
+import FilmMode from './FilmMode.vue';
+import SpaceMode from './SpaceMode.vue';
 import coverSettings from './skins/CoverSkinSettings.vue';
 import lyricSettings from './skins/LyricSkinSettings.vue';
 import portraitSettings from './skins/PortraitSkinSettings.vue';
@@ -11,6 +17,12 @@ import {
   LYRIC_SKIN_AMLL_DEFAULTS,
   LYRIC_SKIN_COVER_DEFAULTS,
   LYRIC_SKIN_LYRIC_DEFAULTS,
+  LYRIC_SKIN_MIST_DEFAULTS,
+  LYRIC_SKIN_NEON_DEFAULTS,
+  LYRIC_SKIN_PAPER_DEFAULTS,
+  LYRIC_SKIN_AURORA_DEFAULTS,
+  LYRIC_SKIN_FILM_DEFAULTS,
+  LYRIC_SKIN_SPACE_DEFAULTS,
   LYRIC_SKIN_PORTRAIT_DEFAULTS,
 } from './skins/config';
 
@@ -76,6 +88,72 @@ export const builtinLyricSkins: BuiltinLyricSkin[] = [
       defaults: LYRIC_SKIN_LYRIC_DEFAULTS,
       component: lyricSettings,
     },
+  },
+  {
+    pluginId: 'host',
+    id: 'mist',
+    key: HOST_SKIN_KEYS.mist,
+    title: '雾白',
+    component: MistMode,
+    titlebar: 'host',
+    tools: 'host',
+    category: 'effect',
+    settings: { defaults: LYRIC_SKIN_MIST_DEFAULTS },
+  },
+  {
+    pluginId: 'host',
+    id: 'neon',
+    key: HOST_SKIN_KEYS.neon,
+    title: '霓虹夜',
+    component: NeonMode,
+    titlebar: 'host',
+    tools: 'host',
+    category: 'effect',
+    settings: { defaults: LYRIC_SKIN_NEON_DEFAULTS },
+  },
+  {
+    pluginId: 'host',
+    id: 'paper',
+    key: HOST_SKIN_KEYS.paper,
+    title: '纸上',
+    component: PaperMode,
+    titlebar: 'host',
+    tools: 'host',
+    category: 'effect',
+    settings: { defaults: LYRIC_SKIN_PAPER_DEFAULTS },
+  },
+  {
+    pluginId: 'host',
+    id: 'aurora',
+    key: HOST_SKIN_KEYS.aurora,
+    title: '极光',
+    component: AuroraMode,
+    titlebar: 'host',
+    tools: 'host',
+    category: 'effect',
+    settings: { defaults: LYRIC_SKIN_AURORA_DEFAULTS },
+  },
+  {
+    pluginId: 'host',
+    id: 'film',
+    key: HOST_SKIN_KEYS.film,
+    title: '胶片',
+    component: FilmMode,
+    titlebar: 'host',
+    tools: 'host',
+    category: 'effect',
+    settings: { defaults: LYRIC_SKIN_FILM_DEFAULTS },
+  },
+  {
+    pluginId: 'host',
+    id: 'space',
+    key: HOST_SKIN_KEYS.space,
+    title: '深空',
+    component: SpaceMode,
+    titlebar: 'host',
+    tools: 'host',
+    category: 'effect',
+    settings: { defaults: LYRIC_SKIN_SPACE_DEFAULTS },
   },
   {
     pluginId: 'host',

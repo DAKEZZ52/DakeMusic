@@ -143,7 +143,17 @@ export const useSettingStore = defineStore('setting', {
     trackTransitionMode: DEFAULT_TRACK_TRANSITION_MODE as TrackTransitionMode,
     /** 淡入淡出播放时长，0~15 秒。 */
     fadeCrossSecs: DEFAULT_FADE_CROSS_SECS,
-    lyricViewMode: 'cover' as 'cover' | 'portrait' | 'lyric' | 'amll',
+    lyricViewMode: 'cover' as
+      | 'cover'
+      | 'portrait'
+      | 'lyric'
+      | 'amll'
+      | 'mist'
+      | 'neon'
+      | 'paper'
+      | 'aurora'
+      | 'film'
+      | 'space',
     lyricsPageProvider: 'host:cover',
     /** 皮肤名 → 皮肤配置。由各皮肤的 defaults/validate 解释，宿主只负责隔离与持久化。 */
     lyricsPageSkinConfigs: {} as Record<string, Record<string, unknown>>,

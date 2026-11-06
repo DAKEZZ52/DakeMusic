@@ -33,6 +33,12 @@ import CommentDrawer from '@/components/music/CommentDrawer.vue';
 import CoverMode from './CoverMode.vue';
 import PortraitMode from './PortraitMode.vue';
 import LyricMode from './LyricMode.vue';
+import MistMode from './MistMode.vue';
+import NeonMode from './NeonMode.vue';
+import PaperMode from './PaperMode.vue';
+import AuroraMode from './AuroraMode.vue';
+import FilmMode from './FilmMode.vue';
+import SpaceMode from './SpaceMode.vue';
 // Apple Music（AMLL）皮肤为异步组件：仅当该皮肤被使用时才加载其依赖。
 const AmllMode = /* #__PURE__ */ defineAsyncComponent(() => import('./AmllMode.vue'));
 import LyricPlayerControls from './LyricPlayerControls.vue';
@@ -101,12 +107,24 @@ const displayCoverUrl = computed(() => {
 });
 
 // 当前模式（由当前皮肤推导，内置皮肤才使用）
-const viewMode = computed(() => {
+const BUILTIN_SKIN_MODES = [
+  'cover',
+  'portrait',
+  'lyric',
+  'amll',
+  'mist',
+  'neon',
+  'paper',
+  'aurora',
+  'film',
+  'space',
+] as const;
+type BuiltinSkinMode = (typeof BUILTIN_SKIN_MODES)[number];
+
+const viewMode = computed<BuiltinSkinMode>(() => {
   const key = skin.value?.key ?? `${HOST_SKIN_PREFIX}cover`;
-  if (key === `${HOST_SKIN_PREFIX}portrait`) return 'portrait';
-  if (key === `${HOST_SKIN_PREFIX}cover`) return 'cover';
-  if (key === `${HOST_SKIN_PREFIX}amll`) return 'amll';
-  return 'lyric';
+  const bare = key.slice(HOST_SKIN_PREFIX.length) as BuiltinSkinMode;
+  return BUILTIN_SKIN_MODES.includes(bare) ? bare : 'lyric';
 });
 
 // 模糊背景封面 URL（用较小尺寸节省内存）
@@ -536,6 +554,12 @@ onUnmounted(() => {
         <CoverMode v-if="viewMode === 'cover'" />
         <PortraitMode v-else-if="viewMode === 'portrait'" ref="portraitModeRef" />
         <AmllMode v-else-if="viewMode === 'amll'" />
+        <MistMode v-else-if="viewMode === 'mist'" />
+        <NeonMode v-else-if="viewMode === 'neon'" />
+        <PaperMode v-else-if="viewMode === 'paper'" />
+        <AuroraMode v-else-if="viewMode === 'aurora'" />
+        <FilmMode v-else-if="viewMode === 'film'" />
+        <SpaceMode v-else-if="viewMode === 'space'" />
         <LyricMode v-else />
       </div>
 

@@ -4,7 +4,17 @@ import type { LyricsPageContext } from '../views/lyric/composables/useLyricsPage
 import type { LyricSkinHandle } from '../views/lyric/composables/useLyricSkin';
 
 export const HOST_SKIN_PREFIX = 'host:';
-export type HostSkinId = 'cover' | 'portrait' | 'lyric' | 'amll';
+export type HostSkinId =
+  | 'cover'
+  | 'portrait'
+  | 'lyric'
+  | 'amll'
+  | 'mist'
+  | 'neon'
+  | 'paper'
+  | 'aurora'
+  | 'film'
+  | 'space';
 
 /** 内置皮肤的功能分类，用于换肤面板分组展示。 */
 export type LyricSkinCategory = 'player' | 'effect';
