@@ -525,7 +525,7 @@ function removeAvatar() {
         <!-- 查看模式 -->
         <div
           v-if="!editMode"
-          class="rounded-2xl p-6 backdrop-blur-md"
+          class="rounded-2xl p-6 backdrop-blur-[var(--surface-blur-md)]"
           :class="isDarkBg ? 'bg-black/50' : 'bg-white/70'"
         >
           <div class="flex items-start gap-6 mb-6">
@@ -756,7 +756,7 @@ function removeAvatar() {
         <!-- 编辑模式 -->
         <div
           v-else
-          class="rounded-2xl p-6 space-y-5 backdrop-blur-md"
+          class="rounded-2xl p-6 space-y-5 backdrop-blur-[var(--surface-blur-md)]"
           :class="isDarkBg ? 'bg-black/60' : 'bg-white/80'"
         >
           <!-- 头像 -->

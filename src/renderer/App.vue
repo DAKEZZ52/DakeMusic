@@ -791,8 +791,8 @@ aside[class*='sidebar'],
 .player-bar,
 footer[class*='player'] {
   background-color: rgba(255, 255, 255, 0.78) !important;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--surface-blur-md));
+  -webkit-backdrop-filter: blur(var(--surface-blur-md));
 }
 .dark .sidebar,
 .dark .app-sidebar,

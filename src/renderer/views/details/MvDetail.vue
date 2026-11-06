@@ -483,7 +483,7 @@ watch(
   gap: 12px;
   color: rgba(255, 255, 255, 0.84);
   background: rgba(0, 0, 0, 0.36);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(var(--surface-blur-sm));
 }
 
 .mv-loading-spinner {

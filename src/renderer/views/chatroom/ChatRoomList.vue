@@ -1245,14 +1245,14 @@ async function onEditCoverSelected(e: Event) {
     0 24px 60px rgba(15, 23, 42, 0.22),
     0 2px 8px rgba(15, 23, 42, 0.1),
     inset 0 1px 0 color-mix(in srgb, #ffffff 55%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--surface-blur-xl)) saturate(160%);
+  backdrop-filter: blur(var(--surface-blur-xl)) saturate(160%);
 }
 
 .crl-dialog-overlay {
   background: color-mix(in srgb, #0b0f19 55%, transparent);
-  -webkit-backdrop-filter: blur(10px) saturate(120%);
-  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(var(--surface-blur-sm)) saturate(120%);
+  backdrop-filter: blur(var(--surface-blur-sm)) saturate(120%);
 }
 
 /* 弹窗内文字：统一走主题色，浅色/深色和复杂背景下都清晰 */
@@ -1329,7 +1329,7 @@ async function onEditCoverSelected(e: Event) {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   animation: cr-del-fade 0.16s ease;
 }
 @keyframes cr-del-fade {
@@ -1501,7 +1501,7 @@ async function onEditCoverSelected(e: Event) {
   border: 1px solid var(--border-subtle, rgba(140, 140, 175, 0.38)) !important;
   border-radius: 10px !important;
   font-weight: 500 !important;
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   transition:
     background 0.18s,
     color 0.18s,

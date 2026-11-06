@@ -655,7 +655,7 @@ function onSmallClick(seatId: string) {
   padding: 10px 16px 10px 12px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(var(--surface-blur-md));
   box-shadow: 0 8px 26px rgba(30, 8, 30, 0.35);
 }
 .host-info {
@@ -907,7 +907,7 @@ function onSmallClick(seatId: string) {
   box-shadow:
     0 10px 30px rgba(8, 6, 24, 0.6),
     0 0 22px rgba(251, 191, 36, 0.3);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   animation: seat-approve-glow 1.6s ease-in-out infinite;
 }
 @keyframes seat-approve-glow {
@@ -1046,7 +1046,7 @@ function onSmallClick(seatId: string) {
   background: rgba(138, 92, 255, 0.3);
   border: 1px solid rgba(138, 92, 255, 0.5);
   cursor: pointer;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
 }
 .seat-mode-btn:hover {
   background: rgba(138, 92, 255, 0.5);
@@ -1066,7 +1066,7 @@ function onSmallClick(seatId: string) {
   padding: 12px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(var(--surface-blur-md));
   display: flex;
   align-items: center;
   gap: 8px;

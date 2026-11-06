@@ -458,7 +458,7 @@
   border-radius: 999px;
   color: color-mix(in srgb, white 88%, transparent);
   background: color-mix(in srgb, #111827 64%, transparent);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   font-size: 9px;
   font-weight: 850;
 }
@@ -722,7 +722,7 @@
   border-radius: 999px;
   color: white;
   background: color-mix(in srgb, #111827 84%, transparent);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   font-size: 9px;
   font-weight: 900;
 }

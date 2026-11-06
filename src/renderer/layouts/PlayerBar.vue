@@ -99,6 +99,25 @@ const handleSlotSelect = (action: PlayerSlotAction) => {
   slotPanelOpen.value = false;
 };
 
+// manual 模式的弹层不会自动关闭：点空白处或按 Esc 收起
+const handleSlotPointerDown = (event: PointerEvent) => {
+  if (!slotPanelOpen.value) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('.slot-panel') || target?.closest('[data-slot-trigger]')) return;
+  slotPanelOpen.value = false;
+};
+const handleSlotKeydown = (event: KeyboardEvent) => {
+  if (event.key === 'Escape' && slotPanelOpen.value) slotPanelOpen.value = false;
+};
+onMounted(() => {
+  document.addEventListener('pointerdown', handleSlotPointerDown, true);
+  document.addEventListener('keydown', handleSlotKeydown);
+});
+onUnmounted(() => {
+  document.removeEventListener('pointerdown', handleSlotPointerDown, true);
+  document.removeEventListener('keydown', handleSlotKeydown);
+});
+
 /** 当前歌曲的下载任务（用于按钮显示下载/暂停/继续）。 */
 const currentDownloadTask = computed(() =>
   currentTrack.value ? downloadStore.taskForSong(currentTrack.value) : null,
@@ -642,6 +661,7 @@ onUnmounted(() => {
           v-for="slot in SLOT_KEYS"
           :key="slot"
           class="relative inline-flex items-center"
+          data-slot-trigger
           @contextmenu.prevent="openSlotPanel(slot)"
         >
           <QualityPopover v-if="slotAction(slot) === 'quality'" />
@@ -754,6 +774,7 @@ onUnmounted(() => {
               class="p-2 text-text-main/40 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
               tooltip="自定义播放栏按钮"
               aria-label="自定义播放栏按钮"
+              data-slot-trigger
               @click="openSlotPanel(slotPanelSlot)"
             >
               <Icon :icon="iconDots" width="22" height="22" />

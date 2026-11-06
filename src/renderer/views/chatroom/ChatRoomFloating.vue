@@ -439,7 +439,7 @@ async function toggleMic() {
   <Teleport to="body">
     <div
       v-if="showLeaveConfirm"
-      class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/55 backdrop-blur-sm"
+      class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/55 backdrop-blur-[var(--surface-blur-sm)]"
       @click.self="cancelLeave"
     >
       <div class="pop-panel w-[290px] rounded-2xl px-5 py-5 text-center">
@@ -504,7 +504,7 @@ async function toggleMic() {
   box-shadow:
     0 16px 44px rgba(0, 0, 0, 0.55),
     0 0 34px rgba(138, 92, 255, 0.16);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
 }
 .crf-cover {
   width: 72px;
@@ -588,7 +588,7 @@ async function toggleMic() {
   box-shadow:
     0 10px 28px rgba(0, 0, 0, 0.5),
     0 0 20px rgba(138, 92, 255, 0.22);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   transition:
     transform 0.16s,
     filter 0.16s,

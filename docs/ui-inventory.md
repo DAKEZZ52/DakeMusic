@@ -240,3 +240,26 @@
 | 歌单行高 | `layouts/Sidebar.vue:1043/1079` 的 `py-1.5` |
 | 歌单区头部缩进 | `layouts/components/SidebarPlaylistHeader.vue:29` 的 `pl-7.5` |
 | 首页英雄卡 | `views/Home.vue`（搜 `hero` 关键字） |
+
+---
+
+## 浮层模糊刻度（P2 统一）
+
+以前全站有 **12 种不同的 `backdrop-filter: blur()` 取值**（6/8/10/12/14/18/20/22/24/26/28px），同一个应用里浮层质感不一致。
+
+现在收敛成 4 档，定义在 `style.css` 的 `:root`：
+
+| 令牌 | 值 | 用在哪 |
+|---|---|---|
+| `--surface-blur-sm` | 8px | 小浮层、按钮浮起、验证码面板 |
+| `--surface-blur-md` | 14px | 菜单、气泡、侧栏浮层、麦位卡 |
+| `--surface-blur-lg` | 22px | 弹窗、顶栏、聊天面板 |
+| `--surface-blur-xl` | 28px | 全屏遮罩、房间弹窗 |
+
+规则：
+
+- 新写浮层**只准用这 4 个令牌**，不要再写死像素
+- 装饰性大模糊（如歌词背景 `blur(64px)`）不用令牌，属于美术效果
+- `@supports (backdrop-filter: blur(1px))` 里的字面量不要替换成变量（特性检测不认 `var()`）
+
+当前统计：`backdrop-filter` 共 50 处，其中 49 处走令牌，1 处装饰性模糊保持字面量。

@@ -16,6 +16,11 @@
   --surface-dialog-opacity: 100%;
   --surface-player-opacity: 100%;
   --surface-backdrop-filter: none;
+  /* 浮层模糊刻度：所有面板统一用这三档 */
+  --surface-blur-sm: 8px;
+  --surface-blur-md: 14px;
+  --surface-blur-lg: 22px;
+  --surface-blur-xl: 28px;
   --surface-player-backdrop-filter: var(--surface-backdrop-filter);
   --page-transition-duration: 0.45s;
   --page-transition-easing: ease-out;
@@ -1138,8 +1143,8 @@ html[data-echo-client-corners] body {
 .sidebar {
   background-color: color-mix(in srgb, var(--surface-sidebar-base) 76%, transparent)
     !important;
-  -webkit-backdrop-filter: blur(22px) saturate(165%);
-  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(var(--surface-blur-lg)) saturate(165%);
+  backdrop-filter: blur(var(--surface-blur-lg)) saturate(165%);
 }
 
 /* 标题栏：完全透明，页面背景直通到顶，不叠加毛玻璃底色带。
@@ -1152,8 +1157,8 @@ html[data-echo-client-corners] body {
 .player-bar {
   background-color: color-mix(in srgb, var(--surface-player-base) 72%, transparent)
     !important;
-  -webkit-backdrop-filter: blur(26px) saturate(170%);
-  backdrop-filter: blur(26px) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--surface-blur-xl)) saturate(170%);
+  backdrop-filter: blur(var(--surface-blur-xl)) saturate(170%);
 }
 
 /* 卡片 / 弹窗：更圆润的 macOS 圆角 */

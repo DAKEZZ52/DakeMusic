@@ -93,7 +93,7 @@ const emit = defineEmits<{
   gap: 10px;
   padding: 12px 16px;
   background: rgba(255, 255, 255, 0.055);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 .cr-icon-btn {
@@ -164,7 +164,7 @@ const emit = defineEmits<{
   background: rgba(139, 92, 246, 0.35);
   border: 1px solid rgba(167, 139, 250, 0.4);
   cursor: pointer;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--surface-blur-md));
   transition: all 0.18s;
 }
 .cr-song-btn svg {
@@ -189,7 +189,7 @@ const emit = defineEmits<{
   background: rgba(220, 38, 38, 0.55);
   border: 1px solid rgba(255, 120, 140, 0.35);
   cursor: pointer;
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--surface-blur-md));
   transition: all 0.18s;
 }
 .cr-exit svg {

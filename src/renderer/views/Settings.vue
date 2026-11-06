@@ -1235,7 +1235,7 @@ watch(activeSection, () => scrollbarRef.value?.setScrollTop(0), { flush: 'post' 
 }
 
 .settings-back-to-top {
-  @apply absolute bottom-4 right-6 w-11 h-11 rounded-full backdrop-blur-sm border flex items-center justify-center text-text-secondary hover:text-primary-text hover:border-primary/60 transition-all duration-300 cursor-pointer shadow-lg shadow-black/5 z-50;
+  @apply absolute bottom-4 right-6 w-11 h-11 rounded-full backdrop-blur-[var(--surface-blur-sm)] border flex items-center justify-center text-text-secondary hover:text-primary-text hover:border-primary/60 transition-all duration-300 cursor-pointer shadow-lg shadow-black/5 z-50;
   background: var(--color-bg-elevated);
   border-color: var(--border-subtle);
   opacity: 0;

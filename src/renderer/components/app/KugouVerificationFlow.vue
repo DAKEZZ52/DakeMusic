@@ -687,7 +687,7 @@ onBeforeUnmount(resetTencentCaptcha);
   justify-content: space-between;
   padding: 44px 48px 40px;
   background: color-mix(in srgb, var(--color-bg-main) 94%, var(--color-text-main) 6%);
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-bg-elevated) 68%, transparent);
   pointer-events: auto;
   -webkit-app-region: no-drag;

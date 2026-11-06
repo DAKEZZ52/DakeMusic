@@ -2664,7 +2664,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   overflow: hidden;
   position: relative;
   transition: width 0.2s ease;
@@ -2862,7 +2862,7 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.045);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   border-left: 1px solid rgba(255, 255, 255, 0.08);
   overflow: hidden;
   transition: width 0.2s ease;
@@ -3168,7 +3168,7 @@ onUnmounted(() => {
   padding: 8px 14px 8px 8px;
   border-radius: 999px;
   background: rgba(20, 20, 40, 0.85);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(var(--surface-blur-md));
   border: 1px solid rgba(52, 211, 153, 0.4);
   box-shadow: 0 4px 20px rgba(52, 211, 153, 0.2);
   z-index: 10;
@@ -3288,7 +3288,7 @@ onUnmounted(() => {
   font-size: 11px;
   opacity: 0.6;
   background: rgba(255, 255, 255, 0.07);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
 }
 /* 进出房间提示：钉在聊天区顶部，不随消息滚动 */
 .cr-top-notice {
@@ -3300,7 +3300,7 @@ onUnmounted(() => {
   padding: 2px 0 8px;
   margin: -4px 0 2px;
   background: linear-gradient(180deg, rgba(14, 14, 28, 0.94) 55%, rgba(14, 14, 28, 0));
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   pointer-events: none;
 }
 .cr-top-notice .cr-system {
@@ -3389,7 +3389,7 @@ onUnmounted(() => {
   font-size: 12.5px;
   line-height: 1.55;
   word-break: break-word;
-  backdrop-filter: blur(14px);
+  backdrop-filter: blur(var(--surface-blur-md));
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.22);
 }
 .cr-row.other .cr-bubble {
@@ -3429,7 +3429,7 @@ onUnmounted(() => {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.055);
   border: 1px solid rgba(255, 255, 255, 0.075);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   animation: cr-breathe 3.4s ease-in-out infinite;
 }
 .cr-skeleton.s1 {
@@ -3483,7 +3483,7 @@ onUnmounted(() => {
   box-shadow:
     0 14px 36px rgba(8, 6, 24, 0.55),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(26px);
+  backdrop-filter: blur(var(--surface-blur-xl));
 }
 .cr-bar-btn {
   width: 28px;
@@ -3590,7 +3590,7 @@ onUnmounted(() => {
   background: rgba(22, 20, 44, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.14);
   box-shadow: 0 8px 22px rgba(8, 6, 24, 0.55);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
@@ -3843,7 +3843,7 @@ onUnmounted(() => {
   padding: 10px 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(20, 18, 40, 0.35);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(var(--surface-blur-lg));
 }
 .cr-input {
   flex: 1;
@@ -3911,7 +3911,7 @@ onUnmounted(() => {
   background: rgba(20, 18, 32, 0.92);
   border: 1px solid rgba(167, 139, 250, 0.3);
   border-radius: 14px;
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   z-index: 60;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
@@ -3934,7 +3934,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: rgba(8, 8, 18, 0.62);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(var(--surface-blur-sm));
   animation: crLeaveFade 0.16s ease;
 }
 .cr-leave-panel {
@@ -4070,7 +4070,7 @@ onUnmounted(() => {
   overflow-y: auto;
   border-radius: 14px;
   background: rgba(26, 26, 40, 0.92);
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   border: 1px solid rgba(255, 255, 255, 0.13);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
 }
@@ -4100,7 +4100,7 @@ onUnmounted(() => {
   padding: 4px 0;
   border-radius: 11px;
   background: rgba(30, 30, 46, 0.95);
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
   font-size: 12.5px;
@@ -4145,7 +4145,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.62);
-  backdrop-filter: blur(3px);
+  backdrop-filter: blur(var(--surface-blur-sm));
 }
 .cr-modal {
   width: 360px;
@@ -4243,7 +4243,7 @@ onUnmounted(() => {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   z-index: 0;
 }
 .cr-profile-top > .cr-profile-avatar,
@@ -4538,7 +4538,7 @@ onUnmounted(() => {
   border-radius: 16px;
   background: rgba(30, 30, 46, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px);
+  backdrop-filter: blur(var(--surface-blur-lg));
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
   color: #ececf1;
 }

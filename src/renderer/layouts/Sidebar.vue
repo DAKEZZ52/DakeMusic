@@ -1765,8 +1765,8 @@ watch(
 .sidebar-nav-item {
   position: relative;
   border-radius: 13px;
-  -webkit-backdrop-filter: blur(14px) saturate(1.4);
-  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--surface-blur-md)) saturate(1.4);
+  backdrop-filter: blur(var(--surface-blur-md)) saturate(1.4);
   transition:
     background 0.22s cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1),
