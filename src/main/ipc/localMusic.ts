@@ -13,6 +13,9 @@ import path from 'path';
 import crypto from 'crypto';
 import { ipcRegistry } from './registry';
 import { readLocalAudioFile, scanLocalAudioFiles } from '../localMusic';
+import { MetadataWriter } from '../download/MetadataWriter';
+import { session } from 'electron';
+import type { DownloadSongMeta } from '../../shared/download';
 import type {
   LocalAudioFile,
   LocalMusicAddFilesResult,
@@ -115,6 +118,57 @@ const getOrCreateSinglesLibrary = async (
 };
 
 export function registerLocalMusicHandlers(): void {
+  /**
+   * 把线上匹配到的歌曲信息写回本地文件，并刷新库里的缓存项。
+   * 只允许写「已加入本地音乐库」的文件，避免变成任意路径写入。
+   */
+  ipcRegistry.registerHandler(
+    'local-music:apply-metadata',
+    async (
+      _event,
+      payload: { path: string; song: DownloadSongMeta },
+    ): Promise<{
+      ok: boolean;
+      error?: string;
+      file?: LocalAudioFile;
+      library?: LocalMusicLibrary;
+    }> => {
+      const target = path.resolve(String(payload?.path ?? '').trim());
+      const song = payload?.song;
+      if (!target || !song?.title) return { ok: false, error: '参数不完整' };
+
+      const libraries = await readLocalMusicLibraries();
+      const owner = libraries.find((library) =>
+        library.files.some((file) => path.resolve(file.path) === target),
+      );
+      if (!owner) return { ok: false, error: '该文件不在本地音乐库中' };
+
+      try {
+        const writer = new MetadataWriter({ session: session.defaultSession });
+        await writer.write(target, { ...song, id: song.id || target });
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : '写入标签失败',
+        };
+      }
+
+      const refreshed = await readSingleFile(target);
+      const next = libraries.map((library) =>
+        library.id === owner.id
+          ? {
+              ...library,
+              files: library.files.map((file) =>
+                path.resolve(file.path) === target ? refreshed : file,
+              ),
+            }
+          : library,
+      );
+      await writeLocalMusicLibraries(next);
+      return { ok: true, file: refreshed, library: next.find((item) => item.id === owner.id) };
+    },
+  );
+
   ipcRegistry.registerHandler('local-music:list-libraries', async () => {
     return await readLocalMusicLibraries();
   });

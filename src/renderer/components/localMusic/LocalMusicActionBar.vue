@@ -7,14 +7,17 @@
  -->
 <script setup lang="ts">
 import { computed } from 'vue';
-import { iconFolderOpen, iconMusic, iconPlay } from '@/icons';
+import { iconFolderOpen, iconMusic, iconPlay, iconSearch } from '@/icons';
 import { useLocalMusicStore } from '@/stores/localMusic';
+import LocalMetadataMatchDialog from './LocalMetadataMatchDialog.vue';
+import { ref } from 'vue';
 
 defineOptions({ name: 'LocalMusicActionBar' });
 
 const localStore = useLocalMusicStore();
 
 const playDisabled = computed(() => localStore.totalSongs === 0);
+const matchOpen = ref(false);
 
 const handlePlayAll = () => {
   void localStore.playAll();
@@ -59,6 +62,21 @@ const handleAddFiles = () => {
       </div>
       <span>添加单曲</span>
     </button>
+
+    <!-- 匹配信息：给本地文件补封面/歌手/专辑 -->
+    <button
+      type="button"
+      class="action-btn secondary"
+      :disabled="playDisabled"
+      @click="matchOpen = true"
+    >
+      <div class="icon-wrap">
+        <Icon :icon="iconSearch" width="16" height="16" />
+      </div>
+      <span>匹配信息</span>
+    </button>
+
+    <LocalMetadataMatchDialog v-model:open="matchOpen" />
   </div>
 </template>
 

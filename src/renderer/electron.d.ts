@@ -252,6 +252,15 @@ export interface IElectronAPI {
     removeLibrary: (id: string) => Promise<boolean>;
     rescanLibrary: (id: string) => Promise<LocalMusicLibrary>;
     addFiles: () => Promise<LocalMusicAddFilesResult>;
+    applyMetadata: (
+      filePath: string,
+      song: Record<string, unknown>,
+    ) => Promise<{
+      ok: boolean;
+      error?: string;
+      file?: LocalAudioFile;
+      library?: LocalMusicLibrary;
+    }>;
     removeFiles: (filePaths: string[]) => Promise<boolean>;
     fileExists: (filePath: string) => Promise<boolean>;
   };

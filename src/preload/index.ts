@@ -41,7 +41,11 @@ import {
   type SeparatorOutput,
   type SeparatorResult,
 } from '../shared/separator';
-import type { LocalMusicAddFilesResult, LocalMusicLibrary } from '../shared/localMusic';
+import type {
+  LocalAudioFile,
+  LocalMusicAddFilesResult,
+  LocalMusicLibrary,
+} from '../shared/localMusic';
 import type {
   AudioEffectPlaybackOptions,
   DownloadCommunityAudioEffectRequest,
@@ -411,6 +415,13 @@ contextBridge.exposeInMainWorld('electron', {
     rescanLibrary: (id: string) =>
       invokeWithPlainPayload<LocalMusicLibrary>('local-music:rescan-library', id),
     addFiles: () => invokeWithPlainPayload<LocalMusicAddFilesResult>('local-music:add-files'),
+    applyMetadata: (filePath: string, song: Record<string, unknown>) =>
+      invokeWithPlainPayload<{
+        ok: boolean;
+        error?: string;
+        file?: LocalAudioFile;
+        library?: LocalMusicLibrary;
+      }>('local-music:apply-metadata', { path: filePath, song }),
     removeFiles: (filePaths: string[]) =>
       invokeWithPlainPayload<boolean>('local-music:remove-files', filePaths),
     fileExists: (filePath: string) =>
