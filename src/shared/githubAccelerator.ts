@@ -1,8 +1,3 @@
-export const normalizeGithubAcceleratorUrl = (value?: string): string =>
-  String(value ?? '')
-    .trim()
-    .replace(/\/+$/, '');
-
 export const isGithubHostedUrl = (value: string): boolean => {
   try {
     const { hostname } = new URL(value);
@@ -17,12 +12,33 @@ export const isGithubHostedUrl = (value: string): boolean => {
   }
 };
 
+/**
+ * 加速地址只允许「https + 纯域名」，不接受协议降级、路径、查询串或凭据。
+ * 例：https://ghproxy.net ✅ / http://evil.com ❌ / https://evil.com/a ❌
+ */
+export const normalizeGithubAcceleratorUrl = (value?: string): string => {
+  const raw = String(value ?? '')
+    .trim()
+    .replace(/\/+$/, '');
+  if (!raw) return '';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:') return '';
+    if (url.username || url.password) return '';
+    if (url.pathname !== '/' && url.pathname !== '') return '';
+    if (url.search || url.hash) return '';
+    return `https://${url.host}`;
+  } catch {
+    return '';
+  }
+};
+
+/** 只在目标确实是 GitHub 域名时才拼接加速前缀 */
 export const applyGithubAcceleratorUrl = (url: string, acceleratorUrl?: string): string => {
   const target = String(url ?? '').trim();
+  if (!target || !/^https:\/\//i.test(target) || !isGithubHostedUrl(target)) return target;
   const accelerator = normalizeGithubAcceleratorUrl(acceleratorUrl);
-  if (!target || !accelerator || !/^https?:\/\//i.test(target) || !isGithubHostedUrl(target)) {
-    return target;
-  }
+  if (!accelerator) return target;
   return `${accelerator}/${target}`;
 };
 

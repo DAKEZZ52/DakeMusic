@@ -10,9 +10,10 @@ import {
   detectWindowBackgroundStrategy,
   resolveWindowBackgroundCapabilities,
 } from '../../shared/windowBackgroundStrategy';
-import { BrowserWindow, shell, app, nativeTheme, powerSaveBlocker, screen } from 'electron';
+import { BrowserWindow, app, nativeTheme, powerSaveBlocker, screen } from 'electron';
 import { join } from 'path';
 import log from '../logger';
+import { hardenWebContents } from '../security';
 import { applyWindowsRoundedCorners } from './roundedCorners';
 import type { CloseBehavior, ThemeMode } from '../../shared/app';
 import { getMainAppSettings, setMainAppSetting } from '../storage/settings';
@@ -536,9 +537,8 @@ export async function createWindow() {
   }
   await logMainMemory('createWindow:after load request');
 
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:')) shell.openExternal(url);
-    return { action: 'deny' };
+  hardenWebContents(win.webContents, {
+    devOrigin: url ? new URL(url).origin : null,
   });
 
   const handleSystemSessionEnd = () => {

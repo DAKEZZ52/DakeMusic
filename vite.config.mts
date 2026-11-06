@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite';
 import { readFileSync, existsSync } from 'node:fs';
+import type { Plugin } from 'vite';
+import { CONTENT_SECURITY_POLICY } from './src/shared/csp';
 
 // DakeMusic: 构建标识 + Ed25519 签名
 // 私钥只在打包机（.keys/build-ed25519.pem），服务器只存公钥；
@@ -25,6 +27,21 @@ function buildSignedTag(): string {
     console.warn('[build] 签名失败，构建标识降级为 dev:', error);
     return `v=${pkgVersion};b=${buildStamp};ch=dev`;
   }
+}
+
+// 生产构建注入 CSP meta：file:// 页面拿不到响应头，只能靠 meta
+function cspPlugin(): Plugin {
+  return {
+    name: 'dake-csp',
+    apply: 'build',
+    transformIndexHtml: {
+      order: 'post',
+      handler(html: string) {
+        const meta = `    <meta http-equiv="Content-Security-Policy" content="${CONTENT_SECURITY_POLICY}" />\n`;
+        return html.replace(/<head([^>]*)>/, (match) => match + '\n' + meta);
+      },
+    },
+  };
 }
 
 const buildDefines = {
@@ -79,6 +96,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    cspPlugin(),
     vue(),
     tailwindcss(),
     bundleAnalysisPlugin(),

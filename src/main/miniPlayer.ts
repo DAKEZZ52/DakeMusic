@@ -1,5 +1,5 @@
 import { ipcRegistry } from './ipc/registry';
-import { BrowserWindow, app, nativeTheme, screen, shell } from 'electron';
+import { BrowserWindow, app, nativeTheme, screen } from 'electron';
 import { join } from 'path';
 import type {
   MiniPlayerCommand,
@@ -23,6 +23,7 @@ import { getMainWindow, hideMainWindow, showMainWindow } from './window';
 import { getActiveWindowMode, setActiveWindowMode } from './window/mode';
 import { getMainAppSettings, setMainAppSetting } from './storage/settings';
 import { WindowDragController } from './windowDrag';
+import { hardenWebContents } from './security';
 
 const MINI_PLAYER_WIDTH = MINI_PLAYER_DIMENSIONS.width;
 const MINI_PLAYER_HEIGHT = MINI_PLAYER_DIMENSIONS.collapsedHeight;
@@ -284,6 +285,7 @@ const setMiniPlayerAlwaysOnTop = async (alwaysOnTop: boolean) => {
 
 const loadMiniPlayerWindow = async (win: BrowserWindow) => {
   const url = process.env.VITE_DEV_SERVER_URL;
+  hardenWebContents(win.webContents, { devOrigin: url ? new URL(url).origin : null });
   if (url) {
     const target = new URL(url);
     target.hash = '/mini-player';
@@ -595,11 +597,6 @@ export const ensureMiniPlayerWindow = async () => {
     suppressNextMiniPlayerReadyToShow = false;
     if (!shouldSuppressShow) win.show();
     sendSnapshot();
-  });
-
-  win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https:')) shell.openExternal(url);
-    return { action: 'deny' };
   });
 
   win.on('closed', () => {

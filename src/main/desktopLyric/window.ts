@@ -13,6 +13,7 @@ import {
   bindWindowBoundsPersistenceEvents,
   shouldFlushWindowBounds,
 } from '../windowBoundsPersistence';
+import { hardenWebContents } from '../security';
 
 const getBackgroundColor = () => '#00000000';
 const desktopLyricUsesWayland = isWaylandWindowingBackend();
@@ -232,6 +233,11 @@ export const loadDesktopLyricWindow = async () => {
   if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return;
 
   await registerNetworkSession(desktopLyricWindow.webContents.session);
+
+  hardenWebContents(desktopLyricWindow.webContents, {
+    devOrigin: desktopLyricUrl ? new URL(desktopLyricUrl).origin : null,
+    allowExternal: false,
+  });
 
   if (desktopLyricUrl) {
     await desktopLyricWindow.loadURL(new URL('desktop-lyric.html', desktopLyricUrl).toString());

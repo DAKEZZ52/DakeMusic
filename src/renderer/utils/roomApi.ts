@@ -153,7 +153,7 @@ export const roomApi = {
 
   // DakeMusic: 房间聊天历史（进房时补齐之前的文字/系统消息）
   getMessages: (roomId: string, limit = 50) =>
-    request(`/api/rooms/${roomId}/messages?limit=${limit}`, { auth: false, cache: false }),
+    request(`/api/rooms/${roomId}/messages?limit=${limit}`, { auth: true, cache: false }),
   /** 只持久化聊天，不重复广播（实时消息已通过 LiveKit 发出） */
   saveMessage: (roomId: string, content: string) =>
     request(`/api/rooms/${roomId}/messages`, {

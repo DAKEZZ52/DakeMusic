@@ -296,6 +296,27 @@ const chatLimiter = rateLimit({
   legacyHeaders: false,
 });
 
+function readOptionalUser(req) {
+  const token = req.headers.authorization?.replace('Bearer ', '');
+  if (!token) return null;
+  try { return jwt.verify(token, JWT_SECRET); } catch { return null; }
+}
+
+/**
+ * 房间内容访问判定：
+ * - 公开房：保持公开（不破坏老客户端）
+ * - 设了密码的房：必须是已在房内的成员、房主或管理员
+ */
+function canAccessRoomContent(room, user) {
+  if (!room) return false;
+  if (!room.password) return true;
+  if (!user) return false;
+  const isMember = (room.participants || []).some(p => p.userId === user.userId);
+  const isOwner = room.ownerUserId === user.userId ||
+    (!room.ownerUserId && room.ownerName === user.name);
+  return isMember || isOwner || isSuperAdmin(user);
+}
+
 function authSession(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -451,13 +472,7 @@ app.use((req, res, next) => {
   });
 });
 
-app.use((req, _res, next) => {
-  const tag = req.headers['x-dake-build'];
-  req.clientBuild = typeof tag === 'string' ? tag : '';
-  req.clientBuildValid = /^v=[^;]+;b=[^;]+;ch=(release|beta|dev)$/.test(req.clientBuild);
-  noteClientBuild(req, tag);
-  next();
-});
+
 
 // DakeMusic: 管理后台（同源访问，不走 CORS）
 initAdmin({ db, rooms: () => rooms, jwtSecret: JWT_SECRET });
@@ -1058,6 +1073,8 @@ app.delete('/api/rooms/:id', authSession, requireOwner, (req, res) => {
 app.get('/api/rooms/:id/messages', (req, res) => {
   const room = rooms[req.params.id];
   if (!room) return res.status(404).json({ error: '房间不存在' });
+  const viewer = readOptionalUser(req);
+  if (!canAccessRoomContent(room, viewer)) return res.status(403).json({ error: 'ROOM_LOCKED' });
   const limit = Math.min(Number(req.query.limit) || 50, 200);
   const after = Number(req.query.after) || 0;
   let rows;
@@ -1502,6 +1519,13 @@ wss.on('connection', (ws, req) => {
       // 订阅房间
       if (msg.type === 'join_room' && info.userId) {
         if (info.roomId) wsLeaveRoom(ws, info.roomId);
+        const joinedRoom = rooms[msg.roomId];
+        if (!canAccessRoomContent(joinedRoom, { userId: info.userId, name: info.userName })) {
+          info.roomId = null;
+          ws.send(JSON.stringify({ type: 'error', error: 'ROOM_LOCKED' }));
+          logger.warn('ws.join_locked', { userId: info.userId, roomId: msg.roomId });
+          return;
+        }
         info.roomId = msg.roomId;
         wsJoinRoom(ws, msg.roomId);
         // 推送历史消息和麦位
@@ -1525,11 +1549,29 @@ wss.on('connection', (ws, req) => {
 
       // 客户端发送消息（通过 WS）
       if (msg.type === 'chat' && info.userId && info.roomId) {
+        const chatRoom = rooms[info.roomId];
+        if (!canAccessRoomContent(chatRoom, { userId: info.userId, name: info.userName })) {
+          ws.send(JSON.stringify({ type: 'error', error: 'ROOM_LOCKED' }));
+          return;
+        }
+        if ((chatRoom.banned || []).some(b => String(b).startsWith(`user_${info.userId}`))) {
+          ws.send(JSON.stringify({ type: 'error', error: 'BANNED' }));
+          return;
+        }
+        const text = String(msg.content || '').trim().slice(0, 500);
+        if (!text) return;
+        const nowTs = Date.now();
+        info.chatTimes = (info.chatTimes || []).filter(t => nowTs - t < 10000);
+        if (info.chatTimes.length >= 10) {
+          ws.send(JSON.stringify({ type: 'error', error: 'RATE_LIMITED' }));
+          return;
+        }
+        info.chatTimes.push(nowTs);
         const user = stmtFindUserById.get(info.userId);
         const myNick = displayName(user) || info.userName || '用户';
         const myAvatar = user?.avatar || '';
         const now = Date.now();
-        const result = stmtInsertMessage.run(info.roomId, info.userId, myNick, myAvatar, String(msg.content || '').trim(), 0, now);
+        const result = stmtInsertMessage.run(info.roomId, info.userId, myNick, myAvatar, text, 0, now);
         const out = {
           type: 'message',
           id: String(result.lastInsertRowid),
@@ -1537,7 +1579,7 @@ wss.on('connection', (ws, req) => {
           user_id: info.userId,
           user_name: myNick,
           user_avatar: myAvatar,
-          content: String(msg.content || '').trim(),
+          content: text,
           is_system: false,
           created_at: new Date(now).toISOString(),
         };

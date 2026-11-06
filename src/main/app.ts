@@ -37,6 +37,7 @@ import type { PlayerController } from './player/controller';
 import { initializeNetworkSettings } from './networkSettings';
 import { installImageCorsHeaders } from './imageCors';
 import { installNetworkPolicyLifecycle } from './networkPolicy';
+import { installSecurityHardening } from './security';
 
 const WM_TASKBARCREATED = 0x031a;
 const playerRef: { current: PlayerController | null } = { current: null };
@@ -135,6 +136,7 @@ if (!gotTheLock) {
   });
 
   app.whenReady().then(async () => {
+    installSecurityHardening(!app.isPackaged);
     try {
       await initializeNetworkSettings();
     } catch (error) {
