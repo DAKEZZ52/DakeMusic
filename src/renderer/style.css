@@ -1464,14 +1464,12 @@ input:not([class*='rounded-full']):not([class*='rounded-999']):not(.tb-search-in
 }
 
 /* ==========================================================================
-   标题栏右侧：更多（…）/ 唱歌模式 / 全屏 三个图标淡化，不与窗口按钮抢视觉
+   标题栏右侧统一：更多（…）/ 唱歌模式 / 全屏 / 窗口按钮 同一档颜色
+   以前把前三个压到 52% 不透明度，导致「三个深三个浅」；现在统一走
+   --window-action-color（歌词页会覆盖成白色系），hover 只改背景不改颜色。
    ========================================================================== */
 .more-trigger,
 .window-action-soft {
-  color: color-mix(in srgb, var(--color-text-main) 52%, transparent) !important;
+  color: var(--window-action-color, var(--color-text-main));
 }
 
-.more-trigger:hover,
-.window-action-soft:hover {
-  color: var(--color-text-main) !important;
-}
