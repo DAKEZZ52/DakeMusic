@@ -190,10 +190,16 @@ let lastHandledClipboardText = '';
 let isCheckingClipboardShare = false;
 let colorSchemeMediaQuery: MediaQueryList | null = null;
 
+/** 独立小窗（唱歌模式 / 迷你胶囊）——这些窗口里不渲染主界面的浮层 */
 const isMiniPlayerWindow = () => {
   const hashPath = window.location.hash.replace(/^#/, '').split(/[?#]/)[0];
   return (
-    route.name === 'mini-player' || route.path === '/mini-player' || hashPath === '/mini-player'
+    route.name === 'mini-player' ||
+    route.path === '/mini-player' ||
+    hashPath === '/mini-player' ||
+    route.name === 'capsule-player' ||
+    route.path === '/capsule-player' ||
+    hashPath === '/capsule-player'
   );
 };
 const isMiniPlayerRoute = computed(isMiniPlayerWindow);

@@ -648,6 +648,11 @@ contextBridge.exposeInMainWorld('electron', {
       return () => ipcRenderer.removeListener('now-playing:command', listener);
     },
   },
+  capsulePlayer: {
+    toggle: () => invokeWithPlainPayload<boolean>('capsule-player:toggle'),
+    close: () => invokeWithPlainPayload<boolean>('capsule-player:close'),
+    isOpen: () => invokeWithPlainPayload<boolean>('capsule-player:is-open'),
+  },
   miniPlayer: {
     getSnapshot: () =>
       ipcRenderer.invoke('mini-player:get-snapshot') as Promise<MiniPlayerSnapshot>,

@@ -37,6 +37,7 @@ import {
   iconList,
   iconTypography,
   iconCloudDownload,
+  iconPinned,
   iconDots,
 } from '@/icons';
 import { usePlayerControls } from '@/composables/usePlayerControls';
@@ -71,6 +72,11 @@ const {
 } = usePlayerControls();
 
 const downloadStore = useDownloadStore();
+
+/** 迷你胶囊：独立小窗，和唱歌模式共存 */
+const toggleCapsulePlayer = () => {
+  void window.electron?.capsulePlayer?.toggle();
+};
 const sleepTimerRef = ref<InstanceType<typeof SleepTimerPopover> | null>(null);
 const openSleepTimer = () => sleepTimerRef.value?.openDialog();
 
@@ -672,6 +678,18 @@ onUnmounted(() => {
             class="-top-px"
             style="right: -5px"
           />
+        </div>
+        <div class="relative">
+          <Button
+            variant="unstyled"
+            size="none"
+            class="p-2 text-text-main/50 hover:text-primary-text transition-all hover:scale-110 active:scale-90"
+            tooltip="迷你胶囊"
+            aria-label="打开迷你胶囊"
+            @click="toggleCapsulePlayer"
+          >
+            <Icon :icon="iconPinned" width="22" height="22" />
+          </Button>
         </div>
         <div class="relative">
           <Button

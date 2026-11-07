@@ -245,6 +245,11 @@ export interface IElectronAPI {
     revealDir: (dir: string) => Promise<boolean>;
     onProgress: (func: (progress: SeparatorProgress) => void) => () => void;
   };
+  capsulePlayer: {
+    toggle: () => Promise<boolean>;
+    close: () => Promise<boolean>;
+    isOpen: () => Promise<boolean>;
+  };
   localMusic: {
     listLibraries: () => Promise<LocalMusicLibrary[]>;
     pickFolder: () => Promise<string | null>;

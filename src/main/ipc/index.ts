@@ -8,6 +8,7 @@ import { registerTrayHandlers } from './tray';
 import { registerDesktopLyricHandlers } from '../desktopLyric';
 import { registerMainWindowPreferenceHandlers } from '../window';
 import { registerMiniPlayerHandlers } from '../miniPlayer';
+import { registerCapsulePlayerHandlers } from '../capsulePlayer';
 import { registerNowPlayingHandlers } from '../nowPlaying';
 import { registerExternalHandlers } from './external';
 import { registerStorageHandlers } from './storage';
@@ -35,6 +36,7 @@ export const registerIpcHandlers = (context: IpcContext) => {
   registerNowPlayingHandlers(context);
   registerDesktopLyricHandlers();
   registerMiniPlayerHandlers();
+  registerCapsulePlayerHandlers();
   registerExternalHandlers();
   registerStorageHandlers();
   registerShareHandlers();

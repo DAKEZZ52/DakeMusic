@@ -19,6 +19,7 @@ import { registerAudioSpectrumIpc, unregisterAudioSpectrumIpc } from './audioSpe
 import { initMediaControls, destroyMediaControls } from './mediaControls';
 import { destroyAudioCapture } from './audioCapture';
 import { cleanupMiniPlayer } from './miniPlayer';
+import { cleanupCapsulePlayer } from './capsulePlayer';
 import { initPowerMonitor } from './powerMonitor';
 import { setupThumbarButtons } from './thumbar';
 import { setupTaskbarThumbnail, destroyTaskbarThumbnail } from './taskbarThumbnail';
@@ -291,6 +292,7 @@ if (!gotTheLock) {
         cleanupDesktopLyric();
         // 清理 mini 播放器模块的事件监听器和定时器
         cleanupMiniPlayer();
+        cleanupCapsulePlayer();
         destroyAudioCapture();
         destroyMediaControls();
         if (skipPlayerCleanup) {
