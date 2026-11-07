@@ -20,12 +20,6 @@ const routes: RouteRecordRaw[] = [
     meta: { skipHistory: true },
   },
   {
-    path: '/capsule-player',
-    name: 'capsule-player',
-    component: () => import('@/capsulePlayer/CapsulePlayerView.vue'),
-    meta: { skipHistory: true },
-  },
-  {
     path: '/mini-player',
     name: 'mini-player',
     component: () => import('@/miniPlayer/MiniPlayerView.vue'),
