@@ -19,6 +19,8 @@ import {
 import type { LyricSkin } from '@/plugins/lyricsPage';
 import { iconCheck, iconChevronLeft, iconMusic, iconSettings, iconX } from '@/icons';
 
+type LyricViewMode = 'cover' | 'portrait' | 'lyric' | 'amll';
+
 interface SkinGroup {
   label: string;
   key: string;
@@ -67,9 +69,7 @@ const activeSkin = computed(() => allSkins.value.find((skin) => skin.key === act
 
 const applySkin = (key: string) => {
   if (key.startsWith(HOST_SKIN_PREFIX)) {
-    settingStore.lyricViewMode = key.slice(
-      HOST_SKIN_PREFIX.length,
-    ) as typeof settingStore.lyricViewMode;
+    settingStore.lyricViewMode = key.slice(HOST_SKIN_PREFIX.length) as LyricViewMode;
   }
   settingStore.lyricsPageProvider = key;
 };

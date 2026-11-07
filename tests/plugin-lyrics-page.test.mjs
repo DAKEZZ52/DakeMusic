@@ -220,7 +220,7 @@ test('registrations are namespaced, validated, and old disposers cannot remove r
     assert.throws(() => one.register(input));
   assert.throws(() => one.usePage(), /setup/);
   api.removeLyricsPagesByPlugin('test');
-  assert.equal(api.lyricsPages.value.length, 11); // 10 built-in skins + 1 plugin page
+  assert.equal(api.lyricsPages.value.length, 5); // 4 built-in skins + 1 plugin page
 });
 
 test('page controls share reactive playback and validate seek, volume, queues, and audio availability', async (t) => {
