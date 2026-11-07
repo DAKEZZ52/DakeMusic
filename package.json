@@ -18,7 +18,8 @@
     "lint": "eslint . --ext .vue,.js,.ts,.jsx,.tsx --fix",
     "analyze": "ANALYZE_BUNDLE=1 vite build",
     "format": "prettier --write \"src/**/*.{vue,ts,js,json}\" \"vite.config.mts\" \"tsconfig*.json\"",
-    "release:sign": "node scripts/sign-update-manifest.mjs"
+    "release:sign": "node scripts/sign-update-manifest.mjs",
+    "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
     "axios": "^1.18.0",

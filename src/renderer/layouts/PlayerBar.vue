@@ -12,7 +12,7 @@ import QualityPopover from '@/components/player/QualityPopover.vue';
 import EffectPopover from '@/components/player/EffectPopover.vue';
 import VolumePopover from '@/components/player/VolumePopover.vue';
 import ProgressBusyOverlay from '@/components/player/ProgressBusyOverlay.vue';
-import Cover from '@/components/ui/Cover.vue';
+import CrossfadeCover from '@/components/ui/CrossfadeCover.vue';
 import Badge from '@/components/ui/Badge.vue';
 import Button from '@/components/ui/Button.vue';
 import Tooltip from '@/components/ui/Tooltip.vue';
@@ -118,6 +118,27 @@ const artistList = computed(() => {
     .filter((name) => name.length > 0)
     .map((name) => ({ name }));
 });
+
+/** 进度条拖动/悬停时的时间气泡 */
+const seekTrackRef = ref<HTMLElement | null>(null);
+const seekBubble = ref<{ ratio: number; time: number } | null>(null);
+
+const handleSeekPointerMove = (event: PointerEvent) => {
+  const duration = Number(player.duration) || 0;
+  const el = seekTrackRef.value;
+  if (!el || duration <= 0) {
+    seekBubble.value = null;
+    return;
+  }
+  const rect = el.getBoundingClientRect();
+  if (rect.width <= 0) return;
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  seekBubble.value = { ratio, time: ratio * duration };
+};
+
+const clearSeekBubble = () => {
+  seekBubble.value = null;
+};
 
 const formatTime = (seconds: number) => {
   if (!seconds || isNaN(seconds)) return '00:00';
@@ -283,13 +304,13 @@ onUnmounted(() => {
           class="relative w-[60px] h-[60px] shrink-0 cursor-pointer group rounded-[10px] overflow-hidden bg-[var(--control-muted-bg)]"
           @click="navigateToLyric"
         >
-          <Cover
+          <CrossfadeCover
             v-if="currentTrack"
             :url="currentTrack.coverUrl"
             :size="200"
             :width="60"
             :height="60"
-            :borderRadius="10"
+            :border-radius="10"
             class="transition-transform duration-500 group-hover:scale-110"
           />
           <div v-else class="w-full h-full flex items-center justify-center text-text-main/30">
@@ -538,51 +559,66 @@ onUnmounted(() => {
             class="text-[13.5px] font-medium text-text-main/50 w-10 shrink-0 text-right tabular-nums"
             >{{
               formatTime(
-                isDraggingSeek && pendingSeekTime !== null ? pendingSeekTime : player.currentTime,
+                isDraggingSeek && pendingSeekTime !== null
+                  ? pendingSeekTime
+                  : (seekBubble?.time ?? player.currentTime),
               )
             }}</span
           >
-          <SliderRoot
-            :model-value="progressValue"
-            :max="player.duration || 100"
-            :step="0.1"
-            :aria-busy="isProgressBusy"
-            :aria-label="progressAriaLabel"
-            class="relative flex items-center select-none touch-none flex-1 min-w-0 h-4 cursor-pointer group/progress"
-            @update:model-value="handleSeek"
-            @pointerdown.capture="handleSeekStart"
-            @value-commit="handleSeekCommit"
-            @pointerup="handleSeekEnd"
-            @pointercancel="handleSeekCancel"
-            @mouseenter="isHoveringProgress = true"
-            @mouseleave="isHoveringProgress = false"
+          <div
+            ref="seekTrackRef"
+            class="relative flex-1 min-w-0 flex items-center"
+            @pointermove="handleSeekPointerMove"
+            @pointerleave="clearSeekBubble"
           >
-            <SliderTrack class="player-progress-track relative grow rounded-full h-0.75">
-              <div class="climax-mark-layer">
-                <template
-                  v-for="(mark, index) in player.climaxMarks"
-                  :key="`${mark.start}-${index}`"
-                >
-                  <span
-                    class="climax-tick"
-                    :style="{ left: `calc(${(mark.start * 100).toFixed(3)}% - 1px)` }"
-                  ></span>
-                  <span
-                    v-if="mark.end > mark.start"
-                    class="climax-tick"
-                    :style="{ left: `calc(${(mark.end * 100).toFixed(3)}% - 1px)` }"
-                  ></span>
-                </template>
-              </div>
-              <SliderRange class="absolute bg-primary rounded-full h-full">
-                <ProgressBusyOverlay v-if="isProgressBusy" />
-              </SliderRange>
-            </SliderTrack>
-            <SliderThumb
-              class="player-progress-thumb block w-2.5 h-2.5 border rounded-full shadow-md focus-visible:outline-none transition-[opacity,transform] duration-200"
-              :class="[isHoveringProgress ? 'opacity-100 scale-125' : 'opacity-0 scale-50']"
-            />
-          </SliderRoot>
+            <SliderRoot
+              :model-value="progressValue"
+              :max="player.duration || 100"
+              :step="0.1"
+              :aria-busy="isProgressBusy"
+              :aria-label="progressAriaLabel"
+              class="relative flex items-center select-none touch-none flex-1 min-w-0 h-4 cursor-pointer group/progress"
+              @update:model-value="handleSeek"
+              @pointerdown.capture="handleSeekStart"
+              @value-commit="handleSeekCommit"
+              @pointerup="handleSeekEnd"
+              @pointercancel="handleSeekCancel"
+              @mouseenter="isHoveringProgress = true"
+              @mouseleave="isHoveringProgress = false"
+            >
+              <SliderTrack class="player-progress-track relative grow rounded-full h-0.75">
+                <div class="climax-mark-layer">
+                  <template
+                    v-for="(mark, index) in player.climaxMarks"
+                    :key="`${mark.start}-${index}`"
+                  >
+                    <span
+                      class="climax-tick"
+                      :style="{ left: `calc(${(mark.start * 100).toFixed(3)}% - 1px)` }"
+                    ></span>
+                    <span
+                      v-if="mark.end > mark.start"
+                      class="climax-tick"
+                      :style="{ left: `calc(${(mark.end * 100).toFixed(3)}% - 1px)` }"
+                    ></span>
+                  </template>
+                </div>
+                <SliderRange class="absolute bg-primary rounded-full h-full">
+                  <ProgressBusyOverlay v-if="isProgressBusy" />
+                </SliderRange>
+                <span
+                  v-if="seekBubble"
+                  class="seek-hover-line"
+                  :style="{ left: `${(seekBubble.ratio * 100).toFixed(3)}%` }"
+                  aria-hidden="true"
+                ></span>
+              </SliderTrack>
+              <SliderThumb
+                class="player-progress-thumb block w-2.5 h-2.5 border rounded-full shadow-md focus-visible:outline-none transition-[opacity,transform] duration-200"
+                :class="[isHoveringProgress ? 'opacity-100 scale-125' : 'opacity-0 scale-50']"
+              />
+            </SliderRoot>
+          </div>
           <span
             class="text-[13.5px] font-medium text-text-main/50 w-10 shrink-0 text-left tabular-nums"
             >{{ formatTime(player.duration) }}</span
@@ -786,6 +822,19 @@ onUnmounted(() => {
 
 .player-progress-track {
   background-color: var(--control-track-bg);
+}
+
+.seek-hover-line {
+  position: absolute;
+  top: 50%;
+  width: 2px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 1px;
+  background: var(--color-primary);
+  opacity: 0.75;
+  transform: translateX(-1px);
+  pointer-events: none;
 }
 
 .player-progress-thumb {
