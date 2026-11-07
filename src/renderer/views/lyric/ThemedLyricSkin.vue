@@ -235,40 +235,4 @@ const isLight = computed(() => props.variant === 'mist' || props.variant === 'pa
   background-size: 220px 220px;
   opacity: 0.85;
 }
-
-/* 皮肤自带整页底色：让 LyricPage 自己的封面背景层让位，
-   否则标题栏那一条会露出原来的深色背景，出现「上面一条灰、下面一片白」。 */
-:global(.lyric-page:has(.themed-skin)) .lyric-background {
-  display: none;
-}
-:global(.lyric-page:has(.themed-skin.is-mist)) {
-  background-color: #eef1f5;
-}
-:global(.lyric-page:has(.themed-skin.is-paper)) {
-  background-color: #f4efe6;
-}
-:global(.lyric-page:has(.themed-skin.is-neon)) {
-  background-color: #0a1020;
-}
-:global(.lyric-page:has(.themed-skin.is-aurora)) {
-  background-color: #06141a;
-}
-:global(.lyric-page:has(.themed-skin.is-film)) {
-  background-color: #1c1814;
-}
-:global(.lyric-page:has(.themed-skin.is-space)) {
-  background-color: #05070f;
-}
-
-/* 浅底皮肤下，底部控制栏压成深色，保证白图标与文字仍有对比 */
-:global(.lyric-page:has(.themed-skin.is-light) .lyric-bar) {
-  background: rgba(20, 22, 26, 0.9);
-}
-
-/* 浅色皮肤下，右上角窗口按钮改用深色，否则白图标看不见。
-   标题栏在皮肤组件之外，只能靠 :has 从 .lyric-page 这一层把变量改掉。 */
-:global(.lyric-page:has(.themed-skin.is-light)) {
-  --window-action-color: rgba(0, 0, 0, 0.55);
-  --window-action-hover-color: rgba(0, 0, 0, 0.9);
-}
 </style>

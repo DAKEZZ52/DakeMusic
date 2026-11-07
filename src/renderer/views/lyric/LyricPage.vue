@@ -127,6 +127,34 @@ const viewMode = computed<BuiltinSkinMode>(() => {
   return BUILTIN_SKIN_MODES.includes(bare) ? bare : 'lyric';
 });
 
+/** 主题化皮肤（自带整页底色，需隐藏原来的封面背景层） */
+const THEMED_SKIN_MODES = ['mist', 'neon', 'paper', 'aurora', 'film', 'space'] as const;
+const isThemedSkin = computed(() =>
+  (THEMED_SKIN_MODES as readonly string[]).includes(viewMode.value),
+);
+const isLightSkin = computed(() => viewMode.value === 'mist' || viewMode.value === 'paper');
+
+const THEMED_SKIN_BACKGROUNDS: Record<string, string> = {
+  mist: '#eef1f5',
+  neon: '#0a1020',
+  paper: '#f4efe6',
+  aurora: '#06141a',
+  film: '#1c1814',
+  space: '#05070f',
+};
+
+const themedSkinBackground = computed(() =>
+  isThemedSkin.value ? THEMED_SKIN_BACKGROUNDS[viewMode.value] : undefined,
+);
+
+/** 根节点样式：写真模式用取色背景，主题皮肤用固定底色 */
+const rootStyle = computed(() => {
+  if (isThemedSkin.value && themedSkinBackground.value) {
+    return { backgroundColor: themedSkinBackground.value };
+  }
+  return isBuiltinSkin.value && viewMode.value === 'portrait' ? backgroundStyle.value : undefined;
+});
+
 // 模糊背景封面 URL（用较小尺寸节省内存）
 const blurCoverUrl = computed(() => {
   if (!settingStore.lyricPageBackgroundBlur || !displayCoverUrl.value) return '';
@@ -434,8 +462,10 @@ onUnmounted(() => {
     :class="{
       'is-portrait': isBuiltinSkin && viewMode === 'portrait',
       'is-plugin-page': !!pluginPage,
+      'is-themed-skin': isThemedSkin,
+      'is-light-skin': isThemedSkin && isLightSkin,
     }"
-    :style="isBuiltinSkin && viewMode === 'portrait' ? backgroundStyle : undefined"
+    :style="rootStyle"
     @mousemove="handlePageMouseMove"
   >
     <div
@@ -811,6 +841,21 @@ onUnmounted(() => {
 .lyric-page {
   --window-action-color: rgba(255, 255, 255, 0.55);
   --window-action-hover-color: #fff;
+}
+
+/* 主题皮肤自带整页底色，隐藏原来的封面背景层，避免顶部露出一条别的颜色 */
+.lyric-page.is-themed-skin .lyric-background {
+  display: none;
+}
+
+/* 浅色皮肤：标题栏按钮转深色，底栏压深保证白字对比 */
+.lyric-page.is-light-skin {
+  --window-action-color: rgba(0, 0, 0, 0.55);
+  --window-action-hover-color: rgba(0, 0, 0, 0.9);
+}
+
+.lyric-page.is-light-skin :deep(.lyric-bar) {
+  background: rgba(20, 22, 26, 0.9);
 }
 
 .is-plugin-page {
