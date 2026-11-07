@@ -258,8 +258,13 @@ watch(pluginPage, (next, previous) => {
 });
 
 // 鼠标活动状态（写真收起时控制按钮显隐）
-const isMouseActive = ref(false);
+// 初始先显示 3 秒，之后跟随鼠标活动（与底部控制栏一致）
+const isMouseActive = ref(true);
 let mouseActiveTimer: number | null = null;
+
+onMounted(() => {
+  handlePageMouseMove();
+});
 
 const handlePageMouseMove = () => {
   isMouseActive.value = true;
@@ -446,7 +451,12 @@ onUnmounted(() => {
     </div>
 
     <!-- Always the lyric overlay header, not MainLayout's TitleBar. -->
-    <LyricPageTitlebar v-if="titlebar === 'host'" @close="closeLyricPage" />
+    <LyricPageTitlebar
+      v-if="titlebar === 'host'"
+      class="lyric-titlebar"
+      :class="{ 'is-hidden': !isMouseActive }"
+      @close="closeLyricPage"
+    />
 
     <!-- 弹幕层：对所有皮肤统一渲染 -->
     <BarrageLayer
@@ -739,6 +749,19 @@ onUnmounted(() => {
 
 .lyric-page.is-portrait {
   background-color: #1a1d22;
+}
+
+/* 歌词页顶部：不操作时收起，鼠标一动再出现（和底部控制栏一致的习惯） */
+.lyric-titlebar {
+  transition:
+    opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.lyric-titlebar.is-hidden {
+  opacity: 0;
+  transform: translateY(-10px);
+  pointer-events: none;
 }
 
 .lyric-background {
