@@ -19,11 +19,6 @@ const settingStore = useSettingStore();
 const versionLabel = computed(() => settingStore.appVersion || '未知');
 const releaseChannelLabel = computed(() => (settingStore.isPrerelease ? 'Prerelease' : 'Release'));
 
-// DakeMusic: 打开官网（官方唯一渠道）
-function openOfficialSite() {
-  window.electron?.ipcRenderer?.send('open-external', 'https://dkyy.top/');
-}
-
 // DakeMusic: 打开 QQ 临时聊天
 function openQQChat() {
   window.open('https://wpa.qq.com/msgrd?v=3&uin=983064062&site=DakeMusic&menu=yes', '_blank');
@@ -112,25 +107,6 @@ defineProps<{
         @click="onShowDisclaimer"
       >
         <Icon :icon="iconChevronRight" width="20" height="20" />
-      </Button>
-    </div>
-    <div class="settings-divider"></div>
-    <!-- DakeMusic: 官方渠道声明（防翻卖） -->
-    <div class="settings-item">
-      <div class="space-y-1 text-left min-w-0">
-        <h3 class="font-semibold">官方渠道</h3>
-        <p class="text-sm text-text-secondary">
-          完全免费，官方唯一渠道是
-          dkyy.top。通过其他渠道付费购买与本项目无关，请申请退款并向平台举报。
-        </p>
-      </div>
-      <Button
-        variant="unstyled"
-        size="none"
-        class="settings-action settings-action-primary"
-        @click="openOfficialSite"
-      >
-        打开官网
       </Button>
     </div>
     <div class="settings-divider"></div>

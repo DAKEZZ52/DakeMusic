@@ -156,9 +156,7 @@ const handleClose = () => updateStore.closeDialog();
         {{ checkResult.downloadLabel || '前往发布页下载' }}
       </Button>
       <template v-else-if="checkResult?.status === 'available' && !checkResult.manualDownload">
-        <Button v-if="checkResult?.releaseUrl" variant="ghost" size="sm" @click="handleOpenRelease">
-          前往下载
-        </Button>
+        <!-- 只保留一个主操作：下载中/已下载/安装中互斥；备用入口在下载失败时才出现 -->
         <Button
           v-if="downloadStatus === 'downloaded'"
           variant="primary"
@@ -174,14 +172,6 @@ const handleClose = () => updateStore.closeDialog();
           下载中
         </Button>
         <Button v-else variant="primary" size="sm" @click="handleDownload"> 立即更新 </Button>
-        <Button
-          v-if="checkResult?.status === 'available' && !checkResult.manualDownload"
-          variant="ghost"
-          size="sm"
-          @click="handleOpenDownload"
-        >
-          浏览器下载
-        </Button>
       </template>
     </template>
   </Dialog>
