@@ -77,3 +77,5 @@ screenshots/
 
 # 构建签名私钥（绝不入库）
 .keys/
+.nsis-build-tmp/
+desktop.ini
