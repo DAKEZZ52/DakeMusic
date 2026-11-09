@@ -8,6 +8,7 @@
 
 - 定义：`src/shared/csp.ts`
 - 注入：`vite.config.mts` 的 `cspPlugin`（生产构建写入 `<meta>`）+ `src/main/security.ts`（http(s) 响应头）
+- 例外：`img-src` / `media-src` 额外放开 `http:`——酷狗接口返回的头像与部分封面仍是 http 地址；脚本与连接策略不受影响
 - 允许的来源：
   - 脚本：`self`、`file:`、`'unsafe-inline'`（首帧主题内联脚本）、腾讯验证码域
   - 图片/音频：`self file: data: blob: https:`

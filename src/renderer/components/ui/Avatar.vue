@@ -25,6 +25,21 @@ const props = withDefaults(defineProps<Props>(), {
   delayMs: 0,
 });
 
+/** 酷狗返回的头像常常是 http://，升级成 https 以免被浏览器当成混合内容 */
+const upgradeInsecureImage = (url: string): string => {
+  if (!url.startsWith('http://')) return url;
+  try {
+    const host = new URL(url).hostname;
+    return host === 'kugou.com' || host.endsWith('.kugou.com')
+      ? url.replace('http://', 'https://')
+      : url;
+  } catch {
+    return url;
+  }
+};
+
+const resolvedSrc = computed(() => upgradeInsecureImage(String(props.src ?? '')));
+
 const sizeStyle = computed<CSSProperties | undefined>(() => {
   if (props.size === undefined || props.size === null || props.size === '') {
     return undefined;
@@ -46,8 +61,8 @@ const sizeStyle = computed<CSSProperties | undefined>(() => {
   <AvatarRoot :class="['relative flex overflow-hidden shrink-0', props.class]" :style="sizeStyle">
     <!-- 1. 图片主体 -->
     <AvatarImage
-      v-if="src"
-      :src="src"
+      v-if="resolvedSrc"
+      :src="resolvedSrc"
       :alt="alt"
       class="h-full w-full object-cover transition-opacity duration-500"
     />

@@ -12,8 +12,9 @@ export const CONTENT_SECURITY_POLICY = [
   "default-src 'self' file:",
   "script-src 'self' 'unsafe-inline' file: https://turing.captcha.qcloud.com",
   "style-src 'self' 'unsafe-inline' file:",
-  "img-src 'self' file: data: blob: https:",
-  "media-src 'self' file: data: blob: https:",
+  // 酷狗头像等接口仍返回 http 图片地址，只对图片放开 http（脚本与连接策略不变）
+  "img-src 'self' file: data: blob: https: http:",
+  "media-src 'self' file: data: blob: https: http:",
   "font-src 'self' file: data:",
   "connect-src 'self' file: https: wss: http://127.0.0.1:* ws://127.0.0.1:* http://localhost:* ws://localhost:*",
   'frame-src https://turing.captcha.qcloud.com',
