@@ -5,6 +5,9 @@
 import express from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import Database from 'better-sqlite3';
+import fs from "node:fs";
+import zlib from "node:zlib";
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -171,7 +174,7 @@ router.post('/bad-words/add', requireAdmin, (req, res) => {
   try {
     db.prepare('INSERT INTO bad_words (word, created_at) VALUES (?, ?)').run(w, Date.now());
     res.json({ ok: true });
-  } catch {
+  } catch (e) {
     res.status(400).json({ error: '该词已存在' });
   }
 });
@@ -179,6 +182,143 @@ router.post('/bad-words/add', requireAdmin, (req, res) => {
 router.post('/bad-words/:id/delete', requireAdmin, (req, res) => {
   db.prepare('DELETE FROM bad_words WHERE id = ?').run(req.params.id);
   res.json({ ok: true });
+});
+
+
+// ============ 全站公告管理 ============
+const NOTICE_FILE = path.join(__dirname, "notice.txt");
+router.get("/notice", requireAdmin, (req, res) => {
+  try { res.json({ notice: fs.readFileSync(NOTICE_FILE, "utf8").trim() }); }
+  catch(e){ res.json({ notice: "" }); }
+});
+router.post("/notice", requireAdmin, (req, res) => {
+  const notice = String(req.body?.notice || "").slice(0, 500);
+  fs.writeFileSync(NOTICE_FILE, notice, "utf8");
+  res.json({ notice });
+});
+
+// ============ 下载统计（读 nginx 访问日志） ============
+const NGINX_LOG_DIR = '/var/log/nginx';
+const INSTALLER_RE = /^\/dl\/DakeMusic-(\d+\.\d+\.\d+(?:-beta)?)\.exe$/;
+const MB = 1024 * 1024;
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function readNginxLog(file) {
+  const full = path.join(NGINX_LOG_DIR, file);
+  const raw = fs.readFileSync(full);
+  if (file.endsWith('.gz')) return zlib.gunzipSync(raw).toString('utf8');
+  return raw.toString('utf8');
+}
+
+/** 按时间从新到旧排列日志：access.log > access.log.1 > access.log.2.gz ... */
+function listNginxLogs(limit) {
+  try {
+    const entries = fs.readdirSync(NGINX_LOG_DIR)
+      .filter((name) => /^access\.log(\.\d+)?(\.gz)?$/.test(name))
+      .map((name) => {
+        const m = name.match(/^access\.log(?:\.(\d+))?/);
+        return { name, order: m && m[1] ? Number(m[1]) : 0 };
+      })
+      .sort((a, b) => a.order - b.order)
+      .map((item) => item.name);
+    return entries.slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
+/** 解析 combined 格式：$remote_addr - $remote_user [$time] "$request" $status $bytes ... */
+/** 把 nginx 时间（09/Nov/2026:11:19:24 +0800）解析成毫秒时间戳 */
+function parseLogTime(text) {
+  const m = text.match(/^(\d{2})\/(\w{3})\/(\d{4}):(\d{2}):(\d{2}):(\d{2}) ([+-]\d{2})(\d{2})$/);
+  if (!m) return 0;
+  const [, dd, mon, yyyy, hh, mi, ss, tzH, tzM] = m;
+  const month = MONTHS.indexOf(mon);
+  if (month < 0) return 0;
+  const utc = Date.UTC(Number(yyyy), month, Number(dd), Number(hh), Number(mi), Number(ss));
+  const offset = (tzH.startsWith('-') ? -1 : 1) * (Math.abs(Number(tzH)) * 60 + Number(tzM));
+  return utc - offset * 60 * 1000;
+}
+
+function parseLogLine(line) {
+  const m = line.match(/^(\S+) \S+ \S+ \[([^\]]+)\] "([^"]*)" (\d{3}) (\d+|-)/);
+  if (!m) return null;
+  const [, ip, time, request, status, bytesRaw] = m;
+  const reqMatch = request.match(/^\S+ (\S+)/);
+  if (!reqMatch) return null;
+  const pathname = reqMatch[1].split('?')[0];
+  const verMatch = pathname.match(INSTALLER_RE);
+  if (!verMatch) return null;
+  return {
+    ip,
+    time,
+    version: verMatch[1],
+    status: Number(status),
+    bytes: bytesRaw === '-' ? 0 : Number(bytesRaw),
+  };
+}
+
+router.get('/downloads', requireAdmin, (req, res) => {
+  const days = Math.min(90, Math.max(1, Number(req.query.days) || 14));
+  const files = listNginxLogs(days);
+  const versions = new Map();
+  const daily = new Map();
+  const recent = [];
+  const allIps = new Set();
+  let totalHits = 0;
+
+  for (const file of files) {
+    let text = '';
+    try {
+      text = readNginxLog(file);
+    } catch {
+      continue;
+    }
+    for (const line of text.split('\n')) {
+      const row = parseLogLine(line);
+      if (!row) continue;
+      totalHits += 1;
+      const completed = row.status === 200 && row.bytes > MB;
+      if (!completed) continue;
+
+      const entry = versions.get(row.version) || { version: row.version, downloads: 0, ips: new Set() };
+      entry.downloads += 1;
+      entry.ips.add(row.ip);
+      versions.set(row.version, entry);
+
+      // 时间格式：09/Nov/2026:11:19:24 +0800
+      const dateMatch = row.time.match(/^(\d{2})\/(\w{3})\/(\d{4})/);
+      if (dateMatch) {
+        const [, dd, mon, yyyy] = dateMatch;
+        const date = `${yyyy}-${String(MONTHS.indexOf(mon) + 1).padStart(2, '0')}-${dd}`;
+        const dayEntry = daily.get(date) || { date, downloads: 0 };
+        dayEntry.downloads += 1;
+        daily.set(date, dayEntry);
+      }
+
+      allIps.add(row.ip);
+      recent.push({ time: row.time, ip: row.ip, version: row.version, ts: parseLogTime(row.time) });
+    }
+  }
+
+  const versionList = [...versions.values()]
+    .map((v) => ({ version: v.version, downloads: v.downloads, uniqueIps: v.ips.size }))
+    .sort((a, b) => b.downloads - a.downloads);
+
+  res.json({
+    days,
+    logFiles: files.length,
+    totalHits,
+    totalDownloads: versionList.reduce((sum, v) => sum + v.downloads, 0),
+    uniqueIps: allIps.size,
+    versions: versionList,
+    daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    recent: recent
+      .sort((a, b) => b.ts - a.ts)
+      .slice(0, 30)
+      .map(({ time, ip, version }) => ({ time, ip, version })),
+    generatedAt: new Date().toISOString(),
+  });
 });
 
 // ============ 静态文件（admin 前端页面） ============
