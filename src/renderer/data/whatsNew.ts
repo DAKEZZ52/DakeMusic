@@ -12,14 +12,14 @@ export interface WhatsNewFeature {
 
 export interface WhatsNewRelease {
   version: string;
-  headline: string;
+  /** 可选：留空时弹窗只显示版本号与条目 */
+  headline?: string;
   features: WhatsNewFeature[];
 }
 
 export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
   {
     version: '2.4.8',
-    headline: '这一版把「安全」和「听感」都补上了',
     features: [
       {
         title: '音质链路面板',
@@ -36,10 +36,6 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
       {
         title: '更新更稳',
         desc: '更新检查优先走腾讯云源，国内直连更快；弹窗只保留一个主按钮，不再同时出现三种下载入口。',
-      },
-      {
-        title: '安全加固',
-        desc: '补上内容安全策略、外链导航拦截、权限白名单、IPC 来源校验与语聊房内容鉴权。',
       },
     ],
   },

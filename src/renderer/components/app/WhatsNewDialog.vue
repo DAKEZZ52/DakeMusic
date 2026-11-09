@@ -48,7 +48,7 @@ const dismiss = () => {
     <div v-if="release" class="whats-new">
       <div class="whats-new-head">
         <span class="whats-new-version">v{{ release.version }}</span>
-        <h3 class="whats-new-headline">{{ release.headline }}</h3>
+        <h3 v-if="release.headline" class="whats-new-headline">{{ release.headline }}</h3>
       </div>
 
       <ul class="whats-new-list">
