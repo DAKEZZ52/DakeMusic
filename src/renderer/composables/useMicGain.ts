@@ -126,7 +126,15 @@ async function buildGainTrack(deviceId?: string): Promise<any> {
     }
   }
   micRawStream = await navigator.mediaDevices.getUserMedia({
-    audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+    audio: {
+      // 唱歌场景：关掉浏览器默认的 AEC / 降噪 / 自动增益，
+      // 否则机架（VST 宿主）处理过的人声会被二次处理，尾音被切、动态被压平
+      ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      sampleRate: 48000,
+    },
   });
   micGainSrc = micGainCtx.createMediaStreamSource(micRawStream);
   micGainNode = micGainCtx.createGain();
