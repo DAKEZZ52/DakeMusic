@@ -6,7 +6,7 @@ export const SHARE_WEB_BASE_URL = 'https://dkyy.top/share/';
 // 历史协议名（EchoMusic 时期），仅用于兼容解析旧链接，不再生成。
 export const LEGACY_SHARE_SCHEME = 'echomusic';
 
-export type ShareResourceType = 'song' | 'playlist' | 'artist' | 'album' | 'listen-together';
+export type ShareResourceType = 'song' | 'playlist' | 'artist' | 'album';
 export type ShareTargetQuery = Record<string, string>;
 
 export interface ShareTarget {
@@ -29,19 +29,13 @@ const SHARE_TYPE_LABELS: Record<ShareResourceType, string> = {
   playlist: '歌单',
   artist: '歌手',
   album: '专辑',
-  'listen-together': '一起听房间',
 };
 
 const SHARE_WEB_ORIGIN = new URL(SHARE_WEB_BASE_URL).origin;
 const SHARE_WEB_PATH = new URL(SHARE_WEB_BASE_URL).pathname.replace(/\/$/, '');
 
 const isShareResourceType = (value: string): value is ShareResourceType =>
-  value === 'song' ||
-  value === 'playlist' ||
-  value === 'artist' ||
-  value === 'album' ||
-  value === 'plugin' ||
-  value === 'listen-together';
+  value === 'song' || value === 'playlist' || value === 'artist' || value === 'album';
 
 const readText = (value: unknown): string => {
   if (value === undefined || value === null) return '';

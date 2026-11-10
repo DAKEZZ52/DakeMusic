@@ -154,7 +154,6 @@ const excludeFromCache = [
   'search-page',
   // 分享链接会为一起听路由附加 roomId/roomType。按 fullPath 缓存会同时保留普通页和
   // 分享页两个实例，二者的路由 watcher 会各自打开一个 Teleport Dialog，造成双层遮罩卡死。
-  'listen-together',
   'profile',
   'settings-page',
 ];
