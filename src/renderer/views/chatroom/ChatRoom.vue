@@ -7,6 +7,8 @@
 <script setup lang="ts">
 import { ref, nextTick, onMounted, onUnmounted, computed, watch } from 'vue';
 const myAvatarImage = ref('');
+/** 输入栏组件引用（用于聚焦） */
+const chatInputRef = ref<{ focus: () => void } | null>(null);
 import { useRouter } from 'vue-router';
 import { useChatRoomStore } from '@/stores/chatRoom';
 import { useRoomLyrics } from './composables/useRoomLyrics';
@@ -21,7 +23,9 @@ import SeatStage from '@/seatManager/SeatStage.vue';
 import SongRequestPanel from './SongRequestPanel.vue';
 import ChatRoomBackground from './components/ChatRoomBackground.vue'; // 背景层（星空极光/自定义图）
 import ChatRoomTopbar from './components/ChatRoomTopbar.vue'; // 顶部栏（房间名/状态/点歌/退出）
-import ChatRoomMemberList from './components/ChatRoomMemberList.vue'; // 左侧成员列表
+import ChatRoomMemberList from './components/ChatRoomMemberList.vue';
+import ChatMessageList from './components/ChatMessageList.vue';
+import ChatInputBar from './components/ChatInputBar.vue'; // 左侧成员列表
 import { useSeatManager } from '@/seatManager/useSeatManager';
 // DakeMusic: 麦克风增益/开关麦统一走单例 composable（房间内与悬浮窗共用，避免多轨道冲突）
 import { useMicGain } from '@/composables/useMicGain';
@@ -249,8 +253,6 @@ async function adminToggleSuper() {
 
 const {
   messageInput,
-  messageInputEl,
-  chatContainer,
   localNotices,
   displayMessages,
   hasAnyMessage,
@@ -259,7 +261,6 @@ const {
   clearNoticeTimer,
   pushNotice,
   sendMessage,
-  imageInput,
   sendingImage,
   onImageSelected,
 } = useRoomChatMessages({ store, filterBadWords });
@@ -272,7 +273,7 @@ onMounted(() => {
   myAvatarImage.value = localStorage.getItem('chatroom_avatarImage') || '';
   window.addEventListener('storage', onStorageChange);
   navigator.mediaDevices?.addEventListener?.('devicechange', adsLoad);
-  nextTick(() => messageInputEl.value?.focus());
+  nextTick(() => chatInputRef.value?.focus());
   adsRestore();
   adsLoad();
   // 首次挂载：建立房间追踪基线（并清掉可能残留的旧提示）
@@ -290,7 +291,7 @@ watch(
   (connected) => {
     if (connected) {
       myAvatarImage.value = localStorage.getItem('chatroom_avatarImage') || '';
-      nextTick(() => messageInputEl.value?.focus());
+      nextTick(() => chatInputRef.value?.focus());
       setTimeout(() => {
         adsSyncFromRoom();
       }, 600);
@@ -945,164 +946,28 @@ onUnmounted(() => {
             </button>
           </template>
         </Tooltip>
-        <div ref="chatContainer" class="cr-scroll cr-chat-scroll">
-          <!-- 进出房间提示：钉在聊天区顶部，不参与排序也不滚动 -->
-          <div v-if="localNotices.length" class="cr-top-notice">
-            <span class="cr-system">{{ localNotices[localNotices.length - 1].content }}</span>
-          </div>
-          <template v-if="hasAnyMessage">
-            <div
-              v-for="msg in displayMessages"
-              :key="msg.id"
-              class="cr-row"
-              :class="
-                msg.type === 'system'
-                  ? 'center'
-                  : msg.senderIdentity === store.myIdentity
-                    ? 'mine'
-                    : 'other'
-              "
-            >
-              <div v-if="msg.type === 'system'" class="cr-system">{{ msg.content }}</div>
-              <div v-else class="cr-msg">
-                <!-- 发送者头像：点击看资料 -->
-                <div
-                  class="cr-msg-av"
-                  :aria-label="msg.senderName"
-                  @click="openUserProfile(msg.senderIdentity)"
-                >
-                  <img
-                    v-if="memberAvatar(msg.senderIdentity)"
-                    :src="memberAvatar(msg.senderIdentity)"
-                  />
-                  <svg
-                    v-else
-                    class="cr-av-ico"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.6"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4 21c0-4.42 3.58-8 8-8s8 3.58 8 8" />
-                  </svg>
-                </div>
-                <div class="cr-msg-body">
-                  <div class="cr-msg-meta">
-                    <span class="cr-msg-name" @click="openUserProfile(msg.senderIdentity)">{{
-                      msg.senderName
-                    }}</span>
-                    <span class="cr-msg-time">{{ formatTime(msg.timestamp) }}</span>
-                  </div>
-                  <div v-if="msg.type === 'image'" class="cr-bubble cr-bubble-img">
-                    <img :src="msg.content" @click="previewPhotoUrl = msg.content" />
-                  </div>
-                  <div v-else class="cr-bubble">{{ msg.content }}</div>
-                </div>
-              </div>
-            </div>
-          </template>
-          <div v-else class="cr-empty">
-            <div class="cr-skeleton s1"></div>
-            <div class="cr-skeleton s2"></div>
-            <div class="cr-skeleton s3"></div>
-          </div>
-        </div>
+        <ChatMessageList
+          :messages="displayMessages"
+          :notices="localNotices"
+          :has-any-message="hasAnyMessage"
+          :my-identity="store.myIdentity"
+          :member-avatar="memberAvatar"
+          :format-time="formatTime"
+          @open-profile="openUserProfile"
+          @preview-photo="previewPhotoUrl = $event"
+        />
         <!-- DakeMusic: 输入框归位右侧公屏底部 -->
-        <div class="cr-input-wrap">
-          <Tooltip content="清屏（清空本地聊天显示）">
-            <template #trigger>
-              <button
-                class="cr-clear-btn"
-                :class="{ 'is-disabled': !hasAnyMessage }"
-                aria-label="清屏（清空本地聊天显示）"
-                @click="clearScreen"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6" />
-                  <path d="M14 11v6" />
-                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-                </svg>
-              </button>
-            </template>
-          </Tooltip>
-          <input
-            ref="messageInputEl"
-            v-model="messageInput"
-            type="text"
-            placeholder="来点虎狼之词..."
-            class="cr-input"
-            @keydown.enter.exact.prevent="sendMessage"
-          />
-          <Tooltip content="发送图片">
-            <template #trigger>
-              <button
-                class="cr-emoji-btn"
-                aria-label="发送图片"
-                :disabled="sendingImage"
-                @click="imageInput?.click()"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <path d="M21 15l-5-5L5 21" />
-                </svg>
-              </button>
-            </template>
-          </Tooltip>
-          <input
-            ref="imageInput"
-            type="file"
-            accept="image/*"
-            class="hidden"
-            @change="onImageSelected"
-          />
-          <Tooltip content="表情">
-            <template #trigger>
-              <button
-                class="cr-emoji-btn"
-                aria-label="表情"
-                @click="showEmojiPicker = !showEmojiPicker"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                  <path
-                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"
-                  />
-                </svg>
-              </button>
-            </template>
-          </Tooltip>
-          <button class="cr-send" @click="sendMessage">发送</button>
-          <div v-if="showEmojiPicker" class="cr-emoji-mask" @click="showEmojiPicker = false"></div>
-          <div v-if="showEmojiPicker" class="cr-emoji-panel">
-            <button
-              v-for="emoji in emojiList"
-              :key="emoji"
-              class="cr-emoji-item"
-              @click="insertEmoji(emoji)"
-            >
-              {{ emoji }}
-            </button>
-          </div>
-        </div>
+        <ChatInputBar
+          ref="chatInputRef"
+          v-model="messageInput"
+          :has-any-message="hasAnyMessage"
+          :sending-image="sendingImage"
+          :emoji-list="emojiList"
+          @send="sendMessage"
+          @clear="clearScreen"
+          @image-selected="onImageSelected"
+          @insert-emoji="insertEmoji"
+        />
       </aside>
     </div>
     <!-- DakeMusic: 底部居中悬浮控制胶囊（居中区域对齐中央舞台列） -->

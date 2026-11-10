@@ -2,7 +2,7 @@
  * DakeMusic 语聊房 - 聊天消息
  * 描述：消息展示与本地提示、成员进出追踪、发送文字/图片（本地压缩）。
  */
-import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { logger } from '@/utils/logger';
 
 export interface RoomChatContext {
@@ -15,8 +15,6 @@ export function useRoomChatMessages(ctx: RoomChatContext) {
   const { store, filterBadWords } = ctx;
 
   const messageInput = ref('');
-  const messageInputEl = ref<HTMLInputElement | null>(null);
-  const chatContainer = ref<HTMLElement | null>(null);
 
   const sortedMessages = computed(() => store.sortedMessages);
 
@@ -164,15 +162,6 @@ export function useRoomChatMessages(ctx: RoomChatContext) {
     { deep: false },
   );
 
-  async function scrollToBottom() {
-    await nextTick();
-    if (chatContainer.value) chatContainer.value.scrollTop = chatContainer.value.scrollHeight;
-  }
-  watch(
-    () => store.messages.length,
-    () => scrollToBottom(),
-  );
-
   async function sendMessage() {
     if (!messageInput.value.trim()) return;
     try {
@@ -185,7 +174,6 @@ export function useRoomChatMessages(ctx: RoomChatContext) {
   }
 
   // DakeMusic: 发送图片到公屏（本地压缩成小图，base64 随消息广播，无需上传接口）
-  const imageInput = ref<HTMLInputElement | null>(null);
   const sendingImage = ref(false);
 
   /** 压缩图片为 base64，逐级降尺寸/质量，直到 JSON 体积在 LiveKit 消息限制内（<13KB） */
@@ -269,8 +257,6 @@ export function useRoomChatMessages(ctx: RoomChatContext) {
 
   return {
     messageInput,
-    messageInputEl,
-    chatContainer,
     localNotices,
     displayMessages,
     hasAnyMessage,
@@ -278,9 +264,7 @@ export function useRoomChatMessages(ctx: RoomChatContext) {
     resetMemberTracking,
     clearNoticeTimer,
     pushNotice,
-    scrollToBottom,
     sendMessage,
-    imageInput,
     sendingImage,
     onImageSelected,
   };
