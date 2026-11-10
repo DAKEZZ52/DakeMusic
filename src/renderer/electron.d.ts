@@ -360,6 +360,17 @@ export interface IElectronAPI {
     command: (command: NowPlayingCommand) => void;
     onCommand: (func: (command: NowPlayingCommand) => void) => () => void;
   };
+  obsOverlay: {
+    start: (port?: number) => Promise<{
+      ok: boolean;
+      running: boolean;
+      port: number;
+      url: string;
+      error?: string;
+    }>;
+    stop: () => Promise<{ running: boolean; port: number; url: string }>;
+    status: () => Promise<{ running: boolean; port: number; url: string }>;
+  };
   miniPlayer: {
     getSnapshot: () => Promise<MiniPlayerSnapshot>;
     show: () => Promise<MiniPlayerSnapshot>;

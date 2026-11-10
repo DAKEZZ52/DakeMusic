@@ -648,6 +648,20 @@ contextBridge.exposeInMainWorld('electron', {
       return () => ipcRenderer.removeListener('now-playing:command', listener);
     },
   },
+  obsOverlay: {
+    start: (port?: number) =>
+      invokeWithPlainPayload<{
+        ok: boolean;
+        running: boolean;
+        port: number;
+        url: string;
+        error?: string;
+      }>('obs-overlay:start', port),
+    stop: () =>
+      invokeWithPlainPayload<{ running: boolean; port: number; url: string }>('obs-overlay:stop'),
+    status: () =>
+      invokeWithPlainPayload<{ running: boolean; port: number; url: string }>('obs-overlay:status'),
+  },
   miniPlayer: {
     getSnapshot: () =>
       ipcRenderer.invoke('mini-player:get-snapshot') as Promise<MiniPlayerSnapshot>,

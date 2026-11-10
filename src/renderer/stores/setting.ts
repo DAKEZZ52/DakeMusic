@@ -110,6 +110,9 @@ const toImpulseResponseFilePayload = (file: SpatialAudioEffectEntry): SpatialAud
 export const useSettingStore = defineStore('setting', {
   state: () => ({
     theme: 'system' as ThemeMode,
+    /** OBS 浏览器源：开启后本地起一个只监听 127.0.0.1 的浮层服务 */
+    obsOverlayEnabled: false,
+    obsOverlayPort: 37650,
     floatingSurfaceFrosted: false,
     titlebarLayout: emptyTitlebarLayout(),
     windowBackground: { ...DEFAULT_WINDOW_BACKGROUND },

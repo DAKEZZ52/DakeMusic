@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DakeMusic Overlay</title>
+<style>
+  :root{ --accent:#f59e0b; --text:#fff; --sub:#9aa4b2; --card-bg:rgba(20,24,32,.72); }
+  html,body{margin:0;height:100%;background:transparent;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;}
+
+  #overlay{position:fixed;inset:0;transition:opacity .45s ease}
+  #overlay.idle{opacity:0}
+  #overlay.paused{opacity:.55}
+
+  /* 卡片 */
+  .card{position:absolute;left:36px;bottom:36px;display:flex;align-items:center;gap:14px;
+        padding:14px 22px 16px 14px;border-radius:18px;
+        background:var(--card-bg);border:1px solid rgba(255,255,255,.10);
+        box-shadow:0 18px 48px rgba(0,0,0,.55);color:var(--text);
+        backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);}
+  .card .cover{width:76px;height:76px;border-radius:12px;flex:0 0 auto;overflow:hidden;
+        background:rgba(255,255,255,.10);display:flex;align-items:center;justify-content:center;font-size:30px}
+  .card .cover img{width:100%;height:100%;object-fit:cover;display:block}
+  .card .meta{min-width:0}
+  .card .title{font-size:19px;font-weight:600;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+  .card .artist{font-size:13px;color:var(--sub);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+  .card .bar{width:320px;height:3px;border-radius:2px;background:rgba(255,255,255,.14);margin-top:12px;overflow:hidden}
+  .card .bar i{display:block;height:100%;width:0;background:var(--accent);border-radius:2px;transition:width .6s linear}
+
+  /* 极简 */
+  .minimal{position:absolute;left:40px;bottom:40px;display:flex;align-items:center;gap:12px;
+           color:var(--text);text-shadow:0 2px 10px rgba(0,0,0,.75)}
+  .minimal .cover{width:40px;height:40px;border-radius:9px;flex:0 0 auto;overflow:hidden;
+           background:rgba(255,255,255,.12);box-shadow:0 6px 18px rgba(0,0,0,.55);
+           border:1px solid rgba(255,255,255,.14)}
+  .minimal .cover img{width:100%;height:100%;object-fit:cover;display:block}
+  .minimal .wrap{position:relative}
+  .minimal .text{font-size:16px;font-weight:500;white-space:nowrap;max-width:520px;overflow:hidden;text-overflow:ellipsis}
+  .minimal .sep{opacity:.45;margin:0 4px}
+  .minimal .artist{font-weight:400;color:rgba(255,255,255,.86)}
+  .minimal .progress{position:absolute;left:0;bottom:-9px;width:100%;height:2px;background:rgba(255,255,255,.16);border-radius:1px;overflow:hidden}
+  .minimal .progress i{display:block;height:100%;width:0;background:var(--accent);border-radius:1px;transition:width .6s linear}
+
+  /* 水印 */
+  .brand{position:fixed;right:30px;bottom:26px;font-size:12px;letter-spacing:.2em;font-weight:600;
+         color:rgba(255,255,255,.34);text-shadow:0 2px 8px rgba(0,0,0,.6)}
+</style>
+</head>
+<body>
+<div id="overlay" class="idle"></div>
+<script>
+  const q = new URLSearchParams(location.search);
+  const style = q.get('style') === 'minimal' ? 'minimal' : 'card';
+  const theme = q.get('theme') === 'light' ? 'light' : 'dark';
+  const showBrand = q.get('brand') !== '0';
+
+  if (theme === 'light') {
+    document.documentElement.style.setProperty('--accent', '#0a84ff');
+  }
+
+  const root = document.getElementById('overlay');
+  let brand = null;
+  if (showBrand) {
+    brand = document.createElement('div');
+    brand.className = 'brand';
+    brand.textContent = 'DAKEMUSIC';
+  }
+
+  let coverEl, titleEl, artistEl, barEl, currentCover = '';
+
+  function buildCard() {
+    root.innerHTML = '';
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML =
+      '<div class="cover">♪</div>' +
+      '<div class="meta">' +
+        '<div class="title"></div>' +
+        '<div class="artist"></div>' +
+        '<div class="bar"><i></i></div>' +
+      '</div>';
+    root.appendChild(card);
+    if (brand) root.appendChild(brand);
+    coverEl = card.querySelector('.cover');
+    titleEl = card.querySelector('.title');
+    artistEl = card.querySelector('.artist');
+    barEl = card.querySelector('.bar i');
+  }
+
+  function buildMinimal() {
+    root.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'minimal';
+    wrap.innerHTML =
+      '<span class="cover"><img alt=""></span>' +
+      '<div class="wrap">' +
+        '<span class="text"><span class="t"></span><span class="sep">·</span><span class="artist"></span></span>' +
+        '<span class="progress"><i></i></span>' +
+      '</div>';
+    root.appendChild(wrap);
+    if (brand) root.appendChild(brand);
+    coverEl = wrap.querySelector('.cover img');
+    titleEl = wrap.querySelector('.t');
+    artistEl = wrap.querySelector('.artist');
+    barEl = wrap.querySelector('.progress i');
+  }
+
+  style === 'minimal' ? buildMinimal() : buildCard();
+
+  function setCover(url) {
+    if (url === currentCover) return;
+    currentCover = url;
+    if (!coverEl) return;
+    if (url) {
+      coverEl.src = url;
+      if (coverEl.tagName !== 'IMG') {
+        const img = document.createElement('img');
+        img.src = url;
+        img.alt = '';
+        coverEl.textContent = '';
+        coverEl.appendChild(img);
+        coverEl = img;
+      }
+    } else {
+      if (coverEl.tagName === 'IMG') {
+        const box = coverEl.parentElement;
+        box.textContent = '♪';
+        coverEl = box;
+      }
+    }
+  }
+
+  function render(state) {
+    if (!state || !state.title) {
+      root.classList.add('idle');
+      return;
+    }
+    root.classList.remove('idle');
+    root.classList.toggle('paused', !state.playing);
+    titleEl.textContent = state.title;
+    artistEl.textContent = state.artist || '';
+    setCover(state.cover || '');
+    const ratio = state.duration > 0 ? Math.min(1, (state.current || 0) / state.duration) : 0;
+    if (barEl) barEl.style.width = (ratio * 100).toFixed(2) + '%';
+  }
+
+  fetch('/state', { cache: 'no-store' })
+    .then((r) => r.json())
+    .then(render)
+    .catch(() => {});
+
+  try {
+    const source = new EventSource('/events');
+    source.onmessage = (event) => {
+      try { render(JSON.parse(event.data)); } catch {}
+    };
+  } catch {}
+</script>
+</body>
+</html>

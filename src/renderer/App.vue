@@ -401,6 +401,11 @@ onMounted(async () => {
   if (!isMiniPlayerRoute.value) disposeWindowFrame = installWindowFrame();
   await router.isReady();
 
+  // OBS 浏览器源：上次开着的话，启动时自动拉起（只监听 127.0.0.1）
+  if (settings.obsOverlayEnabled) {
+    void window.electron?.obsOverlay?.start(settings.obsOverlayPort);
+  }
+
   disposeShareOpen = window.electron?.share?.onOpen(openShareTarget) ?? null;
   window.addEventListener('focus', scheduleClipboardShareCheck);
   window.addEventListener(SHARE_COPIED_EVENT, handleShareCopied);
