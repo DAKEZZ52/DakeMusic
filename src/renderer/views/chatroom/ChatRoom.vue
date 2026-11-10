@@ -16,6 +16,7 @@ import { useBadWords } from './composables/useBadWords';
 import { useMemberProfile } from './composables/useMemberProfile';
 import { useSeatMode } from './composables/useSeatMode';
 import { useRoomChatMessages } from './composables/useRoomChatMessages';
+import { useChorus } from './composables/useChorus';
 import Button from '@/components/ui/Button.vue';
 import Tooltip from '@/components/ui/Tooltip.vue';
 import { roomApi } from '@/utils/roomApi';
@@ -76,6 +77,28 @@ async function toggleAdmin(u: any) {
   await setAdmin(u.identity, !isAdminOf(u.identity));
 }
 const showEmojiPicker = ref(false);
+/** 合唱对齐面板（M1） */
+const showChorusPanel = ref(false);
+
+/* ================= 合唱（M1：时钟同步与起播对齐） ================= */
+const {
+  clockOffset,
+  clockRtt,
+  clockSynced,
+  syncing: chorusSyncing,
+  session: chorusSession,
+  remainingMs: chorusRemainingMs,
+  elapsedMs: chorusElapsedMs,
+  syncClock: chorusSyncClock,
+  startTest: chorusStartTest,
+  joinChorus: chorusJoin,
+  leaveChorus: chorusLeave,
+  handleChorusMessage,
+} = useChorus({
+  getLKRoom,
+  myIdentity: () => String(store.myIdentity ?? ''),
+  isAllowedSender: isLyricSourceSender,
+});
 
 /* ================= 歌词面板与房间数据通道（逻辑在 composables/useRoomLyrics.ts） ================= */
 const {
@@ -96,6 +119,7 @@ const {
   applySeatModeFromRemote,
   loadBadWords,
   isOnMain: () => isOnMain.value,
+  onChorusMessage: handleChorusMessage,
 });
 /* ================= 歌词面板 END ================= */
 
@@ -741,6 +765,7 @@ onUnmounted(() => {
       :show-song-panel="showSongPanel"
       @collapse="collapseToFloating"
       @toggle-song-panel="showSongPanel = !showSongPanel"
+      @chorus="showChorusPanel = true"
       @leave="askLeaveRoom"
     />
     <!-- 主体 -->
@@ -1245,6 +1270,59 @@ onUnmounted(() => {
           >
             查看个人信息
           </button>
+        </div>
+      </div>
+    </Teleport>
+    <!-- 合唱对齐面板（M1：只验证时钟与起播对齐，不推音频） -->
+    <Teleport to="body">
+      <div v-if="showChorusPanel" class="cr-leave-mask" @click.self="showChorusPanel = false">
+        <div class="cr-leave-panel cr-chorus-panel">
+          <div class="cr-leave-title">合唱对齐（M1）</div>
+          <div class="cr-chorus-rows">
+            <div class="cr-chorus-row">
+              <span>时钟偏移</span>
+              <b>{{
+                clockSynced ? (clockOffset >= 0 ? '+' : '') + clockOffset + ' ms' : '未校准'
+              }}</b>
+            </div>
+            <div class="cr-chorus-row">
+              <span>往返延迟</span>
+              <b>{{ clockSynced ? clockRtt + ' ms' : '—' }}</b>
+            </div>
+            <div class="cr-chorus-row">
+              <span>状态</span>
+              <b v-if="!chorusSession">未开始</b>
+              <b v-else-if="chorusRemainingMs > 0"
+                >倒计时 {{ (chorusRemainingMs / 1000).toFixed(2) }}s</b
+              >
+              <b v-else>已进行 {{ (chorusElapsedMs / 1000).toFixed(2) }}s</b>
+            </div>
+            <div class="cr-chorus-row">
+              <span>发起人</span>
+              <b>{{ chorusSession ? chorusSession.leader : '—' }}</b>
+            </div>
+            <div class="cr-chorus-row">
+              <span>参与者</span>
+              <b>{{ chorusSession ? chorusSession.members.length + ' 人' : '—' }}</b>
+            </div>
+          </div>
+          <div class="cr-chorus-tip">
+            两个人同时打开这个面板，点「发起对齐测试」，两边「已进行」读数相差就是对齐误差。
+          </div>
+          <div class="cr-leave-foot cr-chorus-foot">
+            <button class="cr-leave-btn cancel" :disabled="chorusSyncing" @click="chorusSyncClock">
+              {{ chorusSyncing ? '校准中…' : '校准时钟' }}
+            </button>
+            <button
+              class="cr-leave-btn confirm"
+              :disabled="!isOnMain && !store.isOwner"
+              @click="chorusStartTest()"
+            >
+              发起对齐测试
+            </button>
+            <button class="cr-leave-btn cancel" @click="chorusJoin">加入</button>
+            <button class="cr-leave-btn cancel" @click="chorusLeave">退出合唱</button>
+          </div>
         </div>
       </div>
     </Teleport>

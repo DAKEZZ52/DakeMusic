@@ -1722,3 +1722,47 @@
   color: #7c7c92;
   text-align: center;
 }
+
+/* 合唱对齐面板（M1） */
+.cr-chorus-panel {
+  width: 380px;
+  max-width: 92vw;
+  color: #f2f4f8;
+}
+
+.cr-chorus-panel .cr-leave-title {
+  color: #fff;
+}
+
+.cr-chorus-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.cr-chorus-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.cr-chorus-row b {
+  font-weight: 600;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.cr-chorus-tip {
+  margin-top: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.cr-chorus-foot {
+  flex-wrap: wrap;
+  gap: 8px;
+}

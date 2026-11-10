@@ -835,6 +835,12 @@ app.post('/api/rooms', authSession, (req, res) => {
   res.json({ id, name: rooms[id].name, isOwner: true });
 });
 
+// ===== 服务器时间（合唱等需要统一时间基准的场景）=====
+app.get('/api/time', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ t: Date.now() });
+});
+
 // ===== 房间列表 =====
 app.get('/api/rooms', (req, res) => {
   cleanupDuplicateParticipants();

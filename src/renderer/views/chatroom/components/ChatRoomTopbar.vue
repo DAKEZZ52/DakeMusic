@@ -16,6 +16,7 @@ defineProps<{
 const emit = defineEmits<{
   (e: 'collapse'): void;
   (e: 'toggle-song-panel'): void;
+  (e: 'chorus'): void;
   (e: 'leave'): void;
 }>();
 </script>
@@ -59,6 +60,26 @@ const emit = defineEmits<{
             <circle cx="18" cy="16" r="3" />
           </svg>
           <span>点歌</span>
+        </button>
+      </template>
+    </Tooltip>
+    <Tooltip content="合唱对齐（测试）">
+      <template #trigger>
+        <button class="cr-song-btn" aria-label="合唱" @click="emit('chorus')">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M17 9V5a1 1 0 0 0-1.2-1L11 5.2" />
+            <circle cx="6" cy="17" r="3" />
+            <path d="M9 17V6" />
+            <path d="M15 12c2 0 4 1 4 3" />
+          </svg>
+          <span>合唱</span>
         </button>
       </template>
     </Tooltip>

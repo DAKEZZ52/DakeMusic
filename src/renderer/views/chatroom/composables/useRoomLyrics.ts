@@ -27,6 +27,8 @@ export interface RoomLyricsContext {
   loadBadWords: () => void;
   /** 本机是否坐在主麦上（惰性取值，避免 setup 顺序问题） */
   isOnMain: () => boolean;
+  /** 合唱消息（由 useChorus 处理） */
+  onChorusMessage?: (obj: any, from: string) => void;
 }
 
 /**
@@ -453,6 +455,9 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
           frameUrl: typeof obj.frameUrl === 'string' ? obj.frameUrl.slice(0, 2048) : '',
           auralUrl: typeof obj.auralUrl === 'string' ? obj.auralUrl.slice(0, 2048) : '',
         };
+      } else if (obj.kind === 'dakemusic-chorus') {
+        if (!isLyricSourceSender(from)) return;
+        ctx.onChorusMessage?.(obj, from);
       } else if (obj.kind === 'dakemusic-badwords-refresh') {
         // DakeMusic: 违禁词有变更，房间所有人重新拉取（仅房主/平台管理员可触发）
         if (!isGlobalAdminSender(from)) return;
