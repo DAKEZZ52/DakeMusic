@@ -19,6 +19,15 @@ export interface WhatsNewRelease {
 
 export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
   {
+    version: '2.4.9',
+    features: [
+      {
+        title: 'OBS 浏览器源',
+        desc: '直播时把「正在播放」叠到画面上：卡片 / 极简两套样式，只在本机提供，OBS 里添加浏览器源即可。',
+      },
+    ],
+  },
+  {
     version: '2.4.8',
     features: [
       {
