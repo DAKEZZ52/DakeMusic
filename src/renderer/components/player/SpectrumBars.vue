@@ -163,8 +163,16 @@ const draw = () => {
   rafId = requestAnimationFrame(draw);
 };
 
+let colorObserver: MutationObserver | null = null;
+
 onMounted(() => {
   readColors();
+  // 主题色（跟随封面 / 预设 / 自定义）会写到 :root，变了就重新取色
+  colorObserver = new MutationObserver(() => readColors());
+  colorObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['style', 'class'],
+  });
   rafId = requestAnimationFrame(draw);
   try {
     unsubscribe =
@@ -186,6 +194,8 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  colorObserver?.disconnect();
+  colorObserver = null;
   cancelAnimationFrame(rafId);
   unsubscribe?.();
   unsubscribe = null;
