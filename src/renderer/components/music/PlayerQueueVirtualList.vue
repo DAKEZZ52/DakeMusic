@@ -66,6 +66,23 @@ const offsetStyle = computed(() => ({
   transform: `translateY(${offset.value}px)`,
 }));
 
+/** 当前曲在队列中的下标（用来划分「即将播放」） */
+const currentIndex = computed(() => {
+  const id = String(props.currentTrackId ?? '');
+  if (!id || !props.isCurrentPlaybackQueue) return -1;
+  return props.queue.songs.findIndex((song) => String(song.id) === id);
+});
+
+/** 「即将播放」分隔线的 Y 坐标；不在可视区时为 null */
+const upcomingDividerY = computed(() => {
+  const index = currentIndex.value;
+  if (index < 0) return null;
+  const boundary = index + 1;
+  if (boundary >= props.queue.songs.length) return null;
+  if (boundary < visibleStart.value || boundary > visibleEnd.value) return null;
+  return boundary * props.itemHeight - offset.value;
+});
+
 const isCurrentSong = (song: Song) =>
   props.isPreviewQueue && String(song.id) === String(props.currentTrackId ?? '');
 
@@ -125,6 +142,14 @@ defineExpose({
     :content-props="{ ref: setScrollerRef }"
   >
     <div class="queue-list">
+      <div
+        v-if="upcomingDividerY !== null"
+        class="queue-upcoming-divider"
+        :style="{ top: upcomingDividerY + 'px' }"
+        aria-hidden="true"
+      >
+        <span class="queue-upcoming-label">即将播放</span>
+      </div>
       <div ref="containerRef" :style="wrapperStyle">
         <div :style="offsetStyle" class="queue-virtual-offset">
           <div
@@ -216,6 +241,35 @@ defineExpose({
   min-height: 100%;
   padding: 0 10px 10px;
   box-sizing: border-box;
+}
+
+.queue-list {
+  position: relative;
+}
+
+.queue-upcoming-divider {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--color-text-main) 22%, transparent),
+    transparent
+  );
+  pointer-events: none;
+  z-index: 2;
+}
+
+.queue-upcoming-label {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--color-text-secondary);
+  opacity: 0.75;
 }
 
 .queue-row {

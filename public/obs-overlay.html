@@ -49,12 +49,17 @@
   .next .ntitle{max-width:250px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
   .minimal .next{position:absolute;left:0;top:calc(100% + 16px);margin-top:0;white-space:nowrap}
 
+  /* 频谱背景 */
+  #spectrum{position:fixed;left:0;right:0;bottom:0;height:120px;width:100%;opacity:.45;pointer-events:none}
+  #spectrum.hidden{display:none}
+
   /* 水印 */
   .brand{position:fixed;right:30px;bottom:26px;font-size:12px;letter-spacing:.2em;font-weight:600;
          color:rgba(255,255,255,.34);text-shadow:0 2px 8px rgba(0,0,0,.6)}
 </style>
 </head>
 <body>
+<canvas id="spectrum" class="hidden"></canvas>
 <div id="overlay" class="idle"></div>
 <script>
   const q = new URLSearchParams(location.search);
@@ -62,6 +67,7 @@
   const theme = q.get('theme') === 'light' ? 'light' : 'dark';
   const showBrand = q.get('brand') !== '0';
   const showNext = q.get('next') === '1';
+  const showSpectrum = q.get('spectrum') === '1';
 
   if (theme === 'light') {
     document.documentElement.style.setProperty('--accent', '#0a84ff');
@@ -152,6 +158,9 @@
   }
 
   function render(state) {
+    if (showSpectrum && window.__applySpectrum && Array.isArray(state.spectrum)) {
+      window.__applySpectrum(state.spectrum);
+    }
     if (!state || !state.title) {
       root.classList.add('idle');
       return;
@@ -190,11 +199,62 @@
     .catch(() => {});
 
   try {
-    const source = new EventSource('/events');
+    const source = new EventSource('/events' + (showSpectrum ? '?spectrum=1' : ''));
     source.onmessage = (event) => {
       try { render(JSON.parse(event.data)); } catch {}
     };
   } catch {}
+
+  // ---------- 频谱背景（?spectrum=1） ----------
+  if (showSpectrum) {
+    const canvas = document.getElementById('spectrum');
+    canvas.classList.remove('hidden');
+    const ctx = canvas.getContext('2d');
+    let levels = new Array(32).fill(0);
+    let incoming = new Array(32).fill(0);
+
+    const resize = () => {
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = Math.round(canvas.clientWidth * ratio);
+      canvas.height = Math.round(canvas.clientHeight * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    const accent = theme === 'light' ? '#0a84ff' : '#f59e0b';
+
+    const renderSpectrum = () => {
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      ctx.clearRect(0, 0, w, h);
+      const count = levels.length;
+      const gap = 3;
+      const barWidth = Math.max(2, (w - gap * (count - 1)) / count);
+      const gradient = ctx.createLinearGradient(0, h, 0, 0);
+      gradient.addColorStop(0, accent);
+      gradient.addColorStop(1, 'rgba(255,255,255,0.65)');
+      for (let i = 0; i < count; i += 1) {
+        levels[i] += (incoming[i] - levels[i]) * (incoming[i] > levels[i] ? 0.5 : 0.15);
+        const shaped = Math.pow(Math.max(0, levels[i]), 0.7);
+        const value = Math.max(0.06, shaped);
+        const barHeight = Math.max(2, value * h);
+        ctx.fillStyle = gradient;
+        ctx.globalAlpha = 0.35 + value * 0.65;
+        ctx.beginPath();
+        const radius = Math.min(barWidth / 2, 3);
+        ctx.roundRect(i * (barWidth + gap), h - barHeight, barWidth, barHeight, radius);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(renderSpectrum);
+    };
+    requestAnimationFrame(renderSpectrum);
+
+    window.__applySpectrum = (bins) => {
+      if (Array.isArray(bins) && bins.length) incoming = bins.slice(0, 32);
+    };
+  }
 </script>
 </body>
 </html>

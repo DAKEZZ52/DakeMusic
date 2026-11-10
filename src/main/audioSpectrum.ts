@@ -39,6 +39,9 @@ let emptySnapshotCount = 0;
 let silentFrameCount = 0;
 let broadcastSignalLogged = false;
 let pollingInFlight = false;
+/** 主进程自身的频谱消费者（OBS 浮层用），没有渲染层订阅时靠它维持轮询 */
+let mainSpectrumConsumers = 0;
+let mainSpectrumOptions: AudioSpectrumOptions | null = null;
 
 const getSubscriptionKey = (webContents: WebContents, subscriptionId: string) =>
   `${webContents.id}:${String(subscriptionId || '').trim()}`;
@@ -75,6 +78,25 @@ const getMergedOptions = (): AudioSpectrumOptions => {
     const nextMaxFrequency = clampNumber(options.maxFrequency, 2, 24000);
     const nextSmoothing = clampNumber(options.smoothing, 0, 0.95);
 
+    if (nextFps !== undefined) fps = Math.max(fps ?? nextFps, nextFps);
+    if (nextBinCount !== undefined) binCount = Math.max(binCount ?? nextBinCount, nextBinCount);
+    if (nextMinFrequency !== undefined) {
+      minFrequency = Math.min(minFrequency ?? nextMinFrequency, nextMinFrequency);
+    }
+    if (nextMaxFrequency !== undefined) {
+      maxFrequency = Math.max(maxFrequency ?? nextMaxFrequency, nextMaxFrequency);
+    }
+    if (nextSmoothing !== undefined) {
+      smoothing = Math.min(smoothing ?? nextSmoothing, nextSmoothing);
+    }
+  }
+
+  if (mainSpectrumOptions) {
+    const nextFps = clampNumber(mainSpectrumOptions.fps, 1, 60);
+    const nextBinCount = clampNumber(mainSpectrumOptions.binCount, 8, 512);
+    const nextMinFrequency = clampNumber(mainSpectrumOptions.minFrequency, 1, 20000);
+    const nextMaxFrequency = clampNumber(mainSpectrumOptions.maxFrequency, 2, 24000);
+    const nextSmoothing = clampNumber(mainSpectrumOptions.smoothing, 0, 0.95);
     if (nextFps !== undefined) fps = Math.max(fps ?? nextFps, nextFps);
     if (nextBinCount !== undefined) binCount = Math.max(binCount ?? nextBinCount, nextBinCount);
     if (nextMinFrequency !== undefined) {
@@ -185,7 +207,7 @@ const toAudioSpectrumFrame = (
 };
 
 const pollFrame = async () => {
-  if (subscriptions.size === 0) {
+  if (subscriptions.size === 0 && mainSpectrumConsumers === 0) {
     stopPolling();
     return;
   }
@@ -236,7 +258,7 @@ const stopPolling = () => {
 };
 
 const syncForSubscriptions = (): AudioSpectrumStatus => {
-  if (subscriptions.size === 0) {
+  if (subscriptions.size === 0 && mainSpectrumConsumers === 0) {
     stopPolling();
     return status(false);
   }
@@ -293,6 +315,23 @@ const removeWebContentsSubscriptions = (webContents: WebContents) => {
   }
   return changed;
 };
+
+/** OBS 浮层等主进程消费者：开始/结束消费，并提供当前帧 */
+export const beginMainSpectrumConsumer = (options: AudioSpectrumOptions = {}) => {
+  mainSpectrumOptions = options;
+  mainSpectrumConsumers += 1;
+  return syncForSubscriptions();
+};
+
+export const endMainSpectrumConsumer = () => {
+  mainSpectrumConsumers = Math.max(0, mainSpectrumConsumers - 1);
+  if (mainSpectrumConsumers === 0) {
+    mainSpectrumOptions = null;
+    syncForSubscriptions();
+  }
+};
+
+export const readMainSpectrumFrame = () => getSnapshot();
 
 export const registerAudioSpectrumIpc = (
   getController: () => PlayerController | null = () => null,

@@ -14,6 +14,11 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { ipcRegistry } from './ipc/registry';
 import { getMiniPlayerSnapshot } from './miniPlayer';
+import {
+  beginMainSpectrumConsumer,
+  endMainSpectrumConsumer,
+  readMainSpectrumFrame,
+} from './audioSpectrum';
 import log from './logger';
 
 const DEFAULT_PORT = 37650;
@@ -31,6 +36,8 @@ export interface ObsOverlayState {
   current: number;
   /** 队列里的下一首（?next=1 时浮层会显示） */
   next: { title: string; artist: string; cover: string } | null;
+  /** `?spectrum=1` 时推送的频谱（32 个 0..1） */
+  spectrum?: number[];
   updatedAt: number;
 }
 
@@ -44,6 +51,8 @@ let server: http.Server | null = null;
 let activePort = 0;
 let pushTimer: ReturnType<typeof setInterval> | null = null;
 const clients = new Set<http.ServerResponse>();
+let spectrumClients = 0;
+let latestSpectrum: number[] = [];
 
 const overlayFile = () => join(__dirname, '../../dist/obs-overlay.html');
 
@@ -89,9 +98,41 @@ const sendJson = (res: http.ServerResponse, status: number, body: unknown) => {
   res.end(payload);
 };
 
-const broadcast = () => {
+const downsampleSpectrum = (bins: number[], target = 32): number[] => {
+  if (!bins.length) return [];
+  if (bins.length <= target) return bins.slice();
+  const step = bins.length / target;
+  const out: number[] = [];
+  for (let i = 0; i < target; i += 1) {
+    const start = Math.floor(i * step);
+    const end = Math.max(start + 1, Math.floor((i + 1) * step));
+    let sum = 0;
+    for (let j = start; j < end && j < bins.length; j += 1) sum += bins[j] ?? 0;
+    out.push(sum / (end - start));
+  }
+  return out;
+};
+
+const broadcast = async () => {
   if (clients.size === 0) return;
-  const payload = `data: ${JSON.stringify(buildState())}\n\n`;
+  if (spectrumClients > 0) {
+    try {
+      const frame = await readMainSpectrumFrame();
+      if (frame?.bins?.length) {
+        const gain = Math.min(6, Math.max(1, 0.08 / Math.max(0.004, frame.rms ?? 0)));
+        const scaled = downsampleSpectrum(frame.bins).map((value) =>
+          Math.min(1, Math.max(0, value * gain)),
+        );
+        // 归一化：让最高的一根接近满格，避免小音量时几乎看不到
+        const peak = Math.max(...scaled, 0.02);
+        latestSpectrum = scaled.map((value) => Math.min(1, value / peak));
+      }
+    } catch {
+      // 取不到就沿用上一帧
+    }
+  }
+  const state = spectrumClients > 0 ? { ...buildState(), spectrum: latestSpectrum } : buildState();
+  const payload = `data: ${JSON.stringify(state)}\n\n`;
   for (const client of clients) {
     try {
       client.write(payload);
@@ -117,10 +158,21 @@ const requestHandler: http.RequestListener = async (req, res) => {
       Connection: 'keep-alive',
       'Access-Control-Allow-Origin': '*',
     });
+    const wantsSpectrum = url.searchParams.get('spectrum') === '1';
+    if (wantsSpectrum) {
+      spectrumClients += 1;
+      beginMainSpectrumConsumer({ fps: 30, binCount: 48, scale: 'linear', smoothing: 0.6 });
+    }
     res.write('retry: 2000\n\n');
     res.write(`data: ${JSON.stringify(buildState())}\n\n`);
     clients.add(res);
-    req.on('close', () => clients.delete(res));
+    req.on('close', () => {
+      clients.delete(res);
+      if (wantsSpectrum) {
+        spectrumClients = Math.max(0, spectrumClients - 1);
+        if (spectrumClients === 0) endMainSpectrumConsumer();
+      }
+    });
     return;
   }
 
@@ -179,7 +231,7 @@ export const startObsOverlay = async (
     const tryPort = base + offset;
     try {
       activePort = await listen(tryPort);
-      pushTimer = setInterval(broadcast, PUSH_INTERVAL_MS);
+      pushTimer = setInterval(() => void broadcast(), PUSH_INTERVAL_MS);
       log.info('[ObsOverlay] 已启动', {
         port: activePort,
         url: `http://127.0.0.1:${activePort}/overlay`,

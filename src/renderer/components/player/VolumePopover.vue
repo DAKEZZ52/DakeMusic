@@ -24,6 +24,23 @@ withDefaults(defineProps<Props>(), {
 const isMac = navigator.platform.toLowerCase().includes('mac');
 const popoverOpen = ref(false);
 
+/** 悬停/拖动时在滑杆旁显示目标音量 */
+const volBodyRef = ref<HTMLElement | null>(null);
+const hoverVolume = ref<number | null>(null);
+
+const updateHoverVolume = (event: PointerEvent) => {
+  const el = volBodyRef.value?.querySelector('.vol-slider') as HTMLElement | null;
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  if (rect.height <= 0) return;
+  const ratio = Math.min(1, Math.max(0, 1 - (event.clientY - rect.top) / rect.height));
+  hoverVolume.value = Math.round(ratio * 100);
+};
+
+const clearHoverVolume = () => {
+  hoverVolume.value = null;
+};
+
 // 滚轮保持弹出层不消失的定时器
 let wheelKeepAliveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -77,7 +94,15 @@ const handleWheel = (e: WheelEvent) => {
           <Icon v-else :icon="iconVolume2" width="26" height="26" />
         </Button>
       </template>
-      <div class="vol-body">
+      <div
+        ref="volBodyRef"
+        class="vol-body"
+        @pointermove="updateHoverVolume"
+        @pointerleave="clearHoverVolume"
+      >
+        <span v-if="hoverVolume !== null" class="vol-bubble">
+          {{ hoverVolume }}
+        </span>
         <SliderRoot
           :model-value="[player.volume]"
           :max="100"
@@ -97,6 +122,27 @@ const handleWheel = (e: WheelEvent) => {
 </template>
 
 <style>
+.vol-body {
+  position: relative;
+}
+
+.vol-bubble {
+  position: absolute;
+  left: calc(100% + 6px);
+  bottom: 22px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-main);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
 .vol-popover.echo-popover-content {
   width: auto;
   padding: 12px;
