@@ -10,6 +10,9 @@ const myAvatarImage = ref('');
 import { useRouter } from 'vue-router';
 import { useChatRoomStore } from '@/stores/chatRoom';
 import { useRoomLyrics } from './composables/useRoomLyrics';
+import { useBadWords } from './composables/useBadWords';
+import { useMemberProfile } from './composables/useMemberProfile';
+import { useSeatMode } from './composables/useSeatMode';
 import Button from '@/components/ui/Button.vue';
 import Tooltip from '@/components/ui/Tooltip.vue';
 import { roomApi } from '@/utils/roomApi';
@@ -34,171 +37,38 @@ function goToProfileEdit() {
   showUserProfile.value = false;
   router.push('/main/chatroom/profile');
 }
-// DakeMusic: 切换对唱/语聊模式
-const currentSeatMode = ref<'normal' | 'duet'>('normal');
+const {
+  currentSeatMode,
+  toggleSeatMode,
+  applySeatModeFromRemote,
+  isLyricSourceSender,
+  isGlobalAdminSender,
+} = useSeatMode({
+  store,
+  getLKRoom,
+  getMainSeat: () => mainSeat.value,
+});
 
-// 房主切换座位模式：本地切 + 通知服务器持久化 + LiveKit 广播给房内所有人
-async function toggleSeatMode() {
-  const next = currentSeatMode.value === 'normal' ? 'duet' : 'normal';
-  currentSeatMode.value = next;
-  store.currentRoomSeatMode = next;
-  window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: next }));
-  // 持久化到服务器（房主才能调 PATCH，requireOwner 会拦非房主）
-  if (store.currentRoomId) {
-    try {
-      await roomApi.updateRoom(store.currentRoomId, undefined, undefined, undefined, false, next);
-    } catch (e) {
-      console.warn('[seatMode] 持久化失败:', e);
-    }
-  }
-  // LiveKit 数据通道广播给房内其他用户
-  try {
-    const lkRoom = await getLKRoom();
-    if (lkRoom?.localParticipant) {
-      const payload = JSON.stringify({ kind: 'dakemusic-seat-mode', mode: next, time: Date.now() });
-      const buf = new TextEncoder().encode(payload);
-      await lkRoom.localParticipant.publishData(buf, { reliable: true });
-    }
-  } catch (e) {
-    console.warn('[seatMode] 广播失败:', e);
-  }
-}
-
-function onSeatModeChanged(e: Event) {
-  currentSeatMode.value = (e as CustomEvent).detail as 'normal' | 'duet';
-}
-
-// 从服务器同步过来的座位模式（其他房主广播 / 进房初始化）
-function applySeatModeFromRemote(mode: 'normal' | 'duet') {
-  if (currentSeatMode.value === mode) return;
-  currentSeatMode.value = mode;
-  store.currentRoomSeatMode = mode;
-  window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: mode }));
-}
-
-// DakeMusic: 控制指令来源校验（LiveKit 已签名 participant.identity，不能伪造）
-function senderMember(identity: string) {
-  return store.members.find((m) => m.identity === identity) || null;
-}
-/** 真房主（歌词/点歌播放源） */
-function isOwnerSender(identity: string) {
-  return !!identity && identity === store.ownerIdentity;
-}
-/**
- * DakeMusic: 歌词来源身份 = 房主，或当前坐在主麦上的 DJ。
- * 现实里在放歌的常常是管理员/普通成员（房主只是房间创建者），
- * 如果只认房主广播，网页端与其它客户端就永远拿不到歌词。
- * 主麦只能由房主/超管/房间管理员落座，信任范围可控。
- */
-function isLyricSourceSender(identity: string) {
-  if (!identity) return false;
-  if (isOwnerSender(identity)) return true;
-  return mainSeat.value?.occupant?.identity === identity;
-}
-/** 房主 / 平台超管 / 根超管（可切换座位模式、刷新违禁词） */
-function isGlobalAdminSender(identity: string) {
-  if (isOwnerSender(identity)) return true;
-  const m = senderMember(identity);
-  return !!m && (!!m.isAdmin || !!m.isRootSuper);
-}
-// DakeMusic: 进房时用服务器返回的房间座位模式初始化（否则新用户永远看到 normal）
-currentSeatMode.value = store.currentRoomSeatMode === 'duet' ? 'duet' : 'normal';
-window.dispatchEvent(new CustomEvent('dakemusic-set-seat-mode', { detail: currentSeatMode.value }));
-onMounted(() => window.addEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
-onUnmounted(() => window.removeEventListener('dakemusic-seat-mode-changed', onSeatModeChanged));
 // DakeMusic: 设置 store（用于自定义背景）
 
 const messageInput = ref('');
 const messageInputEl = ref<HTMLInputElement | null>(null);
 const chatContainer = ref<HTMLElement | null>(null);
 
-// DakeMusic: 违禁词列表
-const badWords = ref<string[]>([]);
-const showBadWordsModal = ref(false);
-const newBadWord = ref('');
-async function loadBadWords() {
-  try {
-    const data = await roomApi.getBadWords();
-    badWords.value = data?.words || [];
-  } catch (e) {
-    logger.warn('ChatRoom', '加载违禁词失败', e);
-  }
-}
-function filterBadWords(text: string): string {
-  if (!badWords.value.length) return text;
-  let out = text;
-  for (const w of badWords.value) {
-    if (!w) continue;
-    const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    out = out.replace(re, '*'.repeat(w.length));
-  }
-  return out;
-}
-async function openBadWords() {
-  showBadWordsModal.value = true;
-  await loadBadWords();
-}
-async function broadcastBadWordsRefresh() {
-  try {
-    const lkRoom = await getLKRoom();
-    if (!lkRoom?.localParticipant) return;
-    const payload = JSON.stringify({ kind: 'dakemusic-badwords-refresh', time: Date.now() });
-    await lkRoom.localParticipant.publishData(new TextEncoder().encode(payload), {
-      reliable: true,
-    });
-  } catch (e) {
-    logger.debug('ChatRoom', '广播违禁词刷新失败', e);
-  }
-}
-async function addBadWordLocal() {
-  const w = newBadWord.value.trim();
-  if (!w) return;
-  try {
-    await roomApi.addBadWord(w);
-    newBadWord.value = '';
-    await loadBadWords();
-    broadcastBadWordsRefresh();
-  } catch (e) {
-    logger.warn('ChatRoom', '添加违禁词失败', e);
-  }
-}
-async function delBadWordLocal(w: string) {
-  try {
-    await roomApi.deleteBadWord(w);
-    await loadBadWords();
-    broadcastBadWordsRefresh();
-  } catch (e) {
-    logger.warn('ChatRoom', '删除违禁词失败', e);
-  }
-}
+const {
+  badWords,
+  showBadWordsModal,
+  newBadWord,
+  loadBadWords,
+  filterBadWords,
+  openBadWords,
+  addBadWordLocal,
+  delBadWordLocal,
+} = useBadWords({ getLKRoom });
 
-// 用户资料弹窗
-const showUserProfile = ref(false);
-const viewingUser = ref<any>(null);
-const loadingUser = ref(false);
+const { showUserProfile, viewingUser, loadingUser, openUserProfile, previewPhotoUrl, openPhoto } =
+  useMemberProfile();
 
-async function openUserProfile(identity?: string) {
-  // DakeMusic: 防止 identity 为 undefined 时报错
-  if (!identity) return;
-  const userId = Number(identity.replace('user_', ''));
-  if (!userId) return;
-  loadingUser.value = true;
-  viewingUser.value = null;
-  showUserProfile.value = true;
-  try {
-    viewingUser.value = await roomApi.getUser(userId);
-    viewingUser.value.identity = identity;
-  } catch {
-    viewingUser.value = { error: '加载失败' };
-  } finally {
-    loadingUser.value = false;
-  }
-}
-// DakeMusic: 资料卡图片墙 - 应用内点击放大预览
-const previewPhotoUrl = ref('');
-function openPhoto(url: string) {
-  previewPhotoUrl.value = url;
-}
 // DakeMusic: 房主设置/取消管理员
 async function toggleAdmin(u: any) {
   if (!u?.identity) return;
