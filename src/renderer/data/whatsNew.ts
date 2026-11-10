@@ -31,7 +31,7 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
       },
       {
         title: '音频频谱条',
-        desc: '歌词页底部随音乐跳动的频谱，实验性功能，可在设置里开关。',
+        desc: '歌词页底部随音乐跳动的频谱，柱状 / 点阵 / 波形 / 对称四种样式可选（实验性）。',
       },
     ],
   },

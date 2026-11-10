@@ -20,6 +20,13 @@ import SettingsSectionShell from './SettingsSectionShell.vue';
 import { sectionTitles } from '../constants';
 
 const settingStore = useSettingStore();
+
+const spectrumStyleOptions = [
+  { value: 'bars', label: '柱状' },
+  { value: 'dots', label: '点阵' },
+  { value: 'wave', label: '波形' },
+  { value: 'mirror', label: '对称' },
+];
 const userStore = useUserStore();
 const deviceStore = useDeviceStore();
 const toastStore = useToastStore();
@@ -403,6 +410,21 @@ const confirmResetDeviceIdentity = async () => {
         </p>
       </div>
       <Switch v-model="settingStore.spectrumEnabled" />
+    </div>
+    <div v-if="settingStore.spectrumEnabled" class="settings-divider"></div>
+    <div v-if="settingStore.spectrumEnabled" class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">频谱样式</h3>
+        <p class="text-sm text-text-secondary">柱状 / 点阵 / 波形 / 对称，随时可以换</p>
+      </div>
+      <Select
+        class="w-40 shrink-0"
+        :model-value="settingStore.spectrumStyle"
+        :options="spectrumStyleOptions"
+        @update:model-value="
+          settingStore.spectrumStyle = $event as typeof settingStore.spectrumStyle
+        "
+      />
     </div>
   </SettingsSectionShell>
 </template>

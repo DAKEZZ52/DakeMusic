@@ -564,6 +564,7 @@ onUnmounted(() => {
         class="lyric-spectrum"
         :bars="44"
         :height="52"
+        :style-name="settingStore.spectrumStyle"
       />
 
       <LyricPlayerControls
