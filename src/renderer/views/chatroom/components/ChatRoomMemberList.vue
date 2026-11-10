@@ -188,8 +188,7 @@ const emit = defineEmits<{
   font-weight: 700;
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.14),
-    0 0 0 1.5px rgba(138, 92, 255, 0.4),
-    0 0 10px rgba(138, 92, 255, 0.28);
+    0 0 0 1px rgba(255, 255, 255, 0.06);
   transition: box-shadow 0.2s;
 }
 .cr-avatar img {

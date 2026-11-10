@@ -1722,3 +1722,154 @@
   color: #7c7c92;
   text-align: center;
 }
+
+/* ============================================================
+   主题 v2：沉浸式氛围 + 工作站克制的混合方案
+   规则集中在此，方便整体回滚
+   ============================================================ */
+
+/* 背景：深色渐变打底，氛围交给 ChatRoomBackground */
+.cr-root {
+  background:
+    radial-gradient(980px 560px at 16% 6%, rgba(92, 132, 255, 0.16), transparent 62%),
+    radial-gradient(760px 480px at 84% 94%, rgba(196, 116, 255, 0.1), transparent 60%),
+    linear-gradient(155deg, #0b0e14 0%, #0f131b 48%, #090b10 100%);
+  color: #e8ebf2;
+}
+
+/* 三栏：间距统一 16，左右留白一致 */
+.cr-body {
+  padding: 2px 16px 14px;
+  gap: 16px;
+}
+
+/* 左栏卡片：同一套玻璃底 + 细边 */
+.cr-room-card,
+.cr-notice {
+  background: rgba(16, 19, 26, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  box-shadow: none;
+  backdrop-filter: blur(18px);
+}
+
+.cr-room-card {
+  padding: 12px;
+}
+
+.cr-notice {
+  padding: 12px 14px;
+}
+
+/* 中央舞台：上留一点，底部给控制条让位 */
+.cr-stage {
+  padding-top: 2px;
+  padding-bottom: 84px;
+}
+
+/* 歌词条：从大框改成长条，只显示当前段落 */
+.cr-lyric {
+  height: 176px;
+  margin: 0 auto 4px;
+  width: min(100%, 760px);
+  padding: 10px 16px 12px;
+  border-radius: 16px;
+  background: rgba(12, 15, 21, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(20px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22);
+}
+
+.cr-lyric-head {
+  padding-bottom: 8px;
+}
+
+.cr-lyric-body {
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* 右侧公屏：浮起来的卡片 */
+.cr-chat {
+  margin: 2px 0 0;
+  border-left: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 18px;
+  background: rgba(14, 17, 24, 0.72);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.32);
+  overflow: hidden;
+}
+
+/* 底部控制条：去掉紫色调，改中性深色 */
+.cr-bar {
+  background: rgba(10, 12, 18, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(22px);
+}
+
+/* 顶部栏按钮统一细边 */
+.cr-mode-btn,
+.cr-bw-btn {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* 滚动条更细、更淡 */
+.cr-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+/* v2-pass2 */
+.cr-lyric {
+  margin-top: auto;
+}
+
+.cr-chat {
+  background: rgba(15, 18, 25, 0.86);
+  box-shadow:
+    0 20px 48px rgba(0, 0, 0, 0.42),
+    0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+.cr-mode-btn,
+.cr-bw-btn {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(232, 235, 242, 0.72);
+  box-shadow: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.cr-room-name {
+  letter-spacing: 0.01em;
+}
+
+/* v2-pass3 */
+.cr-stage::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 46%;
+  width: min(760px, 88%);
+  height: 420px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(96, 132, 255, 0.1), transparent 72%);
+  pointer-events: none;
+}
+
+.cr-side-unfold,
+.cr-chat-unfold {
+  width: 18px;
+  height: 44px;
+  opacity: 0.45;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(232, 235, 242, 0.7);
+  box-shadow: none;
+}
+
+.cr-side-unfold:hover,
+.cr-chat-unfold:hover {
+  opacity: 0.9;
+}

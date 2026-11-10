@@ -48,6 +48,9 @@ const settingStore = useSettingStore();
 }
 /* 内置星空极光背景 */
 .cr-aurora {
+  background:
+    radial-gradient(900px 520px at 20% 10%, rgba(88, 132, 255, 0.16), transparent 62%),
+    radial-gradient(760px 460px at 82% 88%, rgba(214, 120, 255, 0.1), transparent 60%);
   position: absolute;
   inset: 0;
   z-index: 0;

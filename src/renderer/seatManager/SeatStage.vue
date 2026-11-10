@@ -532,13 +532,13 @@ function onSmallClick(seatId: string) {
   /* 座位布局以中间栏宽度为准（含 6 个小座位一行铺满） */
   container-type: inline-size;
   position: relative;
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: center;
   gap: clamp(8px, 2vh, 20px);
   padding: 10px 12px 8px;
   overflow-y: auto;
@@ -586,7 +586,7 @@ function onSmallClick(seatId: string) {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(20, 18, 31, 0.8);
+  background: rgba(18, 20, 27, 0.85);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.18),
     0 4px 14px rgba(0, 0, 0, 0.4);
@@ -656,7 +656,7 @@ function onSmallClick(seatId: string) {
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.06);
   backdrop-filter: blur(var(--surface-blur-md));
-  box-shadow: 0 8px 26px rgba(30, 8, 30, 0.35);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
 }
 .host-info {
   display: flex;
@@ -700,8 +700,8 @@ function onSmallClick(seatId: string) {
 .seat.is-owner .seat-avatar {
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.28),
-    0 0 0 2px rgba(244, 114, 182, 0.65),
-    0 0 18px rgba(244, 114, 182, 0.45),
+    0 0 0 2px rgba(244, 114, 182, 0.45),
+    0 0 14px rgba(244, 114, 182, 0.25),
     0 8px 22px rgba(40, 10, 40, 0.45);
 }
 .seat.big.is-owner .seat-avatar {
