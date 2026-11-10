@@ -1,15 +1,13 @@
 export type OrderedPlaybackMode = 'list' | 'sequential';
 export type PlaybackMode = OrderedPlaybackMode | 'single' | 'random';
-export type QueueAdvanceAuthority = 'local' | 'dynamic-provider' | 'remote-session';
+export type QueueAdvanceAuthority = 'local' | 'dynamic-provider';
 
 export const resolveQueueAdvanceAuthority = (options: {
   queueId: string | number | null | undefined;
   personalFmQueueId: string;
-  listenTogetherQueueId: string;
 }): QueueAdvanceAuthority => {
   const queueId = String(options.queueId ?? '');
   if (queueId === options.personalFmQueueId) return 'dynamic-provider';
-  if (queueId === options.listenTogetherQueueId) return 'remote-session';
   return 'local';
 };
 

@@ -3,7 +3,7 @@ import {
   resolveQueueAdvanceAuthority,
   type QueueAdvanceAuthority,
 } from '../../../shared/playbackQueueDecision';
-import { LISTEN_TOGETHER_QUEUE_ID, PERSONAL_FM_QUEUE_ID } from '../playlist/constants';
+import { PERSONAL_FM_QUEUE_ID } from '../playlist/constants';
 
 export const getQueueAdvanceAuthority = (
   queueId: string | number | null | undefined,
@@ -11,7 +11,6 @@ export const getQueueAdvanceAuthority = (
   return resolveQueueAdvanceAuthority({
     queueId,
     personalFmQueueId: PERSONAL_FM_QUEUE_ID,
-    listenTogetherQueueId: LISTEN_TOGETHER_QUEUE_ID,
   });
 };
 

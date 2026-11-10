@@ -138,17 +138,13 @@ test('confirmed failed candidates leave the buffer without history or garbage fe
   );
 });
 
-test('FM capability is explicit; listen-together and suppressed queues remain excluded', () => {
+test('FM capability is explicit; suppressed queues remain excluded', () => {
   assert.equal(
     queuePolicy.getQueueAdvanceAuthority(constants.PERSONAL_FM_QUEUE_ID),
     'dynamic-provider',
   );
   assert.equal(queuePolicy.canPrepareGaplessForQueue(constants.PERSONAL_FM_QUEUE_ID, false), true);
   assert.equal(queuePolicy.canPrepareGaplessForQueue(constants.PERSONAL_FM_QUEUE_ID, true), false);
-  assert.equal(
-    queuePolicy.canPrepareGaplessForQueue(constants.LISTEN_TOGETHER_QUEUE_ID, false),
-    false,
-  );
   assert.equal(queuePolicy.canPrepareGaplessForQueue('queue:local', false), true);
 });
 

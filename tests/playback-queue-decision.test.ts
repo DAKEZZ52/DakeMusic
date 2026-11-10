@@ -12,10 +12,7 @@ import {
   resolveQueueAdvanceAuthority,
   resolveNextTrackDecision,
 } from '../src/shared/playbackQueueDecision.ts';
-import {
-  LISTEN_TOGETHER_QUEUE_ID,
-  PERSONAL_FM_QUEUE_ID,
-} from '../src/renderer/stores/playlist/constants.ts';
+import { PERSONAL_FM_QUEUE_ID } from '../src/renderer/stores/playlist/constants.ts';
 
 type Track = { id: string; playable?: boolean };
 
@@ -141,12 +138,10 @@ test('gapless preparation stays under the correct queue authority', () => {
     resolveQueueAdvanceAuthority({
       queueId,
       personalFmQueueId: PERSONAL_FM_QUEUE_ID,
-      listenTogetherQueueId: LISTEN_TOGETHER_QUEUE_ID,
     });
 
   assert.equal(authority('album:1'), 'local');
   assert.equal(authority(PERSONAL_FM_QUEUE_ID), 'dynamic-provider');
-  assert.equal(authority(LISTEN_TOGETHER_QUEUE_ID), 'remote-session');
   assert.equal(
     canPrepareGaplessTransition({ authority: authority('album:1'), autoNextSuppressed: false }),
     true,
@@ -158,13 +153,6 @@ test('gapless preparation stays under the correct queue authority', () => {
   assert.equal(
     canPrepareGaplessTransition({
       authority: authority(PERSONAL_FM_QUEUE_ID),
-      autoNextSuppressed: false,
-    }),
-    false,
-  );
-  assert.equal(
-    canPrepareGaplessTransition({
-      authority: authority(LISTEN_TOGETHER_QUEUE_ID),
       autoNextSuppressed: false,
     }),
     false,

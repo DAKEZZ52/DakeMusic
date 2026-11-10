@@ -3,7 +3,6 @@ import { isSameSong } from '@/utils/song';
 import { reconcileQueuedNextForQueueReplacement } from '../../../shared/playbackQueueDecision';
 import {
   DEFAULT_PLAYBACK_QUEUE_ID,
-  LISTEN_TOGETHER_QUEUE_ID,
   MANUAL_PLAYBACK_QUEUE_ID,
   MAX_PLAYBACK_QUEUE_COUNT,
   PERSONAL_FM_QUEUE_ID,
@@ -53,7 +52,7 @@ type QueueStoreShape = {
 
 const isTransientPlaybackQueue = (queueId: string | number | null | undefined) => {
   const resolvedId = String(queueId ?? '');
-  return resolvedId === PERSONAL_FM_QUEUE_ID || resolvedId === LISTEN_TOGETHER_QUEUE_ID;
+  return resolvedId === PERSONAL_FM_QUEUE_ID;
 };
 
 export const queueActions = {
