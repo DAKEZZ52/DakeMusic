@@ -80,7 +80,8 @@ const upcomingDividerY = computed(() => {
   const boundary = index + 1;
   if (boundary >= props.queue.songs.length) return null;
   if (boundary < visibleStart.value || boundary > visibleEnd.value) return null;
-  return boundary * props.itemHeight - offset.value;
+  // 分隔线在滚动内容坐标系里定位（不要减 scrollTop，否则会随滚动偏移）
+  return boundary * props.itemHeight;
 });
 
 const isCurrentSong = (song: Song) =>
