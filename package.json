@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build && electron-builder",
-    "build:win": "set TEMP=%CD%\\.nsis-build-tmp&& set TMP=%CD%\\.nsis-build-tmp&& if not exist \"%CD%\\.nsis-build-tmp\" mkdir \"%CD%\\.nsis-build-tmp\"&& cd server && npm install --omit=dev && cd .. && vue-tsc --noEmit && vite build && electron-builder --win --x64",
+    "build:win": "set TEMP=%CD%\\.nsis-build-tmp&& set TMP=%CD%\\.nsis-build-tmp&& if not exist \"%CD%\\.nsis-build-tmp\" mkdir \"%CD%\\.nsis-build-tmp\"&& cd server && npm install --omit=dev && cd .. && node scripts/check-code-signing.mjs && vue-tsc --noEmit && vite build && electron-builder --win --x64",
     "build:win:beta": "set BETA=-beta&& set TEMP=%CD%\\.nsis-build-tmp&& set TMP=%CD%\\.nsis-build-tmp&& if not exist \"%CD%\\.nsis-build-tmp\" mkdir \"%CD%\\.nsis-build-tmp\"&& cd server && npm install --omit=dev && cd .. && vue-tsc --noEmit && vite build && electron-builder --win --x64",
     "postinstall": "patch-package",
     "build:mac": "cd server && npm install --omit=dev && cd .. && vue-tsc --noEmit && vite build && electron-builder --mac",
@@ -19,7 +19,8 @@
     "analyze": "ANALYZE_BUNDLE=1 vite build",
     "format": "prettier --write \"src/**/*.{vue,ts,js,json}\" \"vite.config.mts\" \"tsconfig*.json\"",
     "release:sign": "node scripts/sign-update-manifest.mjs",
-    "typecheck": "vue-tsc --noEmit"
+    "typecheck": "vue-tsc --noEmit",
+    "sign:doctor": "node scripts/check-code-signing.mjs"
   },
   "dependencies": {
     "axios": "^1.18.0",
@@ -315,7 +316,12 @@
         "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**",
         "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/DirectML.dll",
         "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/x64/dxcompiler.dll"
-      ]
+      ],
+      "signingHashAlgorithms": [
+        "sha256"
+      ],
+      "rfc3161TimeStampServer": "http://timestamp.digicert.com",
+      "signAndEditExecutable": true
     },
     "linux": {
       "icon": "build/icons/linux_256x256.png",

@@ -108,3 +108,54 @@ Include whether Acrylic works and the visible result. Rebuild the platform addon
 for native DWM/Accent readback; an older binary produces a partial report with
 `nativeDiagnosticsAvailable: false`. API acceptance, readback and visible output
 are distinct observations and must not be reported as interchangeable test results.
+
+## Windows Authenticode signing
+
+当前状态（2026-11-10）：产物**没有** Authenticode 签名。
+
+`Get-AuthenticodeSignature release\win-unpacked\DakeMusic.exe` 返回 `NotSigned`。
+构建日志里的 `signing with signtool.exe` 是 electron-builder 26 的固定文案：设置
+`win.signAndEditExecutable` 后，即使没有证书它也会走这一步，但只改写版本资源，
+不会产生签名。不要把这条日志当成「已经签好了」。
+
+`pnpm sign:doctor`（即 `scripts/check-code-signing.mjs`）会在打包前打印是否具备签名条件，
+`build:win` 已接入；它只提示、不阻断构建。
+
+### 让产物真正被签名
+
+三种可行路径：
+
+| 方案 | 成本 | 用户端表现 |
+|---|---|---|
+| OV / EV 代码签名证书 | 约 ¥1000–3000/年，需实名或企业资料 | EV 免 SmartScreen 冷启动提示；OV 需积累信誉 |
+| Azure Trusted Signing | 约 $9.99/月，需 Azure 账号 + 身份验证 | 等同 OV，按次计费 |
+| 自签名证书 | 免费 | 仅内部分发有效，公开分发仍提示「未知发布者」 |
+
+拿到 `.pfx` 后二选一：
+
+```bat
+:: 方式一：环境变量（CI 与本地都适用，推荐，证书不进仓库）
+set CSC_LINK=D:\certs\dakemusic.pfx
+set CSC_KEY_PASSWORD=证书密码
+pnpm build:win
+```
+
+```json
+// 方式二：写进 package.json 的 build.win（证书路径不要提交）
+{
+  "certificateFile": "D:\\certs\\dakemusic.pfx",
+  "signingHashAlgorithms": ["sha256"],
+  "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+}
+```
+
+哈希算法与 RFC3161 时间戳已经在 `package.json` 里配好；缺少证书时会静默跳过签名，
+不会让构建失败。
+
+### 为什么仍然要做「非 Authenticode」的完整性校验
+
+Authenticode 解决的是「Windows 认不认发布者」，不能覆盖所有分发场景（免安装版、
+被二次打包、更新包被替换）。所以项目另外做了两层，二者互补、不能互相替代：
+
+- Ed25519 更新清单签名（`scripts/sign-update-manifest.mjs` → `latest.yml.sig`），安装前校验；
+- 构建标识 `X-Dake-Build`，服务端只放行官方构建。
