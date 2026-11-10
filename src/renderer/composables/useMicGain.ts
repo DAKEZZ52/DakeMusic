@@ -323,6 +323,19 @@ async function adsChangeMic(id: string) {
   }
 }
 
+/**
+ * 拿到人声增益链的音频图（供合唱混音使用）。
+ * 拿到 dest 后把伴奏节点接进去，已发布的麦克风轨道会自动带上伴奏。
+ */
+export function getMicMixGraph(): {
+  ctx: AudioContext;
+  dest: MediaStreamAudioDestinationNode;
+  input: GainNode;
+} | null {
+  if (!micGainCtx || !micGainDest || !micGainNode) return null;
+  return { ctx: micGainCtx, dest: micGainDest, input: micGainNode };
+}
+
 export function useMicGain() {
   return {
     // state

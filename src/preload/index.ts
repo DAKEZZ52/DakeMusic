@@ -662,6 +662,10 @@ contextBridge.exposeInMainWorld('electron', {
     status: () =>
       invokeWithPlainPayload<{ running: boolean; port: number; url: string }>('obs-overlay:status'),
   },
+  chorus: {
+    loadLocalAudio: (filePath: string) =>
+      ipcRenderer.invoke('chorus:read-local-audio', filePath) as Promise<Uint8Array>,
+  },
   miniPlayer: {
     getSnapshot: () =>
       ipcRenderer.invoke('mini-player:get-snapshot') as Promise<MiniPlayerSnapshot>,

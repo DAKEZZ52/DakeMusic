@@ -5,6 +5,7 @@
  */
 import { computed, onUnmounted, ref } from 'vue';
 import { DAKE_API_BASE_URL } from '../../../../shared/endpoints';
+import { getMicMixGraph } from '@/composables/useMicGain';
 import { CLIENT_BUILD_HEADER, getClientBuildTag } from '../../../../shared/buildInfo';
 
 export interface ChorusSession {
@@ -78,6 +79,152 @@ export function useChorus(ctx: ChorusContext) {
     }
   }
 
+  /** ===== M2：本地伴奏播放（渲染层，与机架人声混流） ===== */
+  const audio = ref<{
+    buffer: AudioBuffer;
+    title: string;
+    path: string;
+    offsetSec: number;
+    ctxStartAt: number;
+    playing: boolean;
+  } | null>(null);
+
+  let audioCtx: AudioContext | null = null;
+  let monitorGain: GainNode | null = null;
+  let publishGain: GainNode | null = null;
+  let sourceNode: AudioBufferSourceNode | null = null;
+  let driftTimer: ReturnType<typeof setInterval> | null = null;
+
+  const getCtx = (): AudioContext => {
+    const graph = getMicMixGraph();
+    if (graph) return graph.ctx;
+    if (!audioCtx) {
+      const AC: any = window.AudioContext || (window as any).webkitAudioContext;
+      audioCtx = new AC({ sampleRate: 48000 });
+    }
+    return audioCtx as AudioContext;
+  };
+
+  /** 把伴奏同时接到「本地监听」和「推流」两个出口 */
+  const connectSource = (source: AudioBufferSourceNode, publish: boolean) => {
+    const ctx = getCtx();
+    if (!monitorGain) {
+      monitorGain = ctx.createGain();
+      monitorGain.gain.value = 1;
+      monitorGain.connect(ctx.destination);
+    }
+    source.connect(monitorGain);
+    if (publish) {
+      const graph = getMicMixGraph();
+      if (!graph) {
+        throw new Error('请先开麦，合唱需要麦克风通道');
+      }
+      if (!publishGain) {
+        publishGain = graph.ctx.createGain();
+        publishGain.gain.value = 1;
+        publishGain.connect(graph.dest);
+      }
+      source.connect(publishGain);
+    }
+  };
+
+  const scheduleFrom = (offsetSec: number) => {
+    const current = audio.value;
+    if (!current) return;
+    const ctx = getCtx();
+    if (sourceNode) {
+      try {
+        sourceNode.stop();
+      } catch {
+        /* 已停止 */
+      }
+      sourceNode.disconnect();
+      sourceNode = null;
+    }
+    const source = ctx.createBufferSource();
+    source.buffer = current.buffer;
+    connectSource(source, true);
+    const startAt = Math.max(ctx.currentTime + 0.02, current.ctxStartAt);
+    source.start(startAt, Math.min(offsetSec, current.buffer.duration));
+    sourceNode = source;
+    current.offsetSec = offsetSec;
+    current.ctxStartAt = startAt;
+    current.playing = true;
+  };
+
+  const stopAudio = () => {
+    if (driftTimer) {
+      clearInterval(driftTimer);
+      driftTimer = null;
+    }
+    if (sourceNode) {
+      try {
+        sourceNode.stop();
+      } catch {
+        /* ignore */
+      }
+      sourceNode.disconnect();
+      sourceNode = null;
+    }
+    audio.value = null;
+  };
+
+  /** 漂移校正：每秒对比应播位置与实际位置，超过 80ms 重新对齐 */
+  const startDriftGuard = () => {
+    if (driftTimer) clearInterval(driftTimer);
+    driftTimer = setInterval(() => {
+      const current = audio.value;
+      const currentSession = session.value;
+      if (!current || !currentSession || !current.playing) return;
+      const ctx = getCtx();
+      const expected =
+        (serverNow() - currentSession.startAtServer) / 1000 + currentSession.offsetMs / 1000;
+      if (expected < 0) return;
+      const actual = current.offsetSec + (ctx.currentTime - current.ctxStartAt);
+      if (Math.abs(expected - actual) > 0.08) {
+        scheduleFrom(expected);
+      }
+    }, 1000);
+  };
+
+  /** M2：读取本地伴奏并调度播放（主唱端） */
+  async function startLocalChorus(track: { path: string; title: string }) {
+    const bytes = await window.electron.chorus.loadLocalAudio(track.path);
+    const ctx = getCtx();
+    const copy = new Uint8Array(bytes.byteLength);
+    copy.set(bytes);
+    const buffer = await ctx.decodeAudioData(copy.buffer as ArrayBuffer);
+    await syncClock();
+    const me = ctxMyIdentity();
+    const startAtServer = serverNow() + 3500;
+    session.value = {
+      active: true,
+      songId: track.path.slice(-24),
+      title: track.title,
+      startAtServer,
+      offsetMs: 0,
+      leader: me,
+      members: [me],
+    };
+    const localStartMs = startAtServer - clockOffset.value;
+    const ctxStartAt = ctx.currentTime + Math.max(0.05, (localStartMs - Date.now()) / 1000);
+    audio.value = {
+      buffer,
+      title: track.title,
+      path: track.path,
+      offsetSec: 0,
+      ctxStartAt,
+      playing: false,
+    };
+    scheduleFrom(0);
+    ensureTicker();
+    startDriftGuard();
+    await broadcast({ type: 'chorus-start', session: session.value });
+    return session.value;
+  }
+
+  const ctxMyIdentity = () => ctx.myIdentity();
+
   let ticker: ReturnType<typeof setInterval> | null = null;
   const ensureTicker = () => {
     if (ticker) return;
@@ -142,6 +289,7 @@ export function useChorus(ctx: ChorusContext) {
     const me = ctx.myIdentity();
     if (!current) return;
     if (current.leader === me) {
+      stopAudio();
       session.value = null;
       await broadcast({ type: 'chorus-stop' });
       return;
@@ -194,6 +342,7 @@ export function useChorus(ctx: ChorusContext) {
       }
       case 'chorus-stop': {
         if (!allowed) return;
+        stopAudio();
         session.value = null;
         break;
       }
@@ -221,6 +370,9 @@ export function useChorus(ctx: ChorusContext) {
     serverNow,
     syncClock,
     startTest,
+    startLocalChorus,
+    audio,
+    stopAudio,
     joinChorus,
     leaveChorus,
     handleChorusMessage,

@@ -11,6 +11,7 @@ const myAvatarImage = ref('');
 const chatInputRef = ref<{ focus: () => void } | null>(null);
 import { useRouter } from 'vue-router';
 import { useChatRoomStore } from '@/stores/chatRoom';
+import { usePlayerStore } from '@/stores/player';
 import { useRoomLyrics } from './composables/useRoomLyrics';
 import { useBadWords } from './composables/useBadWords';
 import { useMemberProfile } from './composables/useMemberProfile';
@@ -36,6 +37,7 @@ import defaultCover from '/dakemusic-default-room-cover.png?url';
 
 const router = useRouter();
 const store = useChatRoomStore();
+const playerStoreForChorus = usePlayerStore();
 // DakeMusic: 点歌台浮层开关
 const showSongPanel = ref(false);
 // DakeMusic: 跳语聊房个人中心
@@ -77,6 +79,24 @@ async function toggleAdmin(u: any) {
   await setAdmin(u.identity, !isAdminOf(u.identity));
 }
 const showEmojiPicker = ref(false);
+/** M2：用当前播放的本地歌曲发起合唱（在线歌曲暂不支持） */
+async function startLocalChorusFromCurrent() {
+  const track: any = playerStoreForChorus.currentTrackSnapshot;
+  const localPath = track?.source === 'local' ? String(track?.hash || track?.audioUrl || '') : '';
+  if (!localPath) {
+    pushNotice('合唱目前只支持本地歌曲，请先播放本地音乐');
+    return;
+  }
+  try {
+    await chorusStartLocal({
+      path: localPath,
+      title: String(track?.name || track?.title || '合唱'),
+    });
+    pushNotice('合唱已发起，3.5 秒后开始');
+  } catch (e: any) {
+    pushNotice(e?.message || '合唱启动失败');
+  }
+}
 /** 合唱对齐面板（M1） */
 const showChorusPanel = ref(false);
 
@@ -91,6 +111,7 @@ const {
   elapsedMs: chorusElapsedMs,
   syncClock: chorusSyncClock,
   startTest: chorusStartTest,
+  startLocalChorus: chorusStartLocal,
   joinChorus: chorusJoin,
   leaveChorus: chorusLeave,
   handleChorusMessage,
@@ -98,6 +119,16 @@ const {
   getLKRoom,
   myIdentity: () => String(store.myIdentity ?? ''),
   isAllowedSender: isLyricSourceSender,
+});
+
+// 合唱开始后暂停原生播放，避免和渲染层伴奏重叠
+watch(chorusSession, (active) => {
+  if (!active) return;
+  try {
+    if (playerStoreForChorus.isPlaying) void playerStoreForChorus.togglePlay();
+  } catch {
+    /* 播放器未就绪时忽略 */
+  }
 });
 
 /* ================= 歌词面板与房间数据通道（逻辑在 composables/useRoomLyrics.ts） ================= */
@@ -1319,6 +1350,13 @@ onUnmounted(() => {
               @click="chorusStartTest()"
             >
               发起对齐测试
+            </button>
+            <button
+              class="cr-leave-btn confirm"
+              :disabled="!isOnMain && !store.isOwner"
+              @click="startLocalChorusFromCurrent"
+            >
+              用当前歌曲合唱
             </button>
             <button class="cr-leave-btn cancel" @click="chorusJoin">加入</button>
             <button class="cr-leave-btn cancel" @click="chorusLeave">退出合唱</button>

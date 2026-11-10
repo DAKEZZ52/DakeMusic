@@ -371,6 +371,9 @@ export interface IElectronAPI {
     stop: () => Promise<{ running: boolean; port: number; url: string }>;
     status: () => Promise<{ running: boolean; port: number; url: string }>;
   };
+  chorus: {
+    loadLocalAudio: (filePath: string) => Promise<Uint8Array>;
+  };
   miniPlayer: {
     getSnapshot: () => Promise<MiniPlayerSnapshot>;
     show: () => Promise<MiniPlayerSnapshot>;

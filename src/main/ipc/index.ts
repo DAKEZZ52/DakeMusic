@@ -20,6 +20,7 @@ import { registerRecognizeHandlers } from './recognize';
 import { registerDownloadHandlers } from '../download';
 import { registerSeparatorHandlers } from '../separator';
 import { registerLocalMusicHandlers } from './localMusic';
+import { registerChorusHandlers } from './chorus';
 import type { IpcContext } from './types';
 
 let registered = false;
@@ -47,6 +48,7 @@ export const registerIpcHandlers = (context: IpcContext) => {
   registerDownloadHandlers(context);
   registerSeparatorHandlers(context);
   registerLocalMusicHandlers();
+  registerChorusHandlers();
   registered = true;
 };
 
