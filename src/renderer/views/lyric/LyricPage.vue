@@ -565,6 +565,7 @@ onUnmounted(() => {
         :bars="44"
         :height="52"
         :style-name="settingStore.spectrumStyle"
+        :style="{ opacity: settingStore.spectrumOpacity / 100 }"
       />
 
       <LyricPlayerControls
@@ -772,7 +773,6 @@ onUnmounted(() => {
   height: 52px;
   padding: 0 24px;
   box-sizing: border-box;
-  opacity: 0.55;
   pointer-events: none;
   z-index: 1;
   mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);

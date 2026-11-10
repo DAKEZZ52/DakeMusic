@@ -31,7 +31,7 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
       },
       {
         title: '音频频谱条',
-        desc: '歌词页底部随音乐跳动的频谱，四种样式可选，颜色跟随主题色（实验性）。',
+        desc: '歌词页底部随音乐跳动的频谱，四种样式可选，颜色跟随主题色，透明度可调（实验性）。',
       },
     ],
   },

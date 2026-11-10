@@ -426,6 +426,22 @@ const confirmResetDeviceIdentity = async () => {
         "
       />
     </div>
+    <div v-if="settingStore.spectrumEnabled" class="settings-divider"></div>
+    <div v-if="settingStore.spectrumEnabled" class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">频谱透明度</h3>
+        <p class="text-sm text-text-secondary">越低越不抢歌词，100% 最明显</p>
+      </div>
+      <Slider
+        class="w-48"
+        :model-value="settingStore.spectrumOpacity"
+        :min="20"
+        :max="100"
+        :step="5"
+        show-value
+        @update:model-value="settingStore.spectrumOpacity = $event"
+      />
+    </div>
   </SettingsSectionShell>
 </template>
 

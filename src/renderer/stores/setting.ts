@@ -115,6 +115,8 @@ export const useSettingStore = defineStore('setting', {
     spectrumEnabled: false,
     /** 频谱样式：bars / dots / wave / mirror */
     spectrumStyle: 'bars' as 'bars' | 'dots' | 'wave' | 'mirror',
+    /** 频谱透明度 20–100（%） */
+    spectrumOpacity: 55,
     obsOverlayEnabled: false,
     obsOverlayPort: 37650,
     floatingSurfaceFrosted: false,
