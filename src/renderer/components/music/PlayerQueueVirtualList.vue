@@ -146,10 +146,11 @@ defineExpose({
       <div
         v-if="upcomingDividerY !== null"
         class="queue-upcoming-divider"
-        :style="{ top: upcomingDividerY + 'px' }"
+        :style="{ top: upcomingDividerY - 10 + 'px' }"
         aria-hidden="true"
       >
         <span class="queue-upcoming-label">即将播放</span>
+        <span class="queue-upcoming-line"></span>
       </div>
       <div ref="containerRef" :style="wrapperStyle">
         <div :style="offsetStyle" class="queue-virtual-offset">
@@ -250,27 +251,32 @@ defineExpose({
 
 .queue-upcoming-divider {
   position: absolute;
-  left: 12px;
-  right: 12px;
-  height: 1px;
-  background: linear-gradient(
-    to right,
-    transparent,
-    color-mix(in srgb, var(--color-text-main) 22%, transparent),
-    transparent
-  );
+  left: 16px;
+  right: 16px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   pointer-events: none;
   z-index: 2;
 }
 
 .queue-upcoming-label {
-  position: absolute;
-  top: -18px;
-  left: 0;
+  flex: 0 0 auto;
   font-size: 10px;
   letter-spacing: 0.1em;
   color: var(--color-text-secondary);
-  opacity: 0.75;
+  opacity: 0.8;
+}
+
+.queue-upcoming-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--color-text-main) 18%, transparent),
+    transparent
+  );
 }
 
 .queue-row {
