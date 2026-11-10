@@ -394,6 +394,16 @@ const confirmResetDeviceIdentity = async () => {
         <Button variant="danger" size="sm" @click="confirmResetDeviceIdentity"> 确认重置 </Button>
       </template>
     </Dialog>
+    <div class="settings-divider"></div>
+    <div class="settings-item">
+      <div class="space-y-1">
+        <h3 class="font-semibold">音频频谱条</h3>
+        <p class="text-sm text-text-secondary">
+          在歌词页底部显示随音乐跳动的频谱（实验性，占用少量 CPU）
+        </p>
+      </div>
+      <Switch v-model="settingStore.spectrumEnabled" />
+    </div>
   </SettingsSectionShell>
 </template>
 

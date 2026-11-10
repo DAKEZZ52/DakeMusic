@@ -41,6 +41,14 @@
   .minimal .progress{position:absolute;left:0;bottom:-9px;width:100%;height:2px;background:rgba(255,255,255,.16);border-radius:1px;overflow:hidden}
   .minimal .progress i{display:block;height:100%;width:0;background:var(--accent);border-radius:1px;transition:width .6s linear}
 
+  /* 下一首预告 */
+  .next{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;color:rgba(255,255,255,.62)}
+  .next .nlabel{opacity:.6;flex:0 0 auto}
+  .next .ncover{width:20px;height:20px;border-radius:5px;overflow:hidden;flex:0 0 auto;background:rgba(255,255,255,.14)}
+  .next .ncover img{width:100%;height:100%;object-fit:cover;display:block}
+  .next .ntitle{max-width:250px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .minimal .next{position:absolute;left:0;top:calc(100% + 16px);margin-top:0;white-space:nowrap}
+
   /* 水印 */
   .brand{position:fixed;right:30px;bottom:26px;font-size:12px;letter-spacing:.2em;font-weight:600;
          color:rgba(255,255,255,.34);text-shadow:0 2px 8px rgba(0,0,0,.6)}
@@ -53,6 +61,7 @@
   const style = q.get('style') === 'minimal' ? 'minimal' : 'card';
   const theme = q.get('theme') === 'light' ? 'light' : 'dark';
   const showBrand = q.get('brand') !== '0';
+  const showNext = q.get('next') === '1';
 
   if (theme === 'light') {
     document.documentElement.style.setProperty('--accent', '#0a84ff');
@@ -81,6 +90,12 @@
       '</div>';
     root.appendChild(card);
     if (brand) root.appendChild(brand);
+    if (showNext) {
+      const next = document.createElement('div');
+      next.className = 'next';
+      next.innerHTML = '<span class="nlabel">下一首</span><span class="ncover"></span><span class="ntitle"></span>';
+      card.querySelector('.meta').appendChild(next);
+    }
     coverEl = card.querySelector('.cover');
     titleEl = card.querySelector('.title');
     artistEl = card.querySelector('.artist');
@@ -99,6 +114,12 @@
       '</div>';
     root.appendChild(wrap);
     if (brand) root.appendChild(brand);
+    if (showNext) {
+      const next = document.createElement('div');
+      next.className = 'next';
+      next.innerHTML = '<span class="nlabel">下一首</span><span class="ncover"></span><span class="ntitle"></span>';
+      wrap.querySelector('.wrap').appendChild(next);
+    }
     coverEl = wrap.querySelector('.cover img');
     titleEl = wrap.querySelector('.t');
     artistEl = wrap.querySelector('.artist');
@@ -142,6 +163,25 @@
     setCover(state.cover || '');
     const ratio = state.duration > 0 ? Math.min(1, (state.current || 0) / state.duration) : 0;
     if (barEl) barEl.style.width = (ratio * 100).toFixed(2) + '%';
+
+    const nextEl = document.querySelector('.next');
+    if (nextEl) {
+      if (state.next && state.next.title) {
+        nextEl.style.display = 'flex';
+        const cover = nextEl.querySelector('.ncover');
+        const title = nextEl.querySelector('.ntitle');
+        title.textContent = state.next.artist
+          ? state.next.title + ' · ' + state.next.artist
+          : state.next.title;
+        if (state.next.cover) {
+          cover.innerHTML = '<img src="' + state.next.cover + '" alt="">';
+        } else {
+          cover.innerHTML = '';
+        }
+      } else {
+        nextEl.style.display = 'none';
+      }
+    }
   }
 
   fetch('/state', { cache: 'no-store' })

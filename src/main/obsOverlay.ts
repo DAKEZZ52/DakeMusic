@@ -29,6 +29,8 @@ export interface ObsOverlayState {
   cover: string;
   duration: number;
   current: number;
+  /** 队列里的下一首（?next=1 时浮层会显示） */
+  next: { title: string; artist: string; cover: string } | null;
   updatedAt: number;
 }
 
@@ -45,6 +47,21 @@ const clients = new Set<http.ServerResponse>();
 
 const overlayFile = () => join(__dirname, '../../dist/obs-overlay.html');
 
+const resolveNextTrack = (): ObsOverlayState['next'] => {
+  const queue = getMiniPlayerSnapshot()?.queue;
+  if (!queue || !Array.isArray(queue.tracks) || queue.tracks.length === 0) return null;
+  const index = queue.currentTrackId
+    ? queue.tracks.findIndex((item) => item.trackId === queue.currentTrackId)
+    : -1;
+  const next = index >= 0 ? queue.tracks[index + 1] : null;
+  if (!next) return null;
+  return {
+    title: next.title ?? '',
+    artist: next.artist ?? '',
+    cover: next.coverUrl ?? '',
+  };
+};
+
 const buildState = (): ObsOverlayState => {
   const snapshot = getMiniPlayerSnapshot();
   const playback = snapshot?.playback ?? null;
@@ -57,6 +74,7 @@ const buildState = (): ObsOverlayState => {
     cover: playback?.coverUrl ?? '',
     duration: Number(playback?.duration) || 0,
     current: Number(playback?.currentTime) || 0,
+    next: resolveNextTrack(),
     updatedAt: Date.now(),
   };
 };

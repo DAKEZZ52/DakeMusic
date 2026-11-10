@@ -25,6 +25,14 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
         title: 'OBS 浏览器源',
         desc: '直播时把「正在播放」叠到画面上：卡片 / 极简两套样式，只在本机提供，OBS 里添加浏览器源即可。',
       },
+      {
+        title: '下一首预告',
+        desc: '歌词页最后 20 秒浮出下一首，点一下就能切；OBS 浮层也支持 ?next=1 显示下一首。',
+      },
+      {
+        title: '音频频谱条',
+        desc: '歌词页底部随音乐跳动的频谱，实验性功能，可在设置里开关。',
+      },
     ],
   },
   {

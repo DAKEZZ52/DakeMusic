@@ -40,6 +40,8 @@ import LyricSettingsDrawer from './LyricSettingsDrawer.vue';
 import { openSettingsDialog } from '@/composables/useSettingsDialog';
 import LyricSourceDialog from './LyricSourceDialog.vue';
 import LyricFluidBackground from './LyricFluidBackground.vue';
+import NextTrackCard from './NextTrackCard.vue';
+import SpectrumBars from '@/components/player/SpectrumBars.vue';
 import {
   iconChevronLeft,
   iconChevronRight,
@@ -555,6 +557,15 @@ onUnmounted(() => {
       </div>
 
       <!-- 底部控制栏 -->
+      <NextTrackCard />
+
+      <SpectrumBars
+        v-if="settingStore.spectrumEnabled"
+        class="lyric-spectrum"
+        :bars="44"
+        :height="52"
+      />
+
       <LyricPlayerControls
         :style="{
           opacity:
@@ -752,6 +763,21 @@ onUnmounted(() => {
 }
 
 /* 歌词页顶部：不操作时收起，鼠标一动再出现（和底部控制栏一致的习惯） */
+.lyric-spectrum {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 88px;
+  height: 52px;
+  padding: 0 24px;
+  box-sizing: border-box;
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 1;
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+
 .lyric-titlebar {
   transition:
     opacity 0.25s cubic-bezier(0.22, 1, 0.36, 1),
