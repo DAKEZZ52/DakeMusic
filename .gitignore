@@ -17,6 +17,9 @@ dist/
 dist-electron/
 out/
 release/
+
+# 本地验证/改名备份，不进入仓库
+_backup/
 build/mpv/
 
 # Native addon build artifacts
