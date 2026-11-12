@@ -1,4 +1,4 @@
-// Run with Electron, not Node. This experiment does not read EchoMusic settings.
+// Run with Electron, not Node. This experiment does not read DakeMusic settings.
 const { app, BrowserWindow } = require('electron');
 const path = require('node:path');
 const os = require('node:os');

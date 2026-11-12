@@ -23,7 +23,7 @@ test('recognizes platform-specific updater metadata names', () => {
   );
   assert.equal(
     isUpdateMetadataPublishingError(
-      'GET https://github.com/example/app/releases/download/v1.0.0/latest-linux-arm64.yml: 404',
+      'GET https://github.com/example/app/releases/download/v1.0.0/latest.yml: 404',
     ),
     true,
   );
@@ -41,7 +41,7 @@ test('uses a safe fallback for errors without a message', () => {
 
 test('maps Squirrel.Mac signature failures to manual installation guidance', () => {
   for (const message of [
-    'Code signature at URL file:///Users/test/Library/Caches/app.ShipIt/update.xxx/EchoMusic.app/ did not pass validation: 代码未能满足指定的代码要求',
+    'Code signature at URL file:///Users/test/Library/Caches/app.ShipIt/update.xxx/DakeMusic.app/ did not pass validation: 代码未能满足指定的代码要求',
     'code failed to satisfy specified code requirement(s)',
     '代码未能满足指定的代码要求',
     UPDATE_SIGNATURE_ERROR,

@@ -1,361 +1,275 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
-    <title>打开 EchoMusic 分享</title>
-    <style>
-      :root {
-        color-scheme: light dark;
-        --bg: #f7f8fb;
-        --panel: #ffffff;
-        --text: #181c22;
-        --muted: #687386;
-        --border: #dce2eb;
-        --primary: #2563eb;
-        --primary-text: #ffffff;
-      }
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DakeMusic 分享 · 打开歌单</title>
+<!--
+  DakeMusic 分享落地页
+  作者：知之（DAKE知之）
+  版权：© 2026 DakeMusic. All rights reserved.
+  说明：解析 dakemusic:// 与 ?type=&id= 形式的分享链接，唤起桌面客户端。
+-->
+<meta name="description" content="你收到一份来自 DakeMusic 的音乐分享，点击即可在客户端中打开。">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="DakeMusic">
+<meta property="og:title" content="DakeMusic 分享">
+<meta property="og:description" content="你收到一份来自 DakeMusic 的音乐分享，点击即可在客户端中打开。">
+<meta property="og:url" content="https://dkyy.top/share/">
+<style>
+:root {
+  --bg: #070711;
+  --panel: rgba(255, 255, 255, 0.045);
+  --panel-2: rgba(255, 255, 255, 0.08);
+  --line: rgba(255, 255, 255, 0.1);
+  --text: #f2f2ff;
+  --muted: #a3a3c0;
+  --violet: #8a5cff;
+  --blue: #00beff;
+  --pink: #f472b6;
+  --radius: 22px;
+  --font: 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+}
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background:
+    radial-gradient(60% 50% at 10% -5%, rgba(138, 92, 255, 0.22), transparent 62%),
+    radial-gradient(50% 42% at 90% 4%, rgba(0, 190, 255, 0.16), transparent 62%),
+    radial-gradient(45% 40% at 50% 104%, rgba(244, 114, 182, 0.09), transparent 65%),
+    var(--bg);
+}
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 64px 64px;
+  -webkit-mask-image: radial-gradient(72% 62% at 50% 0%, #000 15%, transparent 78%);
+  mask-image: radial-gradient(72% 62% at 50% 0%, #000 15%, transparent 78%);
+}
+.card {
+  position: relative;
+  width: 100%;
+  max-width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 40px 32px 32px;
+  text-align: center;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  color: var(--text);
+}
+.brand img { width: 40px; height: 40px; border-radius: 10px; }
+.brand-name { font-size: 20px; font-weight: 700; letter-spacing: 0.2px; }
+.brand-name em { font-style: normal; background: linear-gradient(90deg, var(--violet), var(--blue)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tag {
+  display: inline-block;
+  margin-top: 18px;
+  padding: 4px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.title { margin: 14px 0 6px; font-size: 22px; font-weight: 700; }
+.sub { margin: 0 0 26px; color: var(--muted); font-size: 14px; }
+.actions { display: flex; flex-direction: column; gap: 12px; }
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 22px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.btn:hover { transform: translateY(-1px); border-color: var(--line-strong, rgba(255,255,255,0.18)); }
+.btn-primary {
+  background: linear-gradient(90deg, var(--violet), var(--blue));
+  border: none;
+  color: #fff;
+}
+.btn-ghost { background: transparent; }
+.btn:active { transform: translateY(0); }
+.app-link {
+  margin-top: 18px;
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+  user-select: all;
+}
+.link-block {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+.link-block .link-row { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.link-block .link-row:last-child { margin-bottom: 0; }
+.link-block .link-label {
+  flex: none;
+  min-width: 76px;
+  font-size: 12px;
+  color: var(--muted-2, #8b8ba8);
+  padding-top: 2px;
+}
+.link-block .link-value {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text);
+  word-break: break-all;
+  user-select: all;
+  line-height: 1.5;
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  font-family: inherit;
+}
+.foot { margin-top: 22px; font-size: 12px; color: var(--muted-2, #8b8ba8); }
+.foot a { color: var(--muted); text-decoration: none; }
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 40px;
+  transform: translateX(-50%) translateY(12px);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 13px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  z-index: 10;
+}
+.toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div class="card">
+  <a class="brand" href="https://dkyy.top/">
+    <img src="https://dkyy.top/assets/img/logo.png" alt="DakeMusic" width="40" height="40">
+    <span class="brand-name"><em>Dake</em>Music</span>
+  </a>
+  <div class="tag" id="shareTag">音乐分享</div>
+  <h1 class="title" id="shareTitle">打开 DakeMusic</h1>
+  <p class="sub" id="shareSub">你收到一份音乐分享，点击下方按钮在客户端中打开</p>
+  <div class="actions">
+    <a class="btn btn-primary" id="openBtn" href="https://dkyy.top/">打开 DakeMusic</a>
+    <button class="btn btn-ghost" id="copyBtn" type="button">复制网页分享链接</button>
+  </div>
+  <div class="link-block">
+    <div class="link-row">
+      <span class="link-label">分享链接</span>
+      <button class="link-value" id="webLink" type="button" title="点击复制">https://dkyy.top/share/</button>
+    </div>
+    <div class="link-row">
+      <span class="link-label">App 链接</span>
+      <button class="link-value" id="appLink" type="button" title="点击复制">dakemusic://</button>
+    </div>
+  </div>
+  <div class="foot"><a href="https://dkyy.top/">返回 DakeMusic 官网</a></div>
+</div>
+<div class="toast" id="toast">分享链接已复制</div>
+<script>
+(function () {
+  'use strict';
+  var TYPE_LABELS = { song: '歌曲', playlist: '歌单', artist: '歌手', album: '专辑', 'listen-together': '一起听房间', plugin: '插件' };
+  var params = new URLSearchParams(location.search);
+  var type = '';
+  var id = '';
+  var rawTarget = params.get('target');
+  if (rawTarget) {
+    var m = /^dakemusic:\/\/([^/]+)\/([^?/]+)/i.exec(String(rawTarget));
+    if (m) { type = decodeURIComponent(m[1]); id = decodeURIComponent(m[2]); }
+  }
+  if (!type || !id) { type = params.get('type') || ''; id = params.get('id') || ''; }
+  if ((!type || !id) && location.pathname) {
+    var rest = location.pathname.replace(/\/share\/?/i, '').split('/').filter(Boolean);
+    if (rest.length >= 2) { type = rest[0]; id = rest.slice(1).join('/'); }
+  }
+  if (!type || !id) { return; }
 
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #12151b;
-          --panel: #1b2029;
-          --text: #eef2f7;
-          --muted: #a6b0c0;
-          --border: #303746;
-          --primary: #60a5fa;
-          --primary-text: #08111f;
-        }
-      }
+  var schemeUrl = 'dakemusic://' + type + '/' + encodeURIComponent(id);
+  var webShareUrl = location.href.split('#')[0];
+  var label = TYPE_LABELS[type] || '内容';
+  document.title = 'DakeMusic 分享 · 打开' + label;
+  document.getElementById('shareTag').textContent = '分享的' + label;
+  document.getElementById('shareTitle').textContent = '打开 DakeMusic';
+  document.getElementById('shareSub').textContent = '你收到一份来自 DakeMusic 的' + label + '分享，点击即可在客户端中打开';
+  document.getElementById('openBtn').setAttribute('href', schemeUrl);
+  document.getElementById('webLink').textContent = webShareUrl;
+  document.getElementById('appLink').textContent = schemeUrl;
 
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        min-height: 100vh;
-        margin: 0;
-        display: grid;
-        place-items: center;
-        padding: 28px;
-        background: var(--bg);
-        color: var(--text);
-        font-family:
-          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei',
-          sans-serif;
-      }
-
-      main {
-        width: min(440px, 100%);
-        padding: 28px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: var(--panel);
-        box-shadow: 0 18px 54px rgb(15 23 42 / 10%);
-      }
-
-      main.is-room-invite {
-        width: min(480px, 100%);
-      }
-
-      h1 {
-        margin: 0 0 10px;
-        font-size: 24px;
-        line-height: 1.25;
-        letter-spacing: 0;
-      }
-
-      p {
-        margin: 0;
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1.7;
-      }
-
-      .actions {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        margin-top: 22px;
-      }
-
-      .room-invite {
-        margin-top: 22px;
-        padding: 18px;
-        display: grid;
-        grid-template-columns: 48px minmax(0, 1fr);
-        align-items: center;
-        gap: 14px;
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        background: color-mix(in srgb, var(--primary) 6%, var(--panel));
-      }
-
-      .room-invite[hidden] {
-        display: none;
-      }
-
-      .room-icon {
-        width: 48px;
-        height: 48px;
-        display: grid;
-        place-items: center;
-        border-radius: 14px;
-        color: var(--primary);
-        background: color-mix(in srgb, var(--primary) 13%, transparent);
-      }
-
-      .room-icon svg {
-        width: 24px;
-        height: 24px;
-      }
-
-      .room-info {
-        min-width: 0;
-      }
-
-      .room-kind {
-        display: block;
-        margin-bottom: 4px;
-        color: var(--primary);
-        font-size: 12px;
-        font-weight: 700;
-      }
-
-      .room-name {
-        display: block;
-        overflow: hidden;
-        color: var(--text);
-        font-size: 17px;
-        line-height: 1.4;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .room-id {
-        display: block;
-        margin-top: 4px;
-        overflow: hidden;
-        color: var(--muted);
-        font-size: 11px;
-        line-height: 1.4;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      button,
-      a {
-        min-height: 40px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        padding: 0 14px;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font: inherit;
-        font-size: 14px;
-        text-decoration: none;
-        color: var(--text);
-        background: transparent;
-        cursor: pointer;
-      }
-
-      .primary {
-        border-color: var(--primary);
-        color: var(--primary-text);
-        background: var(--primary);
-      }
-
-      .link {
-        margin-top: 18px;
-        padding: 10px 12px;
-        border-radius: 8px;
-        border: 1px solid var(--border);
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.6;
-        overflow-wrap: anywhere;
-      }
-    </style>
-  </head>
-  <body>
-    <main id="panel">
-      <h1 id="title">打开 EchoMusic 分享</h1>
-      <p id="desc">正在尝试唤起 EchoMusic。如果没有反应，可以手动复制链接后在应用内打开。</p>
-      <section id="room-invite" class="room-invite" hidden>
-        <div class="room-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-            <path d="M4 14v-2a8 8 0 0 1 16 0v2" />
-            <path d="M6 18H5a2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2h1v5Zm12 0h1a2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2h-1v5Z" />
-            <path d="M18 18c0 2-2 3-4 3" />
-          </svg>
-        </div>
-        <div class="room-info">
-          <span id="room-kind" class="room-kind"></span>
-          <strong id="room-name" class="room-name"></strong>
-          <span id="room-id" class="room-id"></span>
-        </div>
-      </section>
-      <div class="actions">
-        <a id="open" class="primary" href="#">打开 EchoMusic</a>
-        <button id="copy" type="button">复制 App 链接</button>
-      </div>
-      <div id="link" class="link"></div>
-    </main>
-
-    <script>
-      const SHARE_SCHEME = 'echomusic';
-      const TYPE_LABELS = {
-        song: '歌曲',
-        playlist: '歌单',
-        artist: '歌手',
-        album: '专辑',
-        plugin: '插件',
-        'listen-together': '一起听房间',
-      };
-
-      const isShareType = (value) => Object.prototype.hasOwnProperty.call(TYPE_LABELS, value);
-      const isSongShareId = (value) => /^[a-f0-9]{32}$/i.test(String(value || '').trim());
-      const isPluginShareId = (value) => /^[a-zA-Z0-9._-]+$/.test(String(value || '').trim());
-      const isValidTarget = (target) =>
-        Boolean(target && isShareType(target.type) && target.id) &&
-        (target.type !== 'song' || isSongShareId(target.id)) &&
-        (target.type !== 'plugin' || isPluginShareId(target.id));
-
-      const readExtraParams = (searchParams, excludedKeys = []) => {
-        const excluded = new Set(excludedKeys);
-        const query = {};
-        searchParams.forEach((value, key) => {
-          const name = String(key || '').trim();
-          const text = String(value || '').trim();
-          if (!name || !text || excluded.has(name)) return;
-          query[name] = text;
-        });
-        return query;
-      };
-
-      const parseCustomTarget = (value) => {
-        try {
-          const url = new URL(value);
-          if (url.protocol !== `${SHARE_SCHEME}:`) return null;
-          const segments = url.pathname
-            .split('/')
-            .map((segment) => decodeURIComponent(segment.trim()))
-            .filter(Boolean);
-          const type = url.hostname || segments.shift() || '';
-          const id = segments.shift() || '';
-          const target = {
-            type,
-            id,
-            query: readExtraParams(url.searchParams),
-            appUrl: url.toString(),
-          };
-          return isValidTarget(target) ? target : null;
-        } catch {
-          return null;
-        }
-      };
-
-      const parseTarget = () => {
-        const url = new URL(window.location.href);
-        const customTarget = parseCustomTarget(url.searchParams.get('target') || '');
-        if (customTarget) return customTarget;
-
-        const type = String(url.searchParams.get('type') || '').trim();
-        const id = String(url.searchParams.get('id') || '').trim();
-        const queryTarget = {
-          type,
-          id,
-          query: readExtraParams(url.searchParams, ['type', 'id', 'target']),
-        };
-        if (isValidTarget(queryTarget)) return queryTarget;
-
-        const parts = url.pathname.split('/').filter(Boolean);
-        const shareIndex = parts.lastIndexOf('share');
-        const pathType = shareIndex >= 0 ? parts[shareIndex + 1] : '';
-        const pathId = shareIndex >= 0 ? parts[shareIndex + 2] : '';
-        const pathTarget = {
-          type: pathType,
-          id: decodeURIComponent(pathId || ''),
-          query: readExtraParams(url.searchParams, ['target']),
-        };
-        if (isValidTarget(pathTarget)) return pathTarget;
-
-        return null;
-      };
-
-      const buildAppUrl = (target) => {
-        if (target.appUrl) return target.appUrl;
-        const appUrl = new URL(`${SHARE_SCHEME}://${target.type}/${encodeURIComponent(target.id)}`);
-        Object.entries(target.query || {}).forEach(([key, value]) => {
-          appUrl.searchParams.set(key, value);
-        });
-        return appUrl.toString();
-      };
-
-      const target = parseTarget();
-      const panel = document.getElementById('panel');
-      const title = document.getElementById('title');
-      const desc = document.getElementById('desc');
-      const open = document.getElementById('open');
-      const copy = document.getElementById('copy');
-      const link = document.getElementById('link');
-      const roomInvite = document.getElementById('room-invite');
-      const roomKind = document.getElementById('room-kind');
-      const roomName = document.getElementById('room-name');
-      const roomId = document.getElementById('room-id');
-
-      if (!target) {
-        title.textContent = '分享链接无效';
-        desc.textContent = '这个链接里没有可打开的 EchoMusic 分享内容。';
-        open.style.display = 'none';
-        copy.style.display = 'none';
-      } else {
-        const appUrl = buildAppUrl(target);
-        title.textContent = `打开 EchoMusic ${TYPE_LABELS[target.type]}`;
-        open.href = appUrl;
-        link.textContent = appUrl;
-
-        if (target.type === 'listen-together') {
-          const isMusicRoom = String(target.query?.roomType || '') === '0';
-          const kindLabel = isMusicRoom ? '众乐房' : '自习室';
-          const name = String(target.query?.roomName || '').trim() || `EchoMusic ${kindLabel}`;
-          panel.classList.add('is-room-invite');
-          document.title = `${name} · EchoMusic 一起听`;
-          title.textContent = '一起听邀请';
-          desc.textContent = '有人邀请你一起听。打开 EchoMusic 后可先查看房间详情，再决定是否加入。';
-          roomKind.textContent = kindLabel;
-          roomName.textContent = name;
-          roomId.textContent = `房间号 ${target.id}`;
-          roomInvite.hidden = false;
-          open.textContent = '在 EchoMusic 中查看';
-        }
-
-        const openApp = () => {
-          window.location.href = appUrl;
-        };
-
-        open.addEventListener('click', (event) => {
-          event.preventDefault();
-          openApp();
-        });
-
-        copy.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(appUrl);
-            copy.textContent = '已复制';
-          } catch {
-            copy.textContent = '复制失败';
-          }
-          window.setTimeout(() => {
-            copy.textContent = '复制 App 链接';
-          }, 1800);
-        });
-
-        // 一起听分享需要保留邀请前置页，让用户确认房间后再主动唤起应用。
-        if (target.type !== 'listen-together') window.setTimeout(openApp, 200);
-      }
-    </script>
-  </body>
+  var toast = document.getElementById('toast');
+  var toastTimer = null;
+  function showToast(text) {
+    toast.textContent = text || '分享链接已复制';
+    toast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toast.classList.remove('show'); }, 1800);
+  }
+  function copyText(value, message) {
+    var input = document.createElement('textarea');
+    input.value = value;
+    input.style.position = 'fixed';
+    input.style.opacity = '0';
+    document.body.appendChild(input);
+    input.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    document.body.removeChild(input);
+    showToast(message);
+  }
+  document.getElementById('copyBtn').addEventListener('click', function () {
+    copyText(webShareUrl, '网页分享链接已复制');
+  });
+  document.getElementById('webLink').addEventListener('click', function () {
+    copyText(webShareUrl, '网页分享链接已复制');
+  });
+  document.getElementById('appLink').addEventListener('click', function () {
+    copyText(schemeUrl, 'App 链接已复制');
+  });
+})();
+</script>
+</body>
 </html>

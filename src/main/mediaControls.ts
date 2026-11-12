@@ -82,7 +82,7 @@ function loadNativeModule(): NativeMediaControls | null {
     } catch (err2) {
       log.error(
         '[MediaControls] All load attempts failed. ' +
-          'MPRIS/SMTC will be unavailable. ' +
+          'SMTC will be unavailable. ' +
           'This usually means the native addon was not compiled for this platform/arch. ' +
           'Primary error:',
         err,
@@ -170,7 +170,7 @@ export function initMediaControls(getMainWindow: () => BrowserWindow | null): vo
   }
 
   try {
-    nativeModule.initialize('EchoMusic');
+    nativeModule.initialize('DakeMusic');
     log.info('[MediaControls] Native addon initialized');
   } catch (err) {
     log.error('[MediaControls] Native addon init failed:', err);

@@ -2,7 +2,7 @@
 
 ## Goal
 
-Keep playback reliability in EchoMusic and make complex effects replaceable without putting a
+Keep playback reliability in DakeMusic and make complex effects replaceable without putting a
 provider-specific implementation in the player core.
 
 ```text
@@ -43,7 +43,7 @@ Per-preset controls, persistence and runtime acknowledgement are described in
 - DSP state, latency and tail draining
 - provider-specific parameters and capabilities
 
-Provider-specific behavior belongs to a provider. EchoMusic Basic DSP never interprets VPF. An
+Provider-specific behavior belongs to a provider. DakeMusic Basic DSP never interprets VPF. An
 external provider may opt into VPF by declaring the resource kind in its manifest; the Host passes
 the resource through without understanding its binary format.
 
@@ -177,7 +177,7 @@ The UI consumes provider capabilities and does not render provider-specific cont
 active provider does not advertise them.
 
 `manifest_json` describes the modules and controls the Provider can implement. `state_json`
-describes the current preset and its control policy. Neither document has fixed EchoMusic effect
+describes the current preset and its control policy. Neither document has fixed DakeMusic effect
 names. Control IDs, value types, ranges, units, enum options, and ownership are provider-defined.
 The Host only validates the common JSON envelope and treats unknown fields as opaque.
 

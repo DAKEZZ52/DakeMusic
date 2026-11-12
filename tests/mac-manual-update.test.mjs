@@ -24,13 +24,13 @@ const compile = (path, imports, processValue = process) => {
   return module.exports;
 };
 const asset = (arch) => ({
-  name: `EchoMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
-  browser_download_url: `https://github.com/hoowhoami/EchoMusic/releases/download/v2.3.1-beta.27/EchoMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
+  name: `DakeMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
+  browser_download_url: `https://github.com/DAKEZZ52/DakeMusic/releases/download/v2.3.1-beta.27/DakeMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
 });
 const release = {
   tag_name: 'v2.3.1-beta.27',
   prerelease: true,
-  html_url: 'https://github.com/hoowhoami/EchoMusic/releases/tag/v2.3.1-beta.27',
+  html_url: 'https://github.com/DAKEZZ52/DakeMusic/releases/tag/v2.3.1-beta.27',
   body: '更新日志',
   assets: [asset('x64'), asset('arm64')],
 };
@@ -111,7 +111,7 @@ const loadMain = ({ platform = 'darwin', arch = 'arm64', response = [release], e
 test('DMG selection never falls back to the wrong architecture or a ZIP', () => {
   assert.equal(policy.getMacDmgAsset([asset('x64')], 'arm64'), null);
   assert.equal(policy.getMacDmgAsset([asset('universal')], 'arm64')?.name, asset('universal').name);
-  assert.equal(policy.getMacDmgAsset([null, { name: 'EchoMusic-arm64.zip' }], 'arm64'), null);
+  assert.equal(policy.getMacDmgAsset([null, { name: 'DakeMusic-arm64.zip' }], 'arm64'), null);
   assert.equal(policy.getMacDmgAsset(undefined, 'x64'), null);
 });
 

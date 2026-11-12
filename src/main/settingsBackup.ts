@@ -21,6 +21,8 @@ import { normalizeLogSettings, type AppLogLevel } from '../shared/logging';
 import { getStorePersistenceKey } from '../shared/storePersistence';
 import { isBlockedObjectKey } from '../shared/objectSafety';
 import {
+  LEGACY_SETTINGS_BACKUP_EXTENSION,
+  LEGACY_SETTINGS_BACKUP_FORMAT,
   SETTINGS_BACKUP_EXTENSION,
   SETTINGS_BACKUP_FORMAT,
   SETTINGS_BACKUP_VERSION,
@@ -79,7 +81,9 @@ const sanitizeDesktopLyricSettings = (value: unknown): Record<string, unknown> =
 
 const validateArchive = (value: unknown): SettingsBackupArchive => {
   if (!isPlainObject(value)) throw new Error('不是有效的 DakeMusic 备份文件');
-  if (value.format !== SETTINGS_BACKUP_FORMAT) throw new Error('备份文件格式不受支持');
+  if (value.format !== SETTINGS_BACKUP_FORMAT && value.format !== LEGACY_SETTINGS_BACKUP_FORMAT) {
+    throw new Error('备份文件格式不受支持');
+  }
   if (value.version !== SETTINGS_BACKUP_VERSION) throw new Error('备份版本不受支持');
   if (!isPlainObject(value.includes)) throw new Error('备份范围信息无效');
 
@@ -208,7 +212,12 @@ export const exportSettingsBackup = async (
       title: '创建 DakeMusic 备份',
       defaultPath: `DakeMusic-backup-${date}.${SETTINGS_BACKUP_EXTENSION}`,
       buttonLabel: '创建备份',
-      filters: [{ name: 'DakeMusic 备份', extensions: [SETTINGS_BACKUP_EXTENSION] }],
+      filters: [
+        {
+          name: 'DakeMusic 备份',
+          extensions: [SETTINGS_BACKUP_EXTENSION, LEGACY_SETTINGS_BACKUP_EXTENSION],
+        },
+      ],
     };
     const win = getDialogWindow();
     const picked = win
@@ -241,7 +250,12 @@ export const inspectSettingsBackup = async (): Promise<SettingsBackupInspectResu
     const options: OpenDialogOptions = {
       title: '从备份恢复 DakeMusic',
       buttonLabel: '选择备份',
-      filters: [{ name: 'DakeMusic 备份', extensions: [SETTINGS_BACKUP_EXTENSION] }],
+      filters: [
+        {
+          name: 'DakeMusic 备份',
+          extensions: [SETTINGS_BACKUP_EXTENSION, LEGACY_SETTINGS_BACKUP_EXTENSION],
+        },
+      ],
       properties: ['openFile'],
     };
     const win = getDialogWindow();

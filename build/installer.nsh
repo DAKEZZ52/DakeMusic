@@ -1,6 +1,5 @@
 !macro customInit
-  ; 安装前强制结束残留的 EchoMusic 进程（包括卸载程序）
-  ; 解决卸载后重新安装时 "Uninstall EchoMusic.exe" 被锁定的问题
+  ; 安装前强制结束残留进程（包括卸载程序），解决重装时卸载器被锁定的问题。
   nsExec::ExecToStack 'taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
   nsExec::ExecToStack 'taskkill /F /IM "Uninstall ${PRODUCT_NAME}.exe" /T'
 

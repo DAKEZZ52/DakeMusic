@@ -1,6 +1,6 @@
 # 插件系统
 
-EchoMusic 支持在线插件源和本地插件。插件可以注册页面、侧边栏入口、设置面板、播放器按钮、歌曲菜单、快捷键和后台任务，也可以接入音源、歌词、实时频谱、独立浮窗、本地文件、SQLite、网络请求、TCP 设备服务、本地 Web 服务与备份恢复。
+DakeMusic 支持在线插件源和本地插件。插件可以注册页面、侧边栏入口、设置面板、播放器按钮、歌曲菜单、快捷键和后台任务，也可以接入音源、歌词、实时频谱、独立浮窗、本地文件、SQLite、网络请求、TCP 设备服务、本地 Web 服务与备份恢复。
 
 插件还可以提供完整歌词页界面。在「设置 → 页面歌词 → 歌词页界面」或歌词页设置中选择；注册不会自动替换当前选择。插件可保留原生歌词页标题栏（并非主窗口搜索导航栏），或自行绘制整个歌词页。切歌、音量、收藏、播放模式、队列以及歌词、音质、音效、评论、添加歌单等操作仍复用宿主能力。插件不可用或渲染失败时恢复默认歌词页；用户选择会保留，可重新选择重试。可运行示例见 [歌词页替换示例](../examples/lyrics-page-plugin/README.md)。
 
@@ -18,7 +18,7 @@ EchoMusic 支持在线插件源和本地插件。插件可以注册页面、侧�
 
 ## 开发入口
 
-插件 API、Manifest、生命周期、能力声明和完整示例由 EchoMusicPlugins 仓库维护：
+插件 API、Manifest、生命周期、能力声明和完整示例沿用 EchoMusicPlugins 仓库的文档：
 
 - [插件开发指南](https://github.com/hoowhoami/EchoMusicPlugins/blob/main/docs/plugin-development.md)
 - [独立浮窗与 Now Playing](https://github.com/hoowhoami/EchoMusicPlugins/blob/main/docs/floating-windows.md)
@@ -28,4 +28,4 @@ EchoMusic 支持在线插件源和本地插件。插件可以注册页面、侧�
 - [TCP 网络 API](https://github.com/hoowhoami/EchoMusicPlugins/blob/main/docs/tcp.md)
 - [官方插件源与示例插件](https://github.com/hoowhoami/EchoMusicPlugins)
 
-宿主与插件仓库各自维护职责范围内的文档：EchoMusic 只说明插件系统的用户语义和宿主边界，具体 API 以 EchoMusicPlugins 的开发指南为准。
+宿主与插件仓库各自维护职责范围内的文档：DakeMusic 只说明插件系统的用户语义和宿主边界，具体 API 以 EchoMusicPlugins 的开发指南为准（插件 API 保持兼容）。

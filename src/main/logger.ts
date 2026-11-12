@@ -18,9 +18,12 @@ const MAX_LOG_SIZE = 5 * 1024 * 1024;
 /** 日志保留天数 */
 const LOG_RETENTION_DAYS = 7;
 
-const DIAGNOSTICS_ENV = 'ECHOMUSIC_DIAGNOSTICS';
+const DIAGNOSTICS_ENV = 'DAKEMUSIC_DIAGNOSTICS';
+const DIAGNOSTICS_DURATION_ENV = 'DAKEMUSIC_DIAGNOSTICS_MINUTES';
+/** EchoMusic 时期的环境变量名，仍可作为兜底 */
+const LEGACY_DIAGNOSTICS_ENV = 'ECHOMUSIC_DIAGNOSTICS';
+const LEGACY_DIAGNOSTICS_DURATION_ENV = 'ECHOMUSIC_DIAGNOSTICS_MINUTES';
 const LEGACY_MEMORY_DIAGNOSTICS_ENV = 'ECHOMUSIC_MEMORY_DIAGNOSTICS';
-const DIAGNOSTICS_DURATION_ENV = 'ECHOMUSIC_DIAGNOSTICS_MINUTES';
 const DEFAULT_STARTUP_DIAGNOSTIC_MINUTES = 10;
 const DEVELOPMENT_CONSOLE_LOG_LEVEL: AppLogLevel = 'info';
 const PACKAGED_CONSOLE_LOG_LEVEL: AppLogLevel = 'warn';
@@ -34,11 +37,14 @@ const isTruthyEnv = (name: string) => {
 
 const isStartupDiagnosticRequested = () =>
   isTruthyEnv(DIAGNOSTICS_ENV) ||
+  isTruthyEnv(LEGACY_DIAGNOSTICS_ENV) ||
   isTruthyEnv(LEGACY_MEMORY_DIAGNOSTICS_ENV) ||
   process.argv.includes('--diagnostics');
 
 const getStartupDiagnosticMinutes = () => {
-  const minutes = Number(process.env[DIAGNOSTICS_DURATION_ENV]);
+  const minutes = Number(
+    process.env[DIAGNOSTICS_DURATION_ENV] ?? process.env[LEGACY_DIAGNOSTICS_DURATION_ENV],
+  );
   return Number.isFinite(minutes) && minutes > 0
     ? Math.min(24 * 60, minutes)
     : DEFAULT_STARTUP_DIAGNOSTIC_MINUTES;
@@ -76,7 +82,7 @@ function ensureLogDir() {
 }
 
 /**
- * 获取按日期命名的日志文件名，如 echo-music-2026-04-17.log
+ * 获取按日期命名的日志文件名，如 dake-music-2026-04-17.log
  */
 function getDailyLogFileName() {
   const date = new Date();
@@ -221,12 +227,22 @@ function cleanOldLogs() {
     const retentionMs = LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
     for (const file of files) {
-      if (!file.startsWith('dake-music') && !file.startsWith('echo-music')) return;
+      if (!file.startsWith('dake-music') && !file.startsWith('echo-music')) continue;
       const filePath = join(logDir, file);
-      const stats = fs.statSync(filePath);
-      if (now - stats.mtime.getTime() > retentionMs) {
-        fs.unlinkSync(filePath);
-        log.info(`[LogCleaner] 已删除过期日志: ${file}`);
+      try {
+        // 旧品牌命名的日志在升级后立即清理，不再等保留期
+        if (file.startsWith('echo-music')) {
+          fs.unlinkSync(filePath);
+          log.info(`[LogCleaner] 已删除旧品牌日志: ${file}`);
+          continue;
+        }
+        const stats = fs.statSync(filePath);
+        if (now - stats.mtime.getTime() > retentionMs) {
+          fs.unlinkSync(filePath);
+          log.info(`[LogCleaner] 已删除过期日志: ${file}`);
+        }
+      } catch {
+        // 单个文件被占用或已删除时跳过，不影响其它日志
       }
     }
   } catch (err) {

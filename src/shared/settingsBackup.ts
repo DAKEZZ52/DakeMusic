@@ -1,9 +1,12 @@
 import { isBlockedObjectKey } from './objectSafety';
 import { sanitizePortableNetworkSettings } from './portableNetworkSettings';
 
-export const SETTINGS_BACKUP_FORMAT = 'echomusic-settings-backup' as const;
+export const SETTINGS_BACKUP_FORMAT = 'dakemusic-settings-backup' as const;
 export const SETTINGS_BACKUP_VERSION = 1 as const;
-export const SETTINGS_BACKUP_EXTENSION = 'echomusic-backup';
+export const SETTINGS_BACKUP_EXTENSION = 'dakemusic-backup';
+/** 旧版备份标识，仅用于导入历史文件 */
+export const LEGACY_SETTINGS_BACKUP_FORMAT = 'echomusic-settings-backup' as const;
+export const LEGACY_SETTINGS_BACKUP_EXTENSION = 'echomusic-backup';
 
 export interface SettingsBackupScope {
   settings: boolean;

@@ -1,8 +1,8 @@
 # Third-Party Notices
 
-EchoMusic is distributed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
+DakeMusic is distributed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
 
-This file summarizes important third-party components used by EchoMusic, especially components that are bundled with the application or affect redistribution terms. It is not a full dependency lockfile. For complete dependency trees, see [pnpm-lock.yaml](pnpm-lock.yaml) and the Cargo lockfiles under `native/`.
+This file summarizes important third-party components used by DakeMusic, especially components that are bundled with the application or affect redistribution terms. It is not a full dependency lockfile. For complete dependency trees, see [pnpm-lock.yaml](pnpm-lock.yaml) and the Cargo lockfiles under `native/`.
 
 ## Bundled And License-Relevant Components
 
@@ -28,6 +28,6 @@ This file summarizes important third-party components used by EchoMusic, especia
 
 ## GPLv3 Distribution Note
 
-Because EchoMusic links and distributes GPL-licensed playback components, EchoMusic distribution builds are provided under GPLv3-compatible terms, with the project license set to GNU GPL v3.0.
+Because DakeMusic links and distributes GPL-licensed playback components, DakeMusic distribution builds are provided under GPLv3-compatible terms, with the project license set to GNU GPL v3.0.
 
-When redistributing EchoMusic binaries, provide the corresponding source code, this notice file, and the full GPLv3 license text.
+When redistributing DakeMusic binaries, provide the corresponding source code, this notice file, and the full GPLv3 license text.

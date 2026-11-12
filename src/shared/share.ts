@@ -1,10 +1,7 @@
-// 分享协议名（dakemusic://）。为兼容历史 echomusic:// 分享链接，解析时两种均接受。
+// 分享协议名（dakemusic://）
 export const SHARE_SCHEME = 'dakemusic';
 // 分享落地页：部署于 dkyy.top 官网（site/share/index.html），解析 dakemusic:// 并唤起客户端
 export const SHARE_WEB_BASE_URL = 'https://dkyy.top/share/';
-
-// 历史协议名（EchoMusic 时期），仅用于兼容解析旧链接，不再生成。
-export const LEGACY_SHARE_SCHEME = 'echomusic';
 
 export type ShareResourceType = 'song' | 'playlist' | 'artist' | 'album';
 export type ShareTargetQuery = Record<string, string>;
@@ -83,8 +80,7 @@ const parseCustomShareUrl = (value: string): ShareTarget | null => {
   } catch {
     return null;
   }
-  if (url.protocol !== `${SHARE_SCHEME}:` && url.protocol !== `${LEGACY_SHARE_SCHEME}:`)
-    return null;
+  if (url.protocol !== `${SHARE_SCHEME}:`) return null;
 
   const segments = url.pathname
     .split('/')
@@ -201,12 +197,7 @@ export const extractShareTarget = (value: string): ShareTarget | null => {
   if (directTarget) return directTarget;
 
   const candidates =
-    text.match(
-      new RegExp(
-        `${SHARE_SCHEME}://[^\\s<>"'\`]+|${LEGACY_SHARE_SCHEME}://[^\\s<>"'\`]+|https?://[^\\s<>"'\`]+`,
-        'gi',
-      ),
-    ) ?? [];
+    text.match(new RegExp(`${SHARE_SCHEME}://[^\\s<>"'\`]+|https?://[^\\s<>"'\`]+`, 'gi')) ?? [];
   for (const candidate of candidates) {
     const target = parseShareUrl(candidate);
     if (target) return target;

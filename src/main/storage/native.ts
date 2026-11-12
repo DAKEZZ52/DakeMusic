@@ -2,6 +2,7 @@ import { app } from 'electron';
 import { mkdirSync } from 'fs';
 import { createRequire } from 'node:module';
 import { join } from 'path';
+import { resolveDatabasePath } from './databasePath';
 
 export interface NativeStorageAddon {
   initialize(databasePath: string): void;
@@ -71,7 +72,7 @@ export const getNativeStorage = (): NativeStorageAddon => {
   if (!initialized) {
     const userDataPath = app.getPath('userData');
     mkdirSync(userDataPath, { recursive: true });
-    nativeStorage.initialize(join(userDataPath, 'echomusic.sqlite'));
+    nativeStorage.initialize(resolveDatabasePath(userDataPath));
     initialized = true;
   }
   return nativeStorage;

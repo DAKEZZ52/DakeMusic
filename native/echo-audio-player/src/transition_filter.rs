@@ -143,11 +143,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires ECHOMUSIC_TEST_DSP_PROVIDER to point to a built Provider library"]
+    #[ignore = "requires DAKEMUSIC_TEST_DSP_PROVIDER to point to a built Provider library"]
     fn real_provider_keeps_both_decks_independent_and_continuous() {
         let settings = DspSettings {
             provider_path: Some(
-                std::env::var("ECHOMUSIC_TEST_DSP_PROVIDER").expect("provider path"),
+                std::env::var("DAKEMUSIC_TEST_DSP_PROVIDER").expect("provider path"),
             ),
             provider_preset_json: Some(r#"{"presetId":"kugou-super-bass"}"#.to_string()),
             ..DspSettings::default()

@@ -8,7 +8,7 @@
   DakeMusic 分享落地页
   作者：知之（DAKE知之）
   版权：© 2026 DakeMusic. All rights reserved.
-  说明：解析 dakemusic://（兼容 echomusic://）与 ?type=&id= 形式的分享链接，唤起桌面客户端。
+  说明：解析 dakemusic:// 与 ?type=&id= 形式的分享链接，唤起桌面客户端。
 -->
 <meta name="description" content="你收到一份来自 DakeMusic 的音乐分享，点击即可在客户端中打开。">
 <meta property="og:type" content="website">
@@ -221,7 +221,6 @@ body::after {
   var rawTarget = params.get('target');
   if (rawTarget) {
     var m = /^dakemusic:\/\/([^/]+)\/([^?/]+)/i.exec(String(rawTarget));
-    if (!m) { m = /^echomusic:\/\/([^/]+)\/([^?/]+)/i.exec(String(rawTarget)); }
     if (m) { type = decodeURIComponent(m[1]); id = decodeURIComponent(m[2]); }
   }
   if (!type || !id) { type = params.get('type') || ''; id = params.get('id') || ''; }
