@@ -826,7 +826,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     updateInstallExitTimeout = setTimeout(() => {
       if (downloadState.status !== 'installing') return;
       failUpdateInstall(
-        '更新安装器已启动但应用未能退出，请关闭 LyriseMusic 后重试。',
+        '更新安装器已启动但应用未能退出，请关闭 Lyrise 音乐后重试。',
         'Install exit timeout',
       );
       log.error('[Updater] Force exiting after install quit timeout');

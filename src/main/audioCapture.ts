@@ -97,7 +97,7 @@ export function loadAudioCapture(): NativeAudioCapture | null {
 
 export function requireAudioCapture(): NativeAudioCapture {
   const capture = loadAudioCapture();
-  if (!capture) throw new Error('原生音频采集组件不可用，请重新安装或更新 LyriseMusic');
+  if (!capture) throw new Error('原生音频采集组件不可用，请重新安装或更新 Lyrise 音乐');
   return capture;
 }
 

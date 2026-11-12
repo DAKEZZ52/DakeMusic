@@ -120,7 +120,7 @@ const handleImport = async () => {
       return;
     }
     showImportDialog.value = false;
-    toastStore.success('恢复完成，正在重启 LyriseMusic…', 4000);
+    toastStore.success('恢复完成，正在重启 Lyrise 音乐…', 4000);
     window.setTimeout(() => {
       void window.electron.appInfo.relaunch();
     }, 450);
@@ -222,7 +222,7 @@ const handleImport = async () => {
   <Dialog
     v-model:open="showRestoreSourceDialog"
     title="选择备份"
-    description="从本机选择一个 LyriseMusic 备份文件"
+    description="从本机选择一个 Lyrise 音乐备份文件"
     content-class="backup-dialog"
     :close-on-interact-outside="!isInspecting"
     :close-on-escape="!isInspecting"
@@ -250,13 +250,13 @@ const handleImport = async () => {
   <Dialog
     v-model:open="showImportDialog"
     title="从备份恢复"
-    description="恢复会覆盖所选项目的同名设置，并在完成后自动重启 LyriseMusic。"
+    description="恢复会覆盖所选项目的同名设置，并在完成后自动重启 Lyrise 音乐。"
     content-class="backup-dialog"
     :close-on-interact-outside="!isImporting"
     :close-on-escape="!isImporting"
   >
     <div v-if="importSummary" class="backup-meta">
-      <span>备份版本：LyriseMusic {{ importSummary.appVersion || '未知' }}</span>
+      <span>备份版本：Lyrise 音乐 {{ importSummary.appVersion || '未知' }}</span>
       <span>创建时间：{{ formatBackupTime(importSummary.createdAt) }}</span>
     </div>
     <div class="backup-options">

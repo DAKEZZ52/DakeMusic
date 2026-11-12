@@ -146,7 +146,7 @@ function describeCaptureError(error: unknown, source: RecognizeAudioSource): str
       normalized.includes('权限') ||
       normalized.includes('denied')
     ) {
-      return '没有麦克风权限，请在系统隐私设置中授权 LyriseMusic';
+      return '没有麦克风权限，请在系统隐私设置中授权 Lyrise 音乐';
     }
     if (normalized.includes('no default input device')) {
       return '没有可用的默认麦克风';
@@ -161,12 +161,12 @@ function describeCaptureError(error: unknown, source: RecognizeAudioSource): str
       return '未录制到麦克风声音，请检查输入设备和系统音量';
     }
     if (normalized.includes('组件不可用') || normalized.includes('native addon')) {
-      return '原生音频采集组件不可用，请重新安装或更新 LyriseMusic';
+      return '原生音频采集组件不可用，请重新安装或更新 Lyrise 音乐';
     }
     return '无法访问麦克风，请检查输入设备和系统权限';
   }
   if (normalized.includes('permission') || normalized.includes('screen recording')) {
-    return '没有系统音频录制权限，请在系统隐私设置中授权 LyriseMusic';
+    return '没有系统音频录制权限，请在系统隐私设置中授权 Lyrise 音乐';
   }
   if (normalized.includes('no default output device')) {
     return '没有可用的系统默认输出设备';
@@ -178,7 +178,7 @@ function describeCaptureError(error: unknown, source: RecognizeAudioSource): str
     return '未捕获到系统音频，请确认当前有声音正在播放';
   }
   if (normalized.includes('组件不可用') || normalized.includes('native addon')) {
-    return '系统音频捕获组件不可用，请重新安装或更新 LyriseMusic';
+    return '系统音频捕获组件不可用，请重新安装或更新 Lyrise 音乐';
   }
   return '无法捕获系统音频，请检查默认输出设备并关闭独占模式后重试';
 }

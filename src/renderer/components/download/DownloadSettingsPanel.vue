@@ -18,7 +18,7 @@ const downloadStore = useDownloadStore();
 
 /** 下载目录显示（为空时使用默认目录）。 */
 const saveDirText = computed(
-  () => downloadStore.settings.saveDir || '默认下载目录（音乐文件夹 / LyriseMusic）',
+  () => downloadStore.settings.saveDir || '默认下载目录（音乐文件夹 / Lyrise 音乐）',
 );
 
 /** 并发数（用于步进按钮）。 */

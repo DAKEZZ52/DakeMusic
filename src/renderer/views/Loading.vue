@@ -255,6 +255,6 @@ onUnmounted(() => {
       </div>
     </main>
 
-    <footer class="startup-footer">LyriseMusic • 音为你而生</footer>
+    <footer class="startup-footer">Lyrise 音乐 • 音为你而生</footer>
   </div>
 </template>

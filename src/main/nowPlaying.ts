@@ -220,7 +220,7 @@ const sendSnapshot = () => {
 
 export const getNowPlayingSnapshot = () => snapshot;
 
-const DEFAULT_WINDOW_TITLE = 'LyriseMusic';
+const DEFAULT_WINDOW_TITLE = 'Lyrise 音乐';
 
 /** 根据当前播放信息更新主窗口标题（任务栏/后台任务窗口显示）：歌手-歌名，无有效信息时回退 LyriseMusic */
 const applyWindowTitle = (playback: NowPlayingPlaybackPayload | null | undefined) => {

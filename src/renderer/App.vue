@@ -319,7 +319,7 @@ const checkClipboardShareTarget = async () => {
     lastHandledClipboardText = normalizedText;
 
     const label = getShareResourceLabel(target.type);
-    toastStore.showAction(`检测到 LyriseMusic ${label}分享`, {
+    toastStore.showAction(`检测到 Lyrise 音乐${label}分享`, {
       label: '打开',
       handler: () => openShareTarget(target),
     });

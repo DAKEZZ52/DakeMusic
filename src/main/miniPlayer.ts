@@ -538,7 +538,7 @@ export const ensureMiniPlayerWindow = async () => {
   const preload = join(__dirname, '../preload/index.js');
   const bounds = resolveMiniPlayerBounds();
   const win = new BrowserWindow({
-    title: 'LyriseMusic Mini Player',
+    title: 'Lyrise 音乐 · 迷你播放器',
     ...(!app.isPackaged ? { icon: join(process.cwd(), 'build/icons/icon.png') } : {}),
     ...bounds,
     frame: false,

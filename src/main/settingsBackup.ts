@@ -80,7 +80,7 @@ const sanitizeDesktopLyricSettings = (value: unknown): Record<string, unknown> =
 };
 
 const validateArchive = (value: unknown): SettingsBackupArchive => {
-  if (!isPlainObject(value)) throw new Error('不是有效的 LyriseMusic 备份文件');
+  if (!isPlainObject(value)) throw new Error('不是有效的 Lyrise 音乐备份文件');
   const knownFormats: string[] = [SETTINGS_BACKUP_FORMAT, ...LEGACY_SETTINGS_BACKUP_FORMATS];
   if (typeof value.format !== 'string' || !knownFormats.includes(value.format)) {
     throw new Error('备份文件格式不受支持');
@@ -210,12 +210,12 @@ export const exportSettingsBackup = async (
     }
     const date = new Date().toISOString().slice(0, 10);
     const options = {
-      title: '创建 LyriseMusic 备份',
+      title: '创建 Lyrise 音乐备份',
       defaultPath: `LyriseMusic-backup-${date}.${SETTINGS_BACKUP_EXTENSION}`,
       buttonLabel: '创建备份',
       filters: [
         {
-          name: 'LyriseMusic 备份',
+          name: 'Lyrise 音乐备份',
           extensions: [SETTINGS_BACKUP_EXTENSION, ...LEGACY_SETTINGS_BACKUP_EXTENSIONS],
         },
       ],
@@ -249,11 +249,11 @@ export const inspectSettingsBackup = async (): Promise<SettingsBackupInspectResu
   try {
     await cleanupInspections();
     const options: OpenDialogOptions = {
-      title: '从备份恢复 LyriseMusic',
+      title: '从备份恢复 Lyrise 音乐',
       buttonLabel: '选择备份',
       filters: [
         {
-          name: 'LyriseMusic 备份',
+          name: 'Lyrise 音乐备份',
           extensions: [SETTINGS_BACKUP_EXTENSION, ...LEGACY_SETTINGS_BACKUP_EXTENSIONS],
         },
       ],

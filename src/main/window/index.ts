@@ -350,7 +350,7 @@ export async function createWindow() {
   windowBackgroundActiveFrosted = windowBackground.frosted;
   windowBackgroundRestartRequired = false;
   win = new BrowserWindow({
-    title: 'LyriseMusic',
+    title: 'Lyrise 音乐',
     ...(windowIconPath ? { icon: windowIconPath } : {}),
     ...placement.bounds,
     minWidth: placement.minWidth,
