@@ -111,15 +111,6 @@ pub(crate) fn handle_playback_output_device_event(
                     if !device::selection::is_default_device_name(&runtime.config.audio_device) {
                         false
                     } else {
-                        #[cfg(target_os = "linux")]
-                        {
-                            runtime
-                                .session
-                                .as_ref()
-                                .and_then(|session| session.shared.output_stats())
-                                .is_some_and(|stats| stats.backend == "pulseaudio")
-                        }
-                        #[cfg(not(target_os = "linux"))]
                         {
                             true
                         }
@@ -534,18 +525,6 @@ fn validate_output_restart_config(
                 device::resolve_output_sample_rate(&config.audio_device, config.exclusive_output)
             });
         return device::platform_macos::validate_coreaudio_exclusive_output(
-            &config.audio_device,
-            sample_rate,
-        );
-    }
-    #[cfg(target_os = "linux")]
-    if config.exclusive_output {
-        let sample_rate = shared
-            .map(|shared| shared.mix_format.sample_rate)
-            .unwrap_or_else(|| {
-                device::resolve_output_sample_rate(&config.audio_device, config.exclusive_output)
-            });
-        return device::platform_linux::validate_alsa_exclusive_output(
             &config.audio_device,
             sample_rate,
         );

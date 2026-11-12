@@ -13,7 +13,7 @@ const minimizeWindow = () => window.electron.windowControl('minimize');
 const toggleMaximize = () => window.electron.windowControl('maximize');
 const closeWindow = () => window.electron.windowControl('close');
 const isMac = window.electron.platform === 'darwin';
-// Windows/Linux 自绘窗口控制（原生 WCO 已禁用），macOS 用系统红绿灯不渲染
+// Windows 自绘窗口控制（原生 WCO 已禁用），macOS 用系统红绿灯不渲染
 const showCustomControls = computed(() => !isMac);
 </script>
 

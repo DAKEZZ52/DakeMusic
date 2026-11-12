@@ -1,7 +1,6 @@
 import { BrowserWindow, app, nativeTheme, screen } from 'electron';
 import type {
   DesktopLyricCommand,
-  DesktopLyricClientRect,
   DesktopLyricLockPhase,
   DesktopLyricPlaybackPayload,
   DesktopLyricSettings,
@@ -10,7 +9,6 @@ import type {
   DesktopLyricSnapshotPatch,
   DesktopLyricWindowBoundsUpdate,
 } from '../shared/desktopLyric';
-import { isWaylandWindowingBackend } from '../shared/windowing';
 import {
   acceptPlaybackBridgeRendererPayload,
   beginPlaybackBridgeTransition,
@@ -59,10 +57,8 @@ import { WindowDragController } from './windowDrag';
 export { getDesktopLyricWindow } from './desktopLyric/window';
 
 const DESKTOP_LYRIC_LOCK_PHASE_DURATION_MS = 320;
-const desktopLyricUsesWayland = isWaylandWindowingBackend();
 const desktopLyricSupportsForwardedMouseEvents =
   process.platform === 'darwin' || process.platform === 'win32';
-const desktopLyricUsesX11HitTesting = process.platform === 'linux' && !desktopLyricUsesWayland;
 
 let desktopLyricClosingFromFailure = false;
 let desktopLyricAppIsQuitting = false;
@@ -75,12 +71,10 @@ let desktopLyricIgnoreMouseEventsKey: string | null = null;
 // 不可靠的问题，解锁状态为渲染进程的即时 hover 提供最终一致性兜底。
 let desktopLyricHoverPollTimer: NodeJS.Timeout | null = null;
 let desktopLyricCursorInside = false;
-let desktopLyricCursorOverUnlockButton = false;
-let desktopLyricUnlockButtonBounds: DesktopLyricClientRect | null = null;
 const desktopLyricDragController = new WindowDragController({
   getWindow: getDesktopLyricWindow,
   getTargetWebContents: () => getDesktopLyricWindow()?.webContents ?? null,
-  isAvailable: () => !desktopLyricUsesWayland,
+  isAvailable: () => true,
   canStart: () => !snapshot.settings.locked,
   transformBounds: (bounds) => {
     const limits = getDesktopLyricWindowLimits();
@@ -198,9 +192,7 @@ const persistWindowBounds = () => {
   const win = getDesktopLyricWindow();
   if (!win || win.isDestroyed()) return;
   const bounds = win.getBounds();
-  persistDesktopLyricWindowState(
-    desktopLyricUsesWayland ? { width: bounds.width, height: bounds.height } : bounds,
-  );
+  persistDesktopLyricWindowState(bounds);
 };
 
 const toFiniteNumber = (value: unknown, fallback: number) => {
@@ -221,14 +213,8 @@ const buildDesktopLyricWindowBounds = (patch: DesktopLyricWindowBoundsUpdate) =>
   return constrainBoundsToDisplay({
     width: toFiniteNumber(patch.width, currentBounds?.width ?? storedWindowState.width),
     height: toFiniteNumber(patch.height, currentBounds?.height ?? storedWindowState.height),
-    x: toOptionalFiniteNumber(
-      patch.x,
-      desktopLyricUsesWayland ? storedWindowState.x : (currentBounds?.x ?? storedWindowState.x),
-    ),
-    y: toOptionalFiniteNumber(
-      patch.y,
-      desktopLyricUsesWayland ? storedWindowState.y : (currentBounds?.y ?? storedWindowState.y),
-    ),
+    x: toOptionalFiniteNumber(patch.x, currentBounds?.x ?? storedWindowState.x),
+    y: toOptionalFiniteNumber(patch.y, currentBounds?.y ?? storedWindowState.y),
   });
 };
 
@@ -270,11 +256,6 @@ const reconcileDesktopLyricBounds = () => {
   const win = getDesktopLyricWindow();
   if (!win || win.isDestroyed()) return null;
   const bounds = win.getBounds();
-  if (desktopLyricUsesWayland) {
-    persistWindowBounds();
-    const storedWindowState = getDesktopLyricWindowState();
-    return { ...storedWindowState, width: bounds.width, height: bounds.height };
-  }
   const nextBounds = constrainBoundsToDisplay(bounds);
   const changed =
     bounds.x !== nextBounds.x ||
@@ -323,12 +304,11 @@ const stopDesktopLyricHoverPolling = () => {
     desktopLyricHoverPollTimer = null;
   }
   desktopLyricCursorInside = false;
-  desktopLyricCursorOverUnlockButton = false;
 };
 
 const getDesktopLyricCursorState = () => {
   const win = getDesktopLyricWindow();
-  if (desktopLyricUsesWayland || !win || win.isDestroyed() || !win.isVisible()) return null;
+  if (!win || win.isDestroyed() || !win.isVisible()) return null;
   try {
     const point = screen.getCursorScreenPoint();
     const bounds = win.getBounds();
@@ -349,19 +329,6 @@ const getDesktopLyricCursorState = () => {
 
 const getDesktopLyricHoverState = () => getDesktopLyricCursorState()?.inside ?? false;
 
-const isCursorOverDesktopLyricUnlockButton = (
-  cursorState: NonNullable<ReturnType<typeof getDesktopLyricCursorState>>,
-) => {
-  const bounds = desktopLyricUnlockButtonBounds;
-  if (!cursorState.inside || !bounds) return false;
-  return (
-    cursorState.clientX >= bounds.x &&
-    cursorState.clientX < bounds.x + bounds.width &&
-    cursorState.clientY >= bounds.y &&
-    cursorState.clientY < bounds.y + bounds.height
-  );
-};
-
 const pollDesktopLyricHover = () => {
   const win = getDesktopLyricWindow();
   if (!win || win.isDestroyed() || !win.isVisible()) {
@@ -370,21 +337,6 @@ const pollDesktopLyricHover = () => {
   }
   const cursorState = getDesktopLyricCursorState();
   const inside = cursorState?.inside ?? false;
-  const overUnlockButton = Boolean(
-    cursorState &&
-    desktopLyricUsesX11HitTesting &&
-    snapshot.settings.locked &&
-    snapshot.settings.showUnlockButton &&
-    isCursorOverDesktopLyricUnlockButton(cursorState),
-  );
-  if (overUnlockButton !== desktopLyricCursorOverUnlockButton) {
-    desktopLyricCursorOverUnlockButton = overUnlockButton;
-    // Linux 不支持 setIgnoreMouseEvents 的 forward 选项。X11 下由主进程
-    // 轮询光标，只在解锁按钮范围内临时接收鼠标事件。
-    if (desktopLyricUsesX11HitTesting && snapshot.settings.locked) {
-      applyDesktopLyricIgnoreMouseEvents(!overUnlockButton, { force: true });
-    }
-  }
   const changed = inside !== desktopLyricCursorInside;
   if (!changed) return;
   desktopLyricCursorInside = inside;
@@ -400,7 +352,7 @@ const pollDesktopLyricHover = () => {
 };
 
 const startDesktopLyricHoverPolling = () => {
-  if (desktopLyricUsesWayland || desktopLyricHoverPollTimer) return;
+  if (desktopLyricHoverPollTimer) return;
   desktopLyricCursorInside = false;
   pollDesktopLyricHover();
   desktopLyricHoverPollTimer = setInterval(
@@ -414,10 +366,10 @@ const applyDesktopLyricInteractionState = () => {
   if (!win || win.isDestroyed()) return;
   if (snapshot.settings.locked) {
     applyDesktopLyricIgnoreMouseEvents(true, {
-      forward: snapshot.settings.showUnlockButton && !desktopLyricUsesWayland,
+      forward: snapshot.settings.showUnlockButton,
       force: true,
     });
-    if (snapshot.settings.showUnlockButton && !desktopLyricUsesWayland) {
+    if (snapshot.settings.showUnlockButton) {
       startDesktopLyricHoverPolling();
     } else {
       stopDesktopLyricHoverPolling();
@@ -429,7 +381,7 @@ const applyDesktopLyricInteractionState = () => {
     // 解锁后清掉锁定态 hover。渲染进程负责即时点亮；macOS/Windows/X11
     // 再由整窗光标轮询兜底处理 mouseleave/失焦丢失。
     sendDesktopLyricHover(false);
-    if (!desktopLyricUsesWayland) startDesktopLyricHoverPolling();
+    startDesktopLyricHoverPolling();
   }
 };
 
@@ -481,10 +433,8 @@ const bindMainWindowEvents = () => {
   desktopLyricMainWindowBound = true;
   mainWin.on('move', onMainWindowMoveOrResize);
   mainWin.on('resize', onMainWindowMoveOrResize);
-  if (process.platform !== 'linux') {
-    mainWin.on('moved', onMainWindowMoveOrResizeEnd);
-    mainWin.on('resized', onMainWindowMoveOrResizeEnd);
-  }
+  mainWin.on('moved', onMainWindowMoveOrResizeEnd);
+  mainWin.on('resized', onMainWindowMoveOrResizeEnd);
 };
 
 const unbindMainWindowEvents = () => {
@@ -504,10 +454,8 @@ const unbindMainWindowEvents = () => {
   if (!mainWin) return;
   mainWin.removeListener('move', onMainWindowMoveOrResize);
   mainWin.removeListener('resize', onMainWindowMoveOrResize);
-  if (process.platform !== 'linux') {
-    mainWin.removeListener('moved', onMainWindowMoveOrResizeEnd);
-    mainWin.removeListener('resized', onMainWindowMoveOrResizeEnd);
-  }
+  mainWin.removeListener('moved', onMainWindowMoveOrResizeEnd);
+  mainWin.removeListener('resized', onMainWindowMoveOrResizeEnd);
 };
 
 const destroyDesktopLyricWindowFromFailure = (reason: 'unresponsive' | 'render-process-gone') => {
@@ -554,7 +502,6 @@ export const ensureDesktopLyricWindow = async () => {
     stopDesktopLyricHoverPolling();
     unbindMainWindowEvents();
     resetDesktopLyricIgnoreMouseEventsCache();
-    desktopLyricUnlockButtonBounds = null;
     desktopLyricDragController.dispose();
     withDesktopLyricWindow(null);
     desktopLyricClosingFromFailure = false;
@@ -635,7 +582,6 @@ export const destroyDesktopLyricWindow = () => {
   stopDesktopLyricHoverPolling();
   unbindMainWindowEvents();
   resetDesktopLyricIgnoreMouseEventsCache();
-  desktopLyricUnlockButtonBounds = null;
   withDesktopLyricWindow(null);
   win.destroy();
 };
@@ -670,8 +616,8 @@ export const updateDesktopLyricSettings = async (partial: Partial<DesktopLyricSe
     const candidateWindowState = {
       width: currentBounds?.width ?? nextWindowState.width,
       height: currentBounds?.height ?? nextWindowState.height,
-      x: desktopLyricUsesWayland ? nextWindowState.x : (currentBounds?.x ?? nextWindowState.x),
-      y: desktopLyricUsesWayland ? nextWindowState.y : (currentBounds?.y ?? nextWindowState.y),
+      x: currentBounds?.x ?? nextWindowState.x,
+      y: currentBounds?.y ?? nextWindowState.y,
     };
     nextWindowState = constrainBoundsToDisplay(
       getLayoutPreferredBounds(candidateWindowState, nextSettings.layout),
@@ -784,9 +730,7 @@ export const registerDesktopLyricHandlers = () => {
     const storedWindowState = getDesktopLyricWindowState();
     if (win && !win.isDestroyed()) {
       const bounds = win.getBounds();
-      return desktopLyricUsesWayland
-        ? { ...storedWindowState, width: bounds.width, height: bounds.height }
-        : bounds;
+      return bounds;
     }
     return constrainBoundsToDisplay(storedWindowState);
   });
@@ -934,10 +878,7 @@ export const registerDesktopLyricHandlers = () => {
   ipcRegistry.registerListener(
     'desktop-lyric:set-ignore-mouse-events',
     (_event, ignore: boolean) => {
-      if (
-        snapshot.settings.locked &&
-        (!snapshot.settings.showUnlockButton || desktopLyricUsesWayland)
-      ) {
+      if (snapshot.settings.locked && !snapshot.settings.showUnlockButton) {
         applyDesktopLyricIgnoreMouseEvents(true, { force: true });
         return;
       }
@@ -946,34 +887,6 @@ export const registerDesktopLyricHandlers = () => {
       } else {
         applyDesktopLyricIgnoreMouseEvents(false);
       }
-    },
-  );
-
-  ipcRegistry.registerListener(
-    'desktop-lyric:set-unlock-button-bounds',
-    (_event, payload: DesktopLyricClientRect | null) => {
-      if (!payload) {
-        desktopLyricUnlockButtonBounds = null;
-        return;
-      }
-      const { x, y, width, height } = payload;
-      if (
-        !Number.isFinite(x) ||
-        !Number.isFinite(y) ||
-        !Number.isFinite(width) ||
-        !Number.isFinite(height) ||
-        width <= 0 ||
-        height <= 0
-      ) {
-        desktopLyricUnlockButtonBounds = null;
-        return;
-      }
-      desktopLyricUnlockButtonBounds = {
-        x: Math.round(x),
-        y: Math.round(y),
-        width: Math.round(width),
-        height: Math.round(height),
-      };
     },
   );
 

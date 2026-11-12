@@ -49,7 +49,6 @@ import {
   getMacDmgAsset,
   MAC_MANUAL_UPDATE_MESSAGE,
   requiresManualMacUpdate,
-  type GithubReleaseAsset,
 } from '../../shared/manualUpdate';
 import { applyLogSettings, getLogSettings } from '../logger';
 import { getPlaybackQueueStorage } from '../storage/playbackQueues';
@@ -120,12 +119,6 @@ type GithubRelease = {
   assets?: unknown;
 };
 
-type LinuxDistribution = {
-  id: string;
-  idLike: string[];
-};
-
-type LinuxPackageType = 'deb' | 'rpm' | 'pacman';
 const UPDATE_INSTALL_EXIT_TIMEOUT_MS = 15000;
 let echoUpdaterSilent = false;
 
@@ -147,47 +140,6 @@ const normalizeOpenExternalUrl = (value: unknown): string | null => {
   } catch {
     return null;
   }
-};
-
-const readLinuxDistribution = (): LinuxDistribution | null => {
-  if (process.platform !== 'linux') return null;
-  try {
-    const content = fs.readFileSync('/etc/os-release', 'utf-8');
-    const values = new Map<string, string>();
-    for (const line of content.split('\n')) {
-      const match = line.match(/^([A-Z_]+)=(.*)$/);
-      if (!match) continue;
-      values.set(match[1], match[2].trim().replace(/^"(.*)"$/, '$1'));
-    }
-    const id = values.get('ID')?.toLowerCase() || '';
-    const idLike = (values.get('ID_LIKE') || '').toLowerCase().split(/\s+/).filter(Boolean);
-    return { id, idLike };
-  } catch (error) {
-    log.warn('[Updater] Failed to read Linux distribution:', error);
-    return null;
-  }
-};
-
-const isArchLinux = (): boolean => {
-  const distro = readLinuxDistribution();
-  if (!distro) return false;
-  return distro.id === 'arch' || distro.idLike.includes('arch');
-};
-
-const readLinuxPackageType = (): LinuxPackageType | null => {
-  if (process.platform !== 'linux') return null;
-  try {
-    const value = fs.readFileSync(join(process.resourcesPath, 'package-type'), 'utf-8').trim();
-    return value === 'deb' || value === 'rpm' || value === 'pacman' ? value : null;
-  } catch {
-    return null;
-  }
-};
-
-const shouldUseArchManualUpdate = (): boolean => {
-  if (!isArchLinux()) return false;
-  if (process.env.APPIMAGE) return false;
-  return readLinuxPackageType() !== 'pacman';
 };
 
 const requestJson = async <T>(url: string): Promise<T> => {
@@ -217,55 +169,6 @@ const isNewerRelease = (nextVersion: string, currentVersion: string): boolean =>
   const current = semverValid(currentVersion) ?? semverCoerce(currentVersion)?.version;
   if (next && current) return semverGt(next, current);
   return nextVersion !== currentVersion;
-};
-
-const isArchPacmanPackageName = (name: string): boolean => name.endsWith('.pkg.tar.zst');
-const isElectronUpdaterPacmanPackageName = (name: string): boolean => name.endsWith('.pacman');
-const isPacmanAssetName = (name: string): boolean =>
-  isArchPacmanPackageName(name) || isElectronUpdaterPacmanPackageName(name);
-
-const getArchLinuxPackageAsset = (release: GithubRelease): GithubReleaseAsset | null => {
-  const assets = Array.isArray(release.assets) ? (release.assets as GithubReleaseAsset[]) : [];
-  const archTokens =
-    process.arch === 'x64'
-      ? ['x86_64', 'x64', 'amd64']
-      : process.arch === 'arm64'
-        ? ['arm64', 'aarch64']
-        : [process.arch];
-
-  return (
-    assets.find((asset) => {
-      const name = String(asset.name || '').toLowerCase();
-      return isArchPacmanPackageName(name) && archTokens.some((token) => name.includes(token));
-    }) ??
-    assets.find((asset) => {
-      const name = String(asset.name || '').toLowerCase();
-      return isArchPacmanPackageName(name);
-    }) ??
-    assets.find((asset) => {
-      const name = String(asset.name || '').toLowerCase();
-      return (
-        isElectronUpdaterPacmanPackageName(name) && archTokens.some((token) => name.includes(token))
-      );
-    }) ??
-    assets.find((asset) => {
-      const name = String(asset.name || '').toLowerCase();
-      return isElectronUpdaterPacmanPackageName(name);
-    }) ??
-    assets.find((asset) => {
-      const name = String(asset.name || '').toLowerCase();
-      return (
-        name.endsWith('.tar.gz') &&
-        name.includes('linux') &&
-        archTokens.some((token) => name.includes(token))
-      );
-    }) ??
-    assets.find((asset) => {
-      const name = String(asset.name || '').toLowerCase();
-      return name.endsWith('.tar.gz') && name.includes('linux');
-    }) ??
-    null
-  );
 };
 
 const probeAudioFileWithFfprobe = async (filePath: string): Promise<boolean | null> =>
@@ -1135,22 +1038,12 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
       return;
     }
 
-    const archiveAsset = manualMacUpdate
-      ? getMacDmgAsset(release.assets, process.arch)
-      : getArchLinuxPackageAsset(release);
-    const archiveName = String(archiveAsset?.name || '').toLowerCase();
-    const isPacmanPackage = isPacmanAssetName(archiveName);
+    const archiveAsset = manualMacUpdate ? getMacDmgAsset(release.assets, process.arch) : null;
     const downloadUrl =
       typeof archiveAsset?.browser_download_url === 'string'
         ? applyGithubAcceleratorUrl(archiveAsset.browser_download_url, payload.githubProxyUrl)
         : releaseUrl;
-    const downloadLabel = archiveAsset
-      ? manualMacUpdate
-        ? '下载 DMG 手动更新'
-        : isPacmanPackage
-          ? '下载 pacman 包'
-          : '下载 tar.gz'
-      : '前往发布页下载';
+    const downloadLabel = archiveAsset ? '下载 DMG 手动更新' : '前往发布页下载';
 
     const result: UpdateCheckResult = {
       status: 'available',
@@ -1164,11 +1057,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
       body: normalizeUpdateNotes((release as any).description || release.body, latestVersion),
       message: manualMacUpdate
         ? MAC_MANUAL_UPDATE_MESSAGE
-        : archiveAsset
-          ? isPacmanPackage
-            ? 'Arch Linux 暂不使用内置安装器，请下载 pacman 包后使用 pacman -U 手动安装。'
-            : 'Arch Linux 暂不使用内置安装器，请下载 tar.gz 压缩包后手动替换安装目录。'
-          : 'Arch Linux 暂不使用内置安装器，请前往发布页选择适合当前系统的安装包。',
+        : '请前往发布页选择适合当前系统的安装包。',
       silent: payload.silent,
     };
     downloadState = { status: 'idle' };
@@ -1419,7 +1308,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
         return;
       }
 
-      if (manualMacUpdate || shouldUseArchManualUpdate()) {
+      if (manualMacUpdate) {
         checkManualUpdate({ prerelease, silent, githubProxyUrl }).catch((error) => {
           log.error('[Updater] Manual update check failed:', error);
           lastCheckResult = {

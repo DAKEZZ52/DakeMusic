@@ -71,28 +71,6 @@ jobs:
             artifact_glob: |
               release/DakeMusic-*.zip
               release/DakeMusic-*.dmg
-          - os: ubuntu-22.04
-            rust_target: ''
-            electron_builder_args: ''
-            artifact_name: DakeMusic-Linux-x64
-            artifact_glob: |
-              release/DakeMusic-*.AppImage
-              release/DakeMusic-*.deb
-              release/DakeMusic-*.pkg.tar.zst
-              release/DakeMusic-*.rpm
-              release/DakeMusic-*.tar.gz
-              release/latest-linux.yml
-          - os: ubuntu-22.04-arm
-            rust_target: ''
-            electron_builder_args: '--linux --arm64'
-            artifact_name: DakeMusic-Linux-arm64
-            artifact_glob: |
-              release/DakeMusic-*.AppImage
-              release/DakeMusic-*.deb
-              release/DakeMusic-*.pkg.tar.zst
-              release/DakeMusic-*.rpm
-              release/DakeMusic-*.tar.gz
-              release/latest-linux-arm64.yml
           - os: windows-latest
             rust_target: ''
             electron_builder_args: '--win --x64'
@@ -124,12 +102,6 @@ jobs:
           node-version: '20'
           cache: pnpm
           cache-dependency-path: pnpm-lock.yaml
-
-      - name: Install Linux build dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libarchive-tools libasound2-dev libpulse-dev libpipewire-0.3-dev libgtk-3-dev libnotify-dev libnss3 libxss1 libxtst6 xdg-utils
 
       - name: Install root dependencies
         run: pnpm install --frozen-lockfile
@@ -192,23 +164,6 @@ jobs:
 
           otool -L "$addon" | tee /tmp/echo-audio-player-otool.txt
           if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv).*\.(dylib|so)' /tmp/echo-audio-player-otool.txt; then
-            echo "ERROR: ffmpeg player addon unexpectedly links to system FFmpeg/mpv libraries"
-            exit 1
-          fi
-
-      - name: Verify Linux ffmpeg player linkage
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -e
-          addon="native/echo-audio-player/echo-audio-player.node"
-          if [ ! -f "$addon" ]; then
-            echo "ERROR: ffmpeg player addon not found: $addon"
-            exit 1
-          fi
-
-          ldd "$addon" | tee /tmp/echo-audio-player-ldd.txt
-          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv)\.so' /tmp/echo-audio-player-ldd.txt; then
             echo "ERROR: ffmpeg player addon unexpectedly links to system FFmpeg/mpv libraries"
             exit 1
           fi
@@ -293,41 +248,9 @@ jobs:
           plist="$app_path/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$plist" >/dev/null
           /usr/libexec/PlistBuddy -c 'Print :NSAudioCaptureUsageDescription' "$plist" >/dev/null
-          codesign -d --entitlements :- "$app_path" > /tmp/echo-music-entitlements.plist
-          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' /tmp/echo-music-entitlements.plist >/dev/null
+          codesign -d --entitlements :- "$app_path" > /tmp/dakemusic-entitlements.plist
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' /tmp/dakemusic-entitlements.plist >/dev/null
           codesign --verify --deep --strict --verbose=2 "$app_path"
-
-      - name: Normalize and verify Arch Linux package
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          set -e
-          shopt -s nullglob
-          for package_path in release/DakeMusic-*.pacman; do
-            mv "$package_path" "${package_path%.pacman}.pkg.tar.zst"
-          done
-
-          packages=(release/DakeMusic-*.pkg.tar.zst)
-          if [ ${#packages[@]} -eq 0 ]; then
-            echo "ERROR: Arch package artifact was not generated"
-            find release -maxdepth 2 -type f -print
-            exit 1
-          fi
-
-          for package_path in "${packages[@]}"; do
-            pkginfo="$(mktemp)"
-            bsdtar -xOf "$package_path" .PKGINFO > "$pkginfo"
-            if grep -Eq '^depend = (http-parser|ffmpeg|mpv)([<>= ].*)?$' "$pkginfo"; then
-              echo "ERROR: unexpected Arch dependency in $package_path"
-              grep -E '^depend = (http-parser|ffmpeg|mpv)([<>= ].*)?$' "$pkginfo"
-              exit 1
-            fi
-            if ! grep -Eq '^depend = alsa-lib([<>= ].*)?$' "$pkginfo"; then
-              echo "ERROR: Arch package is missing alsa-lib runtime dependency"
-              exit 1
-            fi
-            echo "Verified Arch package metadata: $package_path"
-          done
 
       - name: Verify bundled Windows executable
         if: runner.os == 'Windows'

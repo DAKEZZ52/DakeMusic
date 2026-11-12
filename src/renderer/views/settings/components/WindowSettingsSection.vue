@@ -29,7 +29,7 @@ const startupSoundOptions = [...builtinSounds, ...customSounds.value];
 
 const platform = window.electron?.platform;
 const isWindows = computed(() => platform === 'win32');
-const supportsCustomWindowControls = computed(() => platform === 'win32' || platform === 'linux');
+const supportsCustomWindowControls = computed(() => platform === 'win32');
 
 async function uploadStartupSound() {
   try {

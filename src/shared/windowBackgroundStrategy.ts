@@ -5,7 +5,7 @@
  * compositor later does not spread platform checks through the renderer and
  * the main window implementation.
  */
-export type WindowBackgroundStrategyId = 'default' | 'hyprland';
+export type WindowBackgroundStrategyId = 'default';
 
 export type WindowBackgroundTransparentMode = 'layered' | 'pure';
 
@@ -16,8 +16,7 @@ export type WindowBackgroundFrostBackend =
   | 'vibrancy'
   | 'acrylic'
   | 'accent-acrylic'
-  | 'blur-behind'
-  | 'hyprland-blur';
+  | 'blur-behind';
 
 export interface WindowBackgroundCapabilities {
   strategy: WindowBackgroundStrategyId;
@@ -31,41 +30,13 @@ export interface WindowBackgroundCapabilities {
   transparentMode: WindowBackgroundTransparentMode;
 }
 
-type Environment = Readonly<Record<string, string | undefined>>;
-
-const desktopNames = (value: string | undefined) =>
-  (value ?? '')
-    .split(/[:;,]/)
-    .map((part) => part.trim().toLowerCase())
-    .filter(Boolean);
-
-/** Detect Hyprland without depending on a compositor-specific executable. */
-export function isHyprlandEnvironment(env: Environment = {}) {
-  if (env.HYPRLAND_INSTANCE_SIGNATURE?.trim()) return true;
-  return [env.XDG_CURRENT_DESKTOP, env.XDG_SESSION_DESKTOP, env.DESKTOP_SESSION].some((value) =>
-    desktopNames(value).includes('hyprland'),
-  );
-}
-
-export function detectWindowBackgroundStrategy({
-  platform,
-  env = {},
-}: {
-  platform: string;
-  env?: Environment;
-}): WindowBackgroundStrategyId {
-  return platform === 'linux' && isHyprlandEnvironment(env) ? 'hyprland' : 'default';
-}
-
 export function resolveWindowBackgroundCapabilities({
   platform,
   build,
-  strategy = 'default',
   windowsAccentAvailable = false,
 }: {
   platform: string;
   build: number;
-  strategy?: WindowBackgroundStrategyId;
   windowsAccentAvailable?: boolean;
 }): WindowBackgroundCapabilities {
   if (platform === 'win32') {
@@ -87,21 +58,6 @@ export function resolveWindowBackgroundCapabilities({
       supportsFrost: true,
       frostBackend: 'vibrancy',
       frostMode: 'native',
-      frostLive: true,
-      live: false,
-      transparentMode: 'layered',
-    };
-  }
-
-  if (platform === 'linux' && strategy === 'hyprland') {
-    return {
-      strategy: 'hyprland',
-      // Hyprland supplies the backdrop through decoration.blur. The app keeps
-      // an optional color/opacity layer for live controls and never edits the
-      // user's compositor configuration.
-      supportsFrost: true,
-      frostBackend: 'hyprland-blur',
-      frostMode: 'compositor',
       frostLive: true,
       live: false,
       transparentMode: 'layered',

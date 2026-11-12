@@ -53,7 +53,7 @@ const waitForRetry = (delayMs: number, signal: AbortSignal): Promise<boolean> =>
  *
  * 主路径只处理 suspend/resume；Windows 的 unlock-screen 仅在已经确认收到
  * suspend、但 resume 遗失时兜底，普通锁屏解锁不会打断播放。
- * 跨平台注册（Windows/Linux 同样有唤醒后音频失活问题）。
+ * 跨平台注册（Windows 同样有唤醒后音频失活问题）。
  */
 export function initPowerMonitor(ctx: PowerMonitorContext): () => void {
   disposeActivePowerMonitor?.();

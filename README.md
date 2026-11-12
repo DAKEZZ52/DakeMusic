@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/Vue-3.5-brightgreen?logo=vue.js" alt="Vue 3">
   <img src="https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript" alt="TypeScript">
   <img src="https://img.shields.io/badge/Rust-napi--rs-orange?logo=rust" alt="Rust">
-  <img src="https://img.shields.io/badge/Platform-macOS%20%7C%20Windows%20%7C%20Linux-brightgreen" alt="Platform">
+  <img src="https://img.shields.io/badge/Platform-Windows-brightgreen" alt="Platform">
   <img src="https://img.shields.io/badge/License-GPLv3-orange" alt="License">
 </p>
 
@@ -37,14 +37,14 @@
 - **歌词显示**：支持 LRC/YRC 逐字歌词解析、歌词选择、歌词翻译、正则过滤、滚动同步、全屏歌词、写真模式、桌面歌词。
 - **音频增强**：内置跨平台音效引擎，支持 10 段均衡器（按完整频响自动前级补偿）、LUFS 响度标准化和 WAV/IRS 空间音效；也可导入兼容音效引擎，扩展更多预设、可调参数与组合音效。
 - **实时频谱分析**：直接从播放引擎提取音频数据，使用 FFT 进行实时频谱分析，为插件提供低延迟、高精度的频谱帧。
-- **系统媒体控制**：原生集成 macOS MPNowPlayingInfoCenter、Windows SMTC、Linux MPRIS，支持系统媒体按键和进度同步。
+- **系统媒体控制**：原生集成 Windows SMTC，支持系统媒体按键和进度同步。
 - **系统集成**：支持窗口控制、系统托盘、托盘快捷控制、全局快捷键、开机自启动、启动时最小化和 mini 模式。
 - **音频设备**：支持切换音频输出设备、独占模式输出。
 - **插件扩展**：支持在线插件源浏览安装与本地插件加载，自定义页面、侧边栏入口、设置项、播放器按钮、歌曲右键菜单与播放事件监听。
 - **持久化能力**：支持设置、播放历史、收藏、播放状态等本地持久化。
-- **跨平台支持**：完整适配 macOS、Windows 与 Linux 系统。
-- **应用更新**：内置版本检测与更新日志；支持自动更新的平台可在应用内下载安装，macOS 当前提供 DMG 手动更新入口。
-- **持续集成**：完善的 GitHub Actions 配置，支持多平台自动构建与 Release 发布。
+- **系统支持**：当前提供 Windows 版本。
+- **应用更新**：内置版本检测与更新日志，Windows 版可在应用内直接下载安装。
+- **持续集成**：完善的 GitHub Actions 配置，自动构建 Windows 安装包并发布 Release。
 
 ---
 

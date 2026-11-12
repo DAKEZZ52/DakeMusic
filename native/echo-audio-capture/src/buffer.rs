@@ -1,4 +1,4 @@
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 pub trait ToF32Sample: Copy + Send + 'static {
     fn to_f32_sample(self) -> f32;
 }
@@ -63,7 +63,7 @@ impl SampleRing {
         self.written = self.written.saturating_add(1);
     }
 
-    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     pub fn push_interleaved<T: ToF32Sample>(&mut self, input: &[T], channels: usize) {
         if channels == 0 || channels != self.channels {
             return;
@@ -111,7 +111,7 @@ impl SampleRing {
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 macro_rules! impl_signed_sample {
     ($type:ty) => {
         impl ToF32Sample for $type {
@@ -122,7 +122,7 @@ macro_rules! impl_signed_sample {
     };
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 macro_rules! impl_unsigned_sample {
     ($type:ty) => {
         impl ToF32Sample for $type {
@@ -134,35 +134,35 @@ macro_rules! impl_unsigned_sample {
     };
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl ToF32Sample for f32 {
     fn to_f32_sample(self) -> f32 {
         self.clamp(-1.0, 1.0)
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl ToF32Sample for f64 {
     fn to_f32_sample(self) -> f32 {
         self.clamp(-1.0, 1.0) as f32
     }
 }
 
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_signed_sample!(i8);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_signed_sample!(i16);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_signed_sample!(i32);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_signed_sample!(i64);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_unsigned_sample!(u8);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_unsigned_sample!(u16);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_unsigned_sample!(u32);
-#[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+#[cfg(any(target_os = "windows", target_os = "macos"))]
 impl_unsigned_sample!(u64);
 
 #[cfg(test)]

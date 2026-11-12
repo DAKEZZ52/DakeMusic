@@ -167,7 +167,6 @@ type PlayerCoreStateChangePayload = {
 
 export interface IElectronAPI {
   platform: string;
-  isWayland?: boolean;
   ipcRenderer: {
     send: (channel: string, ...args: unknown[]) => void;
     invoke: (channel: string, ...args: unknown[]) => Promise<any>;
@@ -349,8 +348,7 @@ export interface IElectronAPI {
     syncSnapshot: (payload: DesktopLyricSnapshotPatch) => void;
     onSnapshot: (func: (snapshot: DesktopLyricSnapshotMessage) => void) => () => void;
     setIgnoreMouseEvents: (ignore: boolean) => void;
-    setUnlockButtonBounds: (payload: DesktopLyricClientRect | null) => void;
-    onHover: (func: (hovered: boolean) => void) => () => void;
+      onHover: (func: (hovered: boolean) => void) => () => void;
     command: (command: DesktopLyricCommand) => void;
   };
   nowPlaying: {

@@ -70,9 +70,6 @@ impl DeviceWatcher {
 
         #[cfg(not(any(target_os = "windows", target_os = "macos")))]
         {
-            #[cfg(target_os = "linux")]
-            let mut last_pulse_default = crate::device::platform_linux::pulse_default_output_id();
-            #[cfg(not(target_os = "linux"))]
             let _ = playback_output_changed;
             let stop = Arc::new(AtomicBool::new(false));
             let thread_stop = stop.clone();
@@ -89,22 +86,6 @@ impl DeviceWatcher {
                     while !thread_stop.load(Ordering::Acquire) {
                         thread::sleep(Duration::from_secs(1));
                         let devices = crate::device::list_output_devices();
-                        #[cfg(target_os = "linux")]
-                        {
-                            let pulse_default =
-                                crate::device::platform_linux::pulse_default_output_id();
-                            if pulse_default.is_some()
-                                && last_pulse_default.is_some()
-                                && pulse_default != last_pulse_default
-                            {
-                                playback_output_changed(
-                                    PlaybackOutputDeviceEvent::DefaultRouteChanged,
-                                );
-                            }
-                            if pulse_default.is_some() {
-                                last_pulse_default = pulse_default;
-                            }
-                        }
                         let signature = device_list_signature(&devices);
                         if signature == last_signature {
                             continue;

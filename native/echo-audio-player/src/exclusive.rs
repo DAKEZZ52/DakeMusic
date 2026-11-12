@@ -25,15 +25,6 @@ impl ExclusiveGuard {
             return crate::device::platform_macos::acquire_exclusive(device_name);
         }
 
-        #[cfg(target_os = "linux")]
-        {
-            if crate::device::platform_linux::is_alsa_hardware_pcm(device_name)
-                || crate::device::is_default_device_name(device_name)
-            {
-                return Ok(Some(Self::noop()));
-            }
-            return Err("Linux exclusive output requires an ALSA hw:/plughw: device".to_string());
-        }
 
         #[cfg(target_os = "windows")]
         {

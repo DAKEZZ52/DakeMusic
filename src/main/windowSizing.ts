@@ -26,15 +26,6 @@ export const validWindowRect = (value: Partial<WindowRect>): value is WindowRect
 export const displayWorkArea = (display: WindowDisplay): WindowRect =>
   validWindowRect(display.workArea) ? display.workArea : display.bounds;
 
-/** Wayland owns placement. Keep only the application minimum, without monitor heuristics. */
-export function resolveWaylandWindowSize(saved: Partial<WindowRect> | null) {
-  return {
-    bounds: windowSize(saved),
-    minWidth: MAIN_WINDOW_MIN_SIZE.width,
-    minHeight: MAIN_WINDOW_MIN_SIZE.height,
-  };
-}
-
 function windowSize(saved: Partial<WindowRect> | null) {
   return {
     width: Math.max(

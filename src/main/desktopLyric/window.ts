@@ -1,6 +1,5 @@
 import { BrowserWindow, app } from 'electron';
 import { join } from 'path';
-import { isWaylandWindowingBackend } from '../../shared/windowing';
 import {
   getDesktopLyricWindowLimits,
   type DesktopLyricWindowState,
@@ -16,7 +15,6 @@ import {
 import { hardenWebContents } from '../security';
 
 const getBackgroundColor = () => '#00000000';
-const desktopLyricUsesWayland = isWaylandWindowingBackend();
 const desktopLyricUrl = process.env.VITE_DEV_SERVER_URL;
 const desktopLyricHtml = join(__dirname, '../../dist/desktop-lyric.html');
 const DESKTOP_LYRIC_RESTACK_DELAYS_MS =
@@ -53,12 +51,7 @@ export const isDesktopLyricWindowAvailable = () =>
 
 export const persistWindowBounds = () => {
   if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return;
-  const bounds = desktopLyricWindow.getBounds();
-  // Wayland 不提供可靠的全局窗口坐标，getBounds() 的 x/y 通常恒为 0。
-  // 只保存可观测的尺寸，避免把此前在 X11 下保存的位置覆盖掉。
-  persistDesktopLyricWindowState(
-    desktopLyricUsesWayland ? { width: bounds.width, height: bounds.height } : bounds,
-  );
+  persistDesktopLyricWindowState(desktopLyricWindow.getBounds());
   desktopLyricBoundsDirty = false;
 };
 
@@ -124,9 +117,6 @@ const syncMacWorkspaceVisibility = (alwaysOnTop: boolean, force = false) => {
 export const syncWindowPresentation = (alwaysOnTop = true, forceWorkspaceSync = false) => {
   if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return;
   desktopLyricWindow.setBackgroundColor(getBackgroundColor());
-  // Linux 下使用 type: 'toolbar' 配合 setAlwaysOnTop 实现置顶控制。
-  // 注意：Wayland 原生模式下 setAlwaysOnTop 无效（协议限制）；X11/XWayland
-  // 下仍可正常工作。
   desktopLyricWindow.setAlwaysOnTop(alwaysOnTop, alwaysOnTop ? 'screen-saver' : 'normal');
   desktopLyricWindow.setSkipTaskbar(true);
   syncMacWorkspaceVisibility(alwaysOnTop, forceWorkspaceSync);
@@ -175,16 +165,10 @@ export const createDesktopLyricWindow = () => {
     transparent: true,
     backgroundColor: getBackgroundColor(),
     show: false,
-    // 透明窗口的原生缩放在各平台都不稳定，Windows/macOS/X11 统一改用
-    // 渲染进程的窗口内缩放手柄。Wayland 无法可靠地程序化移动窗口，只能保留
-    // 合成器提供的原生交互。
-    resizable: desktopLyricUsesWayland,
+    // 透明窗口的原生缩放在各平台都不稳定，统一改用渲染进程的窗口内缩放手柄。
+    resizable: false,
     movable: true,
-    ...(process.platform === 'darwin'
-      ? { type: 'panel', acceptFirstMouse: true }
-      : process.platform === 'linux'
-        ? { type: 'toolbar' }
-        : {}),
+    ...(process.platform === 'darwin' ? { type: 'panel', acceptFirstMouse: true } : {}),
     hasShadow: false,
     hiddenInMissionControl: process.platform === 'darwin',
     skipTaskbar: true,
@@ -219,7 +203,7 @@ export const createDesktopLyricWindow = () => {
 
   // Windows 上用 moved/resized 事件保存位置（仅在操作结束后触发一次），
   // 避免 move/resize 高频触发时 DPI 缩放导致的坐标舍入偏移累积。
-  // macOS/Linux 保持 move/resize（macOS 的 moved 行为不一致，Linux 不支持 moved）。
+  // macOS 保持 move/resize（macOS 的 moved 行为不一致）。
   bindWindowBoundsPersistenceEvents(
     win,
     process.platform === 'win32' ? persistWindowBounds : schedulePersistWindowBounds,
@@ -248,10 +232,6 @@ export const loadDesktopLyricWindow = async () => {
 
 export const applyWindowBounds = (bounds: DesktopLyricWindowState) => {
   if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return;
-  if (desktopLyricUsesWayland) {
-    desktopLyricWindow.setSize(Math.round(bounds.width), Math.round(bounds.height));
-    return;
-  }
   desktopLyricWindow.setBounds({
     x: Math.round(bounds.x ?? 0),
     y: Math.round(bounds.y ?? 0),
@@ -264,10 +244,7 @@ export const updateWindowBounds = (bounds: DesktopLyricWindowState) => {
   if (!desktopLyricWindow || desktopLyricWindow.isDestroyed()) return bounds;
   applyWindowBounds(bounds);
   persistDesktopLyricWindowState(bounds);
-  const currentBounds = desktopLyricWindow.getBounds();
-  return desktopLyricUsesWayland
-    ? { ...bounds, width: currentBounds.width, height: currentBounds.height }
-    : currentBounds;
+  return desktopLyricWindow.getBounds();
 };
 
 export const applyWindowSizeLimits = () => {

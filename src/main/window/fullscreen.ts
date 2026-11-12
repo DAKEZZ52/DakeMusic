@@ -84,7 +84,7 @@ export function installWindowFullscreen(win: BrowserWindow) {
 }
 
 export function installWindowFullscreenShortcut(win: BrowserWindow) {
-  if (process.platform !== 'win32' && process.platform !== 'linux') return;
+  if (process.platform !== 'win32') return;
 
   let htmlFullscreen = false;
   win.webContents.on('enter-html-full-screen', () => {

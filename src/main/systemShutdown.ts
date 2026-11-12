@@ -10,8 +10,6 @@ export const getShutdownCommand = (platform: string): { file: string; args: stri
     case 'win32':
       // /t 0 avoids the implicit /f used by Windows for a non-zero delay.
       return { file: 'shutdown.exe', args: ['/s', '/t', '0'] };
-    case 'linux':
-      return { file: '/usr/bin/systemctl', args: ['poweroff'] };
     default:
       throw new Error('当前系统暂不支持定时关机');
   }

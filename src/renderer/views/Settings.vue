@@ -163,7 +163,7 @@ const builtinSettingsSections = computed<SettingsRenderSection[]>(() => [
       '彻底退出程序',
       '开机自启动',
       '启动时最小化到托盘',
-      ...(currentPlatform === 'win32' || currentPlatform === 'linux' ? ['全屏按钮'] : []),
+      ...(currentPlatform === 'win32' ? ['全屏按钮'] : []),
       ...(currentPlatform === 'win32' ? ['任务栏封面预览', '任务栏播放进度条'] : []),
     ],
   },
@@ -343,8 +343,6 @@ const builtinSettingsSections = computed<SettingsRenderSection[]>(() => [
       '歌词过滤',
       '过滤表达式',
       '鼠标穿透',
-      'Wayland',
-      'XWayland',
     ],
   },
   {
@@ -396,7 +394,7 @@ const builtinSettingsSections = computed<SettingsRenderSection[]>(() => [
       '禁用 GPU 加速',
       '花屏',
       '渲染异常',
-      ...(currentPlatform === 'win32' || currentPlatform === 'linux'
+      ...(currentPlatform === 'win32'
         ? ['高 DPI 支持', '高DPI', 'DPI', 'dpiScale', '缩放因子', 'force-device-scale-factor']
         : []),
       '开发者工具',

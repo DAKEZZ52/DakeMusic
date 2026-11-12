@@ -21,6 +21,6 @@ assignees: ''
 （应该发生什么）
 
 ## 环境信息
-- 系统：Windows / macOS / Linux
+- 系统：Windows 10 / 11
 - 版本：
 - 依赖/相关软件：

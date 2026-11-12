@@ -26,7 +26,7 @@ const actionOptions = [
   { value: 'quit' as const, icon: logout, description: '停止音乐并退出应用' },
   { value: 'shutdown' as const, icon: power, description: '停止音乐并关闭电脑' },
 ];
-const shutdownSupported = ['darwin', 'win32', 'linux'].includes(window.electron?.platform ?? '');
+const shutdownSupported = ['darwin', 'win32'].includes(window.electron?.platform ?? '');
 const active = computed(() => player.sleepTimer.deadline !== null);
 const busy = computed(() => player.sleepTimer.executing);
 const waiting = computed(() => player.sleepTimer.waitingTrackId !== null);

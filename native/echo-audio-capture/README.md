@@ -1,12 +1,11 @@
 # echo-audio-capture
 
-跨平台的系统输出与输入设备音频采集 N-API 模块。它只负责采集、短期缓冲和 PCM 转换，不依赖听歌识曲接口，也不读取 EchoMusic 播放器内部音频。
+跨平台的系统输出与输入设备音频采集 N-API 模块。它只负责采集、短期缓冲和 PCM 转换，不依赖听歌识曲接口，也不读取 DakeMusic 播放器内部音频。
 
 ## 后端
 
 - Windows：WASAPI loopback（通过 CPAL 打开默认输出设备）
 - macOS：ScreenCaptureKit 系统音频流
-- Linux：PulseAudio/PipeWire monitor source，CPAL 不可用时回退到 `parec`/`pacat`
 - 麦克风/输入设备：三平台统一使用 CPAL input stream
 
 ## API

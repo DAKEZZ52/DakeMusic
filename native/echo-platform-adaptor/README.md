@@ -2,7 +2,7 @@
 
 Windows and macOS desktop window integration. This addon owns HWND/DWM behavior and
 local AppKit mouse observation; it has no
-SMTC/MPRIS/Now Playing lifecycle or audio dependencies.
+SMTC/Now Playing lifecycle or audio dependencies.
 
 - `src/window_composition.rs`: DWM alpha clear and optional Accent BlurBehind backends.
 - `src/taskbar.rs`: iconic thumbnail and Aero Peek cover previews, moved from
@@ -22,7 +22,7 @@ npm run build
 
 This generates `echo-platform-adaptor.node` and `index.d.ts`. Restart the application
 after rebuilding the addon. Windows and macOS release jobs build and package it
-as `resources/native/echo-platform-adaptor.node`. Linux does not load or package it.
+as `resources/native/echo-platform-adaptor.node`. Only Windows loads and packages it.
 `Cargo.lock` is committed for reproducible dependency resolution.
 
 Cross-target type checking from a machine with the Windows Rust target installed:

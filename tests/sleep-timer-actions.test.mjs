@@ -74,6 +74,5 @@ test('shutdown command mappings use normal system requests without force or shel
     args: ['-e', 'tell application "System Events" to shut down'],
   });
   assert.deepEqual(getShutdownCommand('win32'), { file: 'shutdown.exe', args: ['/s', '/t', '0'] });
-  assert.deepEqual(getShutdownCommand('linux'), { file: '/usr/bin/systemctl', args: ['poweroff'] });
   assert.throws(() => getShutdownCommand('unknown'), /不支持/);
 });

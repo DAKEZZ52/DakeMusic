@@ -6,10 +6,7 @@ import {
   normalizeWindowBackground,
   type WindowBackground,
 } from '../../shared/windowBackground';
-import {
-  detectWindowBackgroundStrategy,
-  resolveWindowBackgroundCapabilities,
-} from '../../shared/windowBackgroundStrategy';
+import { resolveWindowBackgroundCapabilities } from '../../shared/windowBackgroundStrategy';
 import { BrowserWindow, app, nativeTheme, powerSaveBlocker, screen } from 'electron';
 import { join } from 'path';
 import log from '../logger';
@@ -21,8 +18,7 @@ import { getActiveWindowMode, setActiveWindowMode } from './mode';
 import { ipcRegistry } from '../ipc/registry';
 import { applyWindowAppIcon, resolveWindowIconPath } from '../appIcons';
 import { logMainMemory } from '../diagnostics/memory';
-import { resolveMainWindowPlacement, resolveWaylandWindowSize } from '../windowSizing';
-import { isWaylandWindowingBackend } from '../../shared/windowing';
+import { resolveMainWindowPlacement } from '../windowSizing';
 import { trackMainWindowState } from './state';
 import { installWindowPointerEvents } from './pointer';
 import {
@@ -32,7 +28,6 @@ import {
 } from './windowsComposition';
 import { applyMacWindowBackground } from './macComposition';
 import { createTitleBarController } from './titleBar';
-import { createHyprlandBackgroundController } from './hyprlandBackground';
 import { installWindowZoom, registerWindowZoomHandlers } from './zoom';
 import {
   installWindowFullscreen,
@@ -49,14 +44,9 @@ let currentTheme: ThemeMode = initialSettings.theme;
 let windowBackground = normalizeWindowBackground(initialSettings.windowBackground);
 let windowBackgroundActiveEnabled = windowBackground.enabled;
 const osBuild = Number(release().split('.')[2]);
-const windowBackgroundStrategy = detectWindowBackgroundStrategy({
-  platform: process.platform,
-  env: process.env,
-});
 const windowBackgroundCapabilities = resolveWindowBackgroundCapabilities({
   platform: process.platform,
   build: osBuild,
-  strategy: windowBackgroundStrategy,
   windowsAccentAvailable: process.platform === 'win32' && supportsWindowsAccent(),
 });
 const supportsWindowFrost = windowBackgroundCapabilities.supportsFrost;
@@ -77,9 +67,8 @@ let isQuitting = false;
 let zoomController: ReturnType<typeof installWindowZoom> | null = null;
 let backgroundUnavailableReason = '';
 let titleBarController: ReturnType<typeof createTitleBarController> | null = null;
-// 自绘窗口控制：禁用系统原生 WCO（Windows/Linux 的 -/□/× 由渲染层渲染，尺寸可控可放大），macOS 仍用红绿灯
+// 自绘窗口控制：禁用系统原生 WCO（Windows 的 -/□/× 由渲染层渲染，尺寸可控可放大），macOS 仍用红绿灯
 const usesNativeOverlay = false;
-const usesWayland = isWaylandWindowingBackend();
 const syncTitleBar = (level = normalizeZoomLevel(getMainAppSettings().windowZoomLevel)) => {
   titleBarController?.sync(level);
 };
@@ -177,25 +166,10 @@ const getMainWindowBackgroundColor = () =>
     ? '#26262a'
     : '#f5f5f7';
 
-let activeComposition = getWindowComposition(
-  windowBackground,
-  process.platform,
-  osBuild,
-  windowBackgroundStrategy,
-);
+let activeComposition = getWindowComposition(windowBackground, process.platform, osBuild);
 let windowBackgroundActiveFrosted: boolean | null = windowBackground.frosted;
 let windowBackgroundRestartRequired = false;
-let hyprlandBackgroundController: ReturnType<typeof createHyprlandBackgroundController> | null =
-  null;
 export const getMainWindowClientCornerRadius = () => activeComposition.clientCornerRadius;
-
-const syncHyprlandBackground = (remapped = false) => {
-  if (!hyprlandBackgroundController) return;
-  hyprlandBackgroundController.setBlurEnabled(
-    windowBackgroundActiveEnabled && windowBackgroundActiveFrosted === true,
-    remapped,
-  );
-};
 
 const syncMainWindowBackground = () => {
   if (!canUseMainWindow(win)) return;
@@ -244,7 +218,6 @@ const syncMainWindowBackground = () => {
       );
     }
   }
-  syncHyprlandBackground();
   // Publish only after native materials and surface colors agree with the renderer state.
   win.webContents.send('window-background:changed', readBackgroundState());
 };
@@ -364,23 +337,16 @@ export async function createWindow() {
 
   const initialWindowState = getMainAppSettings().windowState;
   const displays = screen.getAllDisplays();
-  const placement = usesWayland
-    ? resolveWaylandWindowSize(rememberWindowSize ? initialWindowState : null)
-    : resolveMainWindowPlacement(
-        rememberWindowSize ? initialWindowState : null,
-        displays,
-        screen.getPrimaryDisplay().id,
-      );
+  const placement = resolveMainWindowPlacement(
+    rememberWindowSize ? initialWindowState : null,
+    displays,
+    screen.getPrimaryDisplay().id,
+  );
   const windowIconPath = process.platform === 'darwin' ? '' : resolveWindowIconPath();
   await logMainMemory('createWindow:before BrowserWindow');
 
   windowBackgroundActiveEnabled = windowBackground.enabled;
-  activeComposition = getWindowComposition(
-    windowBackground,
-    process.platform,
-    osBuild,
-    windowBackgroundStrategy,
-  );
+  activeComposition = getWindowComposition(windowBackground, process.platform, osBuild);
   windowBackgroundActiveFrosted = windowBackground.frosted;
   windowBackgroundRestartRequired = false;
   win = new BrowserWindow({
@@ -448,15 +414,12 @@ export async function createWindow() {
     // Keep sheets below the same fixed native strip as the traffic lights.
     win.setSheetOffset(46);
   }
-  if (displays.length > 1 && process.platform !== 'linux') {
+  if (displays.length > 1) {
     // VS Code's Electron workaround: the constructor can clamp a secondary
     // display's larger bounds to the primary display before the HWND is placed.
     win.setBounds(placement.bounds);
   }
   const mainWindow = win;
-  if (windowBackgroundStrategy === 'hyprland') {
-    hyprlandBackgroundController = createHyprlandBackgroundController(mainWindow);
-  }
   installWindowPointerEvents(mainWindow);
   titleBarController = usesNativeOverlay
     ? createTitleBarController(
@@ -473,7 +436,7 @@ export async function createWindow() {
     initial: initialWindowState,
     enabled: () => rememberWindowSize,
     save: (state) => setMainAppSetting('windowState', state),
-    supportsPosition: !usesWayland,
+    supportsPosition: true,
     macOS: process.platform === 'darwin',
     transitioning: () => isWindowFullscreenTransitioning(mainWindow),
   });
@@ -500,13 +463,7 @@ export async function createWindow() {
       win?.show();
       void logMainMemory('main window:after show');
     }
-    // The native surface address is only reliable after the window has been
-    // created by the compositor; retry the selected blur mode at this point.
-    syncHyprlandBackground();
   });
-  // Hide/show can recreate the Hyprland client property while the saved
-  // setting stays unchanged. Re-apply it after every map, without delaying show.
-  win.on('show', () => syncHyprlandBackground(true));
 
   win.webContents.once('dom-ready', () => {
     void logMainMemory('main window:dom-ready');

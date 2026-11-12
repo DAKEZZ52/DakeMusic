@@ -68,7 +68,6 @@ Review `native/echo-platform-adaptor/README.md` alongside Electron's constructor
 `IsTranslucent`, `ShouldWindowContentsBeTransparent` and `SetBackgroundMaterial`
 implementations. Automated state tests and cross-compilation do not replace these
 Windows visual checks. `thickFrame` is a Windows-only option in Electron 43.6.0;
-Linux resize behavior must be tested through its actual frame/WCO/compositor path.
 
 ## Size comparison (2026-09-07)
 
@@ -92,14 +91,14 @@ omits all 13 renderer-only package directories, resolves the nine declared runti
 dependencies and generated static main/preload imports, loads `font-list`, and
 parses a WAV with the packaged `music-metadata`. App code and native binaries
 match the comparison package byte for byte. Full application interaction and
-Windows/Linux packaging were not tested in this comparison.
+Windows packaging was not tested in this comparison.
 
 ## Native platform addon
 
 Windows additionally builds `native/echo-platform-adaptor` for DWM background
 composition and taskbar previews. Its `.node` file is listed in `win.extraResources`
 and verified by the release workflow. It is not a dependency of
-`echo-media-controls` and is not packaged on macOS/Linux. See
+`echo-media-controls` and is not packaged on macOS. See
 [window shell build instructions](../native/echo-platform-adaptor/README.md).
 
 When a packaged Windows build still appears opaque, collect `复制窗口诊断信息`

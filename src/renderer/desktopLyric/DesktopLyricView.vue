@@ -68,7 +68,6 @@ interface RenderLine {
 // ── 状态 ──
 
 const snapshot = ref<DesktopLyricSnapshot | null>(null);
-const isWayland = window.electron?.isWayland ?? false;
 let disposeSnapshotListener: (() => void) | null = null;
 let disposeHoverListener: (() => void) | null = null;
 let disposeCancelDragListener: (() => void) | null = null;
@@ -289,8 +288,8 @@ const lyrics = computed(() => {
 });
 const isLocked = computed(() => settings.value?.locked ?? false);
 const showUnlockButton = computed(() => settings.value?.showUnlockButton ?? true);
-// Wayland 不支持全局光标坐标与鼠标事件转发，锁定后只能通过托盘菜单解锁。
-const canShowUnlockButton = computed(() => showUnlockButton.value && !isWayland);
+// 锁定后若无法点击解锁按钮，可通过托盘菜单解锁。
+const canShowUnlockButton = computed(() => showUnlockButton.value);
 const hasLyrics = computed(() => lyrics.value.length > 0);
 const lyricTimeOffset = computed(() => snapshot.value?.lyricTimeOffset ?? 0);
 const offsetStepLabel = computed(() => {
@@ -875,7 +874,7 @@ const {
       window.electron?.desktopLyric?.cancelDrag(sessionId) ?? Promise.resolve(null),
   },
   sessionPrefix: 'desktop-lyric',
-  disabled: () => isWayland || isLocked.value || isResizing.value,
+  disabled: () => isLocked.value || isResizing.value,
   isTargetDraggable: (target) =>
     !(target as HTMLElement | null)?.closest('.header, .menu-btn, .resize-handle'),
   onStart: (event, sessionId) => {
@@ -927,7 +926,7 @@ const {
   },
   sessionPrefix: 'desktop-lyric-resize',
   sessionNonce: resizeSessionNoncePromise,
-  disabled: () => isWayland || isLocked.value || isWindowDragActive.value,
+  disabled: () => isLocked.value || isWindowDragActive.value,
   minBounds: { width: DESKTOP_LYRIC_MIN_WIDTH, height: DESKTOP_LYRIC_MIN_HEIGHT },
   getStartBounds: (event) => ({
     x: Math.round(event.screenX - event.clientX),
@@ -949,35 +948,6 @@ const invalidatePendingResize = () => cancelWindowResize();
 // 字体大小随窗口变化
 
 const { height: winHeight, width: winWidth } = useWindowSize();
-
-let lastUnlockButtonBoundsKey: string | null = null;
-const syncUnlockButtonBounds = () => {
-  void nextTick(() => {
-    const element = lockButtonRef.value;
-    if (isWayland || !showUnlockButton.value || !element) {
-      if (lastUnlockButtonBoundsKey !== null) {
-        lastUnlockButtonBoundsKey = null;
-        window.electron?.desktopLyric?.setUnlockButtonBounds(null);
-      }
-      return;
-    }
-    const rect = element.getBoundingClientRect();
-    const bounds = {
-      x: Math.round(rect.x),
-      y: Math.round(rect.y),
-      width: Math.round(rect.width),
-      height: Math.round(rect.height),
-    };
-    const key = `${bounds.x}:${bounds.y}:${bounds.width}:${bounds.height}`;
-    if (key === lastUnlockButtonBoundsKey) return;
-    lastUnlockButtonBoundsKey = key;
-    window.electron?.desktopLyric?.setUnlockButtonBounds(bounds);
-  });
-};
-
-watch([winWidth, winHeight, showUnlockButton, isLocked, lyricLayout], syncUnlockButtonBounds, {
-  flush: 'post',
-});
 
 // 检测窗口大小变化（调整大小）
 watch([winWidth, winHeight], ([w, h], [oldW, oldH]) => {
@@ -1155,7 +1125,6 @@ onMounted(async () => {
   }
   if (disposeSnapshotListener !== subscription.dispose) return;
 
-  syncUnlockButtonBounds();
   cacheWindowBounds(await initialBoundsPromise);
   if (disposeSnapshotListener !== subscription.dispose) return;
   syncAnchor(true);
@@ -1236,7 +1205,6 @@ onBeforeUnmount(() => {
   disposeCancelDragListener = null;
   disposeCancelResizeListener?.();
   disposeCancelResizeListener = null;
-  window.electron?.desktopLyric?.setUnlockButtonBounds(null);
 });
 </script>
 
@@ -1252,7 +1220,6 @@ onBeforeUnmount(() => {
         hovered: isHovered,
         dragging: dragState.isDragging,
         resizing: isResizing,
-        'is-wayland': isWayland,
       },
     ]"
     data-echo-lyric-host="desktop"
@@ -1265,7 +1232,7 @@ onBeforeUnmount(() => {
     @pointercancel="onWindowDragPointerCancel"
     @pointerleave="onWindowDragPointerLeave"
   >
-    <template v-if="!isWayland && !isLocked">
+    <template v-if="!isLocked">
       <div
         v-for="direction in resizeDirections"
         :key="direction"
@@ -1842,11 +1809,6 @@ onBeforeUnmount(() => {
 .desktop-lyric.hovered:not(.locked) .tran-group,
 .desktop-lyric.dragging:not(.locked) .tran-group,
 .desktop-lyric.resizing:not(.locked) .tran-group,
-.desktop-lyric.is-wayland:hover:not(.locked) .tran-group {
-  opacity: 1;
-  background: rgba(255, 255, 255, 0.1);
-}
-
 .tran-group .menu-btn {
   border-radius: 0;
   margin: 0;
@@ -1905,17 +1867,6 @@ onBeforeUnmount(() => {
   padding: 4px 0;
   writing-mode: vertical-rl;
   text-orientation: mixed;
-}
-
-.desktop-lyric.is-wayland:not(.locked) .lyric-container {
-  app-region: drag;
-  -webkit-app-region: drag;
-}
-
-.desktop-lyric.is-wayland .header,
-.desktop-lyric.is-wayland .menu-btn {
-  app-region: no-drag;
-  -webkit-app-region: no-drag;
 }
 
 .lyric-line {
@@ -2146,15 +2097,8 @@ onBeforeUnmount(() => {
 .desktop-lyric.hovered:not(.locked) {
   background-color: rgba(0, 0, 0, 0.6);
 }
-.desktop-lyric.is-wayland:hover:not(.locked) {
-  background-color: rgba(0, 0, 0, 0.6);
-}
 .desktop-lyric.hovered:not(.locked) .song-name,
 .desktop-lyric.hovered:not(.locked) .menu-btn,
-.desktop-lyric.is-wayland:hover:not(.locked) .song-name,
-.desktop-lyric.is-wayland:hover:not(.locked) .menu-btn {
-  opacity: 1;
-}
 
 /* 拖动和调整大小状态 */
 .desktop-lyric.dragging:not(.locked),

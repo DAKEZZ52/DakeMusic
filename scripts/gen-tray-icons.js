@@ -3,7 +3,6 @@
 // 转换为"品牌蓝色方块 + 白色字形"的统一样式。
 // 输入：build/icons/tray_icon_source.png（源图，alpha 通道标识图形形状）
 // 输出：
-//   - build/icons/linux_tray_icon.png（64x64 PNG）
 //   - build/icons/win_tray_icon.ico（多尺寸 ICO：16/20/24/32/48/64/128/256）
 
 const fs = require('fs');
@@ -15,7 +14,6 @@ const BRAND_G = 0x71;
 const BRAND_B = 0xe3;
 
 const SRC_PNG = path.join(__dirname, '../build/icons/tray_icon_source.png');
-const OUT_LINUX_PNG = path.join(__dirname, '../build/icons/linux_tray_icon.png');
 const OUT_WIN_ICO = path.join(__dirname, '../build/icons/win_tray_icon.ico');
 
 /** 读取 PNG */
@@ -190,10 +188,6 @@ function main() {
   // 1. 染色：黑底 + 镂空字 → 蓝底 + 白字
   const painted = paintBlock(src);
 
-  // 2. Linux: 64x64 PNG
-  const linuxPng = resizeBox(painted, 64);
-  fs.writeFileSync(OUT_LINUX_PNG, PNG.sync.write(linuxPng));
-  console.log(`Wrote Linux icon: ${OUT_LINUX_PNG} (64x64)`);
 
   // 3. Windows: 多尺寸 ICO
   const winSizes = [16, 20, 24, 32, 48, 64, 128, 256];

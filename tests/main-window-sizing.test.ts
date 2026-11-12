@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   resolveMainWindowPlacement,
-  resolveWaylandWindowSize,
   validateWindowBounds,
   MAIN_WINDOW_DEFAULT_SIZE,
   type WindowDisplay,
@@ -15,14 +14,6 @@ const display = (
   height: number,
 ): WindowDisplay => ({ id, workArea: { x, y, width, height }, bounds: { x, y, width, height } });
 const primary = display(1, 0, 24, 1920, 1056);
-
-test('4K at 150% Wayland allows a 1228x693 quarter-screen tile', () => {
-  const tiled = { width: 1228, height: 693 };
-  const result = resolveWaylandWindowSize(tiled);
-  assert.deepEqual(result.bounds, tiled);
-  assert.equal(result.minHeight, 650);
-  assert.ok(result.minHeight < tiled.height);
-});
 
 test('Windows 1080p at 150% and 4K at 300% fit the logical work area', () => {
   // Both modes yield a 1280x720 DIP display; Electron already applies system scaling.
@@ -37,17 +28,6 @@ test('Windows 1080p at 150% and 4K at 300% fit the logical work area', () => {
     assert.equal(result.minHeight, Math.min(650, workHeight));
     assert.ok(result.bounds.y + result.bounds.height <= workHeight);
   }
-});
-
-test('Wayland omits coordinates and does not infer a monitor from saved positions', () => {
-  const result = resolveWaylandWindowSize({ x: -700, y: 100, width: 1400, height: 900 });
-  assert.deepEqual(result.bounds, { width: 1400, height: 900 });
-  assert.equal(result.minWidth, 1100);
-  assert.equal(result.minHeight, 650);
-  assert.deepEqual(
-    resolveWaylandWindowSize({ width: Infinity, height: -1 }).bounds,
-    MAIN_WINDOW_DEFAULT_SIZE,
-  );
 });
 
 test('default size is centered and remember-disabled callers ignore all saved state', () => {

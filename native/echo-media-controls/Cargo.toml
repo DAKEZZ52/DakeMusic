@@ -24,11 +24,6 @@ features = [
     "Storage_Streams",
 ]
 
-# Linux: MPRIS D-Bus
-[target.'cfg(target_os = "linux")'.dependencies]
-mpris-server = "0.9"
-tempfile = "3"
-
 # macOS: MPNowPlayingInfoCenter
 [target.'cfg(target_os = "macos")'.dependencies]
 block2 = "0.6"

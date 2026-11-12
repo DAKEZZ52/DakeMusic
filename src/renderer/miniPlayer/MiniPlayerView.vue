@@ -49,7 +49,6 @@ const COLLAPSE_ANCHOR_HOLD_MS = 320;
 const LYRIC_LOOKAHEAD_MS = 0;
 const LYRIC_CLOCK_INTERVAL_MS = 80;
 const isMac = navigator.platform.toLowerCase().includes('mac');
-const isWayland = window.electron?.isWayland ?? false;
 
 const playback = ref<MiniPlayerPlaybackPayload | null>(null);
 const { isBusy: isProgressBusy, ariaLabel: progressAriaLabel } = usePlaybackProgressStatus(
@@ -436,7 +435,6 @@ const {
       window.electron?.miniPlayer?.cancelDrag(sessionId) ?? Promise.resolve(null),
   },
   sessionPrefix: 'mini-player',
-  disabled: () => isWayland,
   isTargetDraggable: (target) => !(target as HTMLElement | null)?.closest('.no-drag'),
 });
 
@@ -899,7 +897,6 @@ onUnmounted(() => {
       'expand-up': activeShellDirection === 'up',
       'expand-down': activeShellDirection === 'down',
       'is-always-on-top': alwaysOnTop,
-      'is-wayland': isWayland,
     }"
     @pointerenter="handlePointerEnter"
     @pointerleave="handlePointerLeave"
@@ -1285,14 +1282,6 @@ onUnmounted(() => {
   overflow: hidden;
   transition: height 0.24s cubic-bezier(0.22, 1, 0.36, 1);
   will-change: height;
-}
-
-.mini-shell.is-wayland .mini-card {
-  -webkit-app-region: drag;
-}
-
-.mini-shell.is-wayland .no-drag {
-  -webkit-app-region: no-drag;
 }
 
 .mini-shell.expand-up .mini-card {

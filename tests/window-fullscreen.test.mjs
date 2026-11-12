@@ -51,7 +51,7 @@ function setup(platform) {
   };
 }
 
-for (const platform of ['win32', 'linux']) {
+for (const platform of ['win32']) {
   test(`${platform}: F11 enters and exits fullscreen without toggling on repeat`, () => {
     const window = setup(platform);
     window.send();

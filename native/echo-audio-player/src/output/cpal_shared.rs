@@ -202,21 +202,12 @@ pub(crate) fn spawn_shared_output_thread(
 
 #[cfg(not(target_os = "windows"))]
 fn cpal_backend_name(device: &cpal::Device) -> &'static str {
-    #[cfg(target_os = "linux")]
-    {
-        return match device.id().ok().map(|id| id.host()) {
-            Some(cpal::HostId::PipeWire) => "pipewire",
-            Some(cpal::HostId::PulseAudio) => "pulseaudio",
-            Some(cpal::HostId::Alsa) => "alsa-shared",
-            _ => "cpal",
-        };
-    }
     #[cfg(target_os = "macos")]
     {
         let _ = device;
         "coreaudio-shared"
     }
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "macos")))]
     {
         let _ = device;
         "cpal"
@@ -368,7 +359,7 @@ fn classify_cpal_output_error(
 ) -> CpalOutputErrorAction {
     match kind {
         ErrorKind::Xrun => CpalOutputErrorAction::Ignore { reason: "xrun" },
-        // CPAL's CoreAudio DefaultOutput AudioUnit and PipeWire default node reroute the live
+        // CPAL's CoreAudio DefaultOutput AudioUnit reroutes the live
         // stream themselves. Rebuilding here would duplicate that transition; backends that lose
         // the route report DeviceNotAvailable/StreamInvalidated instead.
         ErrorKind::DeviceChanged => CpalOutputErrorAction::Ignore {

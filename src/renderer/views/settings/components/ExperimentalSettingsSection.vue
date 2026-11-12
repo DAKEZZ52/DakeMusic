@@ -68,7 +68,7 @@ const restartWithDiagnostics = async () => {
 };
 
 const platform = window.electron?.platform;
-const supportsHighDpiOverride = computed(() => platform === 'win32' || platform === 'linux');
+const supportsHighDpiOverride = computed(() => platform === 'win32');
 const dpiScaleLabel = computed(() => Number(settingStore.dpiScale || 1).toFixed(1));
 
 const showUserInfo = ref(false);

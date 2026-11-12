@@ -8,14 +8,12 @@ import type { SleepTimerAction, SleepTimerActionResult } from '../shared/sleepTi
 import type { ShortcutRegistrationRequest, ShortcutRegistrationResult } from '../shared/shortcuts';
 import type {
   DesktopLyricCommand,
-  DesktopLyricClientRect,
   DesktopLyricSettings,
   DesktopLyricSnapshot,
   DesktopLyricSnapshotMessage,
   DesktopLyricSnapshotPatch,
   DesktopLyricWindowBoundsUpdate,
 } from '../shared/desktopLyric';
-import { isWaylandWindowingBackend } from '../shared/windowing';
 import type {
   NowPlayingCommand,
   NowPlayingSnapshot,
@@ -279,11 +277,8 @@ const sendWithPlainPayload = (channel: string, ...args: unknown[]) => {
   ipcRenderer.send(channel, ...args.map(toPlainIpcPayload));
 };
 
-const isWayland = isWaylandWindowingBackend();
-
 contextBridge.exposeInMainWorld('electron', {
   platform: process.platform,
-  isWayland,
   ipcRenderer: {
     send: (channel: string, ...args: any[]) => {
       if (!isChannelAllowed(channel)) return;
@@ -620,8 +615,6 @@ contextBridge.exposeInMainWorld('electron', {
     },
     setIgnoreMouseEvents: (ignore: boolean) =>
       ipcRenderer.send('desktop-lyric:set-ignore-mouse-events', ignore),
-    setUnlockButtonBounds: (payload: DesktopLyricClientRect | null) =>
-      sendWithPlainPayload('desktop-lyric:set-unlock-button-bounds', payload),
     onHover: (func: (hovered: boolean) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, hovered: boolean) => func(hovered);
       ipcRenderer.on('desktop-lyric:hover', listener);
@@ -1284,8 +1277,8 @@ document.addEventListener('fullscreenchange', () => {
   requestAnimationFrame(syncWindowZoomGeometry);
 });
 ipcRenderer.on('window:zoom-changed', syncWindowZoomGeometry);
-// setTitleBarOverlay() and transparent-window composition update asynchronously
-// on Linux. Re-read the WCO safe area after the background preference changes.
+// setTitleBarOverlay() and transparent-window composition update asynchronously.
+// Re-read the WCO safe area after the background preference changes.
 ipcRenderer.on('window-background:changed', () => {
   syncWindowZoomGeometry();
   window.requestAnimationFrame(syncWindowZoomGeometry);

@@ -9,8 +9,6 @@ use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 
-#[cfg(target_os = "linux")]
-pub(crate) mod alsa_exclusive;
 
 #[cfg(target_os = "macos")]
 mod coreaudio_exclusive;
@@ -18,7 +16,7 @@ mod coreaudio_exclusive;
 #[cfg(target_os = "windows")]
 mod wasapi;
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
+#[cfg(target_os = "macos")]
 pub(crate) use cpal_shared::fill_output_reusing;
 
 pub(crate) type OutputStartSender = SyncSender<Result<(), String>>;
@@ -301,14 +299,6 @@ fn selected_backend_name(exclusive: bool) -> &'static str {
         let _ = exclusive;
         "wasapi"
     }
-    #[cfg(target_os = "linux")]
-    {
-        if exclusive {
-            "alsa"
-        } else {
-            "cpal"
-        }
-    }
     #[cfg(target_os = "macos")]
     {
         if exclusive {
@@ -317,7 +307,7 @@ fn selected_backend_name(exclusive: bool) -> &'static str {
             "cpal"
         }
     }
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         let _ = exclusive;
         "cpal"
@@ -347,21 +337,6 @@ fn spawn_selected_backend(
     {
         wasapi::spawn_output_thread(device_name, exclusive, shared, stop, emit, start_notify)
     }
-    #[cfg(target_os = "linux")]
-    {
-        if exclusive {
-            alsa_exclusive::spawn_output_thread(device_name, shared, stop, emit, start_notify)
-        } else {
-            cpal_shared::spawn_shared_output_thread(
-                device_name,
-                exclusive,
-                shared,
-                stop,
-                emit,
-                start_notify,
-            )
-        }
-    }
     #[cfg(target_os = "macos")]
     {
         if exclusive {
@@ -377,7 +352,7 @@ fn spawn_selected_backend(
             )
         }
     }
-    #[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     {
         cpal_shared::spawn_shared_output_thread(
             device_name,

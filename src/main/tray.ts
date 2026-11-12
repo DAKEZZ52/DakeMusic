@@ -63,7 +63,7 @@ const getTrayImage = () => {
     if (process.platform === 'darwin') {
       image.setTemplateImage(true);
     } else {
-      // Win10/Win11/Linux：resize 到标准尺寸，避免兼容性问题
+      // Win10/Win11：resize 到标准尺寸，避免兼容性问题
       cachedTrayImage = { key: cacheKey, image: image.resize({ width: 20, height: 20 }) };
       return cachedTrayImage;
     }
@@ -193,9 +193,6 @@ const rebuildTrayMenu = () => {
   if (appTray) {
     applyTrayImageIfNeeded();
     appTray.setToolTip('DakeMusic');
-    if (process.platform === 'linux') {
-      appTray.setContextMenu(createTrayMenu());
-    }
   }
 
   if (process.platform === 'darwin') {
@@ -223,13 +220,9 @@ export const initTray = (context: TrayContext) => {
     void trayContext?.restoreWindow();
   });
 
-  if (process.platform === 'linux') {
-    appTray.setContextMenu(createTrayMenu());
-  } else {
-    appTray.on('right-click', () => {
-      appTray?.popUpContextMenu(createTrayMenu());
-    });
-  }
+  appTray.on('right-click', () => {
+    appTray?.popUpContextMenu(createTrayMenu());
+  });
 
   return appTray;
 };

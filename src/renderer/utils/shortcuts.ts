@@ -12,7 +12,7 @@ import type {
 } from '../../shared/shortcuts';
 import { formatShortcutRegistrationFailures } from '../../shared/shortcutRegistration';
 
-type ShortcutDisplayPlatform = 'darwin' | 'win32' | 'linux' | string;
+type ShortcutDisplayPlatform = 'darwin' | 'win32' | string;
 
 const MODIFIER_KEY_TOKENS = new Set(['control', 'shift', 'alt', 'meta']);
 const FUNCTION_KEY_PATTERN = /^F(?:[1-9]|1\d|2[0-4])$/i;

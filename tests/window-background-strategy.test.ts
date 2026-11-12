@@ -1,54 +1,54 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import {
-  detectWindowBackgroundStrategy,
-  isHyprlandEnvironment,
-  resolveWindowBackgroundCapabilities,
-} from '../src/shared/windowBackgroundStrategy.ts';
+import { resolveWindowBackgroundCapabilities } from '../src/shared/windowBackgroundStrategy.ts';
 
-test('Hyprland detection accepts its instance signature and desktop identifiers', () => {
-  assert.equal(isHyprlandEnvironment({ HYPRLAND_INSTANCE_SIGNATURE: 'abc123' }), true);
-  assert.equal(isHyprlandEnvironment({ XDG_CURRENT_DESKTOP: 'Hyprland' }), true);
-  assert.equal(isHyprlandEnvironment({ XDG_CURRENT_DESKTOP: 'hyprland:wlroots' }), true);
-  assert.equal(isHyprlandEnvironment({ XDG_CURRENT_DESKTOP: 'KDE' }), false);
-  assert.equal(
-    detectWindowBackgroundStrategy({
-      platform: 'linux',
-      env: { XDG_SESSION_DESKTOP: 'Hyprland' },
-    }),
-    'hyprland',
-  );
-  assert.equal(
-    detectWindowBackgroundStrategy({
-      platform: 'darwin',
-      env: { HYPRLAND_INSTANCE_SIGNATURE: 'abc123' },
-    }),
-    'default',
-  );
-});
-
-test('Hyprland uses compositor blur and keeps layered transparency controls', () => {
+test('Windows 11 uses native acrylic; older builds depend on accent availability', () => {
+  assert.deepEqual(resolveWindowBackgroundCapabilities({ platform: 'win32', build: 22621 }), {
+    strategy: 'default',
+    supportsFrost: true,
+    frostBackend: 'acrylic',
+    frostMode: 'native',
+    frostLive: true,
+    live: true,
+    transparentMode: 'layered',
+  });
   assert.deepEqual(
-    resolveWindowBackgroundCapabilities({ platform: 'linux', build: 0, strategy: 'hyprland' }),
+    resolveWindowBackgroundCapabilities({ platform: 'win32', build: 19045 }),
     {
-      strategy: 'hyprland',
-      supportsFrost: true,
-      frostBackend: 'hyprland-blur',
-      frostMode: 'compositor',
+      strategy: 'default',
+      supportsFrost: false,
+      frostBackend: 'none',
+      frostMode: 'none',
       frostLive: true,
-      live: false,
+      live: true,
+      transparentMode: 'layered',
+    },
+  );
+  assert.deepEqual(
+    resolveWindowBackgroundCapabilities({
+      platform: 'win32',
+      build: 19045,
+      windowsAccentAvailable: true,
+    }),
+    {
+      strategy: 'default',
+      supportsFrost: true,
+      frostBackend: 'accent-acrylic',
+      frostMode: 'native',
+      frostLive: true,
+      live: true,
       transparentMode: 'layered',
     },
   );
 });
 
-test('non-Hyprland Linux keeps the existing no-frost, layered behavior', () => {
-  assert.deepEqual(resolveWindowBackgroundCapabilities({ platform: 'linux', build: 0 }), {
+test('macOS always reports vibrancy without live toggling', () => {
+  assert.deepEqual(resolveWindowBackgroundCapabilities({ platform: 'darwin', build: 0 }), {
     strategy: 'default',
-    supportsFrost: false,
-    frostBackend: 'none',
-    frostMode: 'none',
-    frostLive: false,
+    supportsFrost: true,
+    frostBackend: 'vibrancy',
+    frostMode: 'native',
+    frostLive: true,
     live: false,
     transparentMode: 'layered',
   });

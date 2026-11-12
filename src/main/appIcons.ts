@@ -15,11 +15,7 @@ const resolveDefaultIconPath = (iconName: string) => {
 };
 
 const getDefaultTrayIconName = () =>
-  process.platform === 'darwin'
-    ? 'IconTemplate.png'
-    : process.platform === 'win32'
-      ? 'win_tray_icon.ico'
-      : 'linux_tray_icon.png';
+  process.platform === 'darwin' ? 'IconTemplate.png' : 'win_tray_icon.ico';
 
 export const resolveTrayIconPath = () => resolveDefaultIconPath(getDefaultTrayIconName());
 

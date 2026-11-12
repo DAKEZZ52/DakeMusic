@@ -2,8 +2,6 @@
 mod windows;
 #[cfg(target_os = "macos")]
 mod macos;
-#[cfg(target_os = "linux")]
-mod linux;
 
 use crate::model::{
     MediaControlEvent, MetadataPayload, PlayStatePayload, SkipIntervalPayload, TimelinePayload,
@@ -33,9 +31,5 @@ pub fn create_platform_controls() -> Box<dyn SystemMediaControls> {
     #[cfg(target_os = "macos")]
     {
         Box::new(macos::MacMediaControls::new())
-    }
-    #[cfg(target_os = "linux")]
-    {
-        Box::new(linux::LinuxMediaControls::new())
     }
 }

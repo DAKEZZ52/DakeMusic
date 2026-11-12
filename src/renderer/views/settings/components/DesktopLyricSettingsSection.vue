@@ -22,8 +22,6 @@ import {
 
 const settingStore = useSettingStore();
 const desktopLyricStore = useDesktopLyricStore();
-const isLinux = computed(() => window.electron?.platform === 'linux');
-const isWayland = computed(() => window.electron?.isWayland ?? false);
 const activeDesktopLyricColorField = ref<'playedColor' | 'unplayedColor' | null>(null);
 type RomanizationStyle = 'separate-line' | 'ruby';
 const romanizationStyleOptions = [
@@ -89,9 +87,6 @@ const updateDesktopRomanizationStyle = (value: string | number | (string | numbe
         <p class="text-sm text-text-secondary">
           关闭后桌面歌词不会固定显示在其他窗口或全屏应用之上
         </p>
-        <p v-if="isLinux" class="text-xs text-text-secondary/70">
-          原生 Wayland 下置顶和鼠标穿透受协议限制
-        </p>
       </div>
       <Switch
         :model-value="desktopLyricStore.settings.alwaysOnTop"
@@ -102,17 +97,10 @@ const updateDesktopRomanizationStyle = (value: string | number | (string | numbe
     <div class="settings-item">
       <div class="space-y-1">
         <h3 class="font-semibold">锁定时显示解锁按钮</h3>
-        <p class="text-sm text-text-secondary">
-          {{
-            isWayland
-              ? '原生 Wayland 下锁定后需通过托盘菜单解锁'
-              : '关闭后需通过托盘菜单解锁桌面歌词'
-          }}
-        </p>
+        <p class="text-sm text-text-secondary">关闭后需通过托盘菜单解锁桌面歌词</p>
       </div>
       <Switch
-        :model-value="isWayland ? false : desktopLyricStore.settings.showUnlockButton"
-        :disabled="isWayland"
+        :model-value="desktopLyricStore.settings.showUnlockButton"
         @update:model-value="commitDesktopLyricSettings({ showUnlockButton: Boolean($event) })"
       />
     </div>
