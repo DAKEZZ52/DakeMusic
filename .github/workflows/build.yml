@@ -123,11 +123,33 @@ jobs:
         if: matrix.rust_target != ''
         run: rustup target add ${{ matrix.rust_target }}
 
-      - name: Build native addons
+      - name: Prepare native build toolchain
         shell: bash
         run: |
+          set -e
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            # ffmpeg 汇编需要 nasm，bindgen 需要 libclang
+            choco install nasm -y --no-progress || true
+            LLVM_BIN='C:\Program Files\LLVM\bin'
+            if [ -d "$LLVM_BIN" ]; then
+              echo "$LLVM_BIN" >> "$GITHUB_PATH"
+              echo "LIBCLANG_PATH=$LLVM_BIN" >> "$GITHUB_ENV"
+            fi
+          fi
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            echo "LIBCLANG_PATH=$(brew --prefix llvm)/lib" >> "$GITHUB_ENV"
+          fi
+          echo "RUST_BACKTRACE=1" >> "$GITHUB_ENV"
+          echo "CARGO_BUILD_JOBS=2" >> "$GITHUB_ENV"
+
+      - name: Build native addons
+        timeout-minutes: 45
+        shell: bash
+        run: |
+          set -e
           build_addon() {
             local dir="$1"
+            echo "=== building $dir ==="
             cd "native/$dir"
             npm install
             if [ -n "${{ matrix.rust_target }}" ]; then
@@ -135,21 +157,16 @@ jobs:
             else
               npm run build
             fi
+            cd - >/dev/null
           }
-          pids=()
-          build_addon lyrise-audio-capture & pids+=("$!")
-          build_addon lyrise-media-controls & pids+=("$!")
+          # 串行构建：并行编译多个 ffmpeg 会撑爆 runner 内存，导致失败
+          build_addon lyrise-audio-capture
+          build_addon lyrise-media-controls
           if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
-            build_addon lyrise-platform-adaptor & pids+=("$!")
+            build_addon lyrise-platform-adaptor
           fi
-          build_addon lyrise-audio-player & pids+=("$!")
-          build_addon lyrise-sqlite-store & pids+=("$!")
-
-          status=0
-          for pid in "${pids[@]}"; do
-            wait "$pid" || status=$?
-          done
-          exit "$status"
+          build_addon lyrise-audio-player
+          build_addon lyrise-sqlite-store
 
       - name: Verify macOS ffmpeg player linkage
         if: runner.os == 'macOS'
