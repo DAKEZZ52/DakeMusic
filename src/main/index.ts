@@ -58,4 +58,13 @@ if (fs.existsSync(deviceIdFilePath)) {
 }
 ipcMain.handle('egg:getDeviceId', () => deviceId);
 
+// 品牌改名后旧版仍留在系统里：首次启动延迟静默卸载，不阻塞启动。
+if (app.isPackaged) {
+  setTimeout(() => {
+    void import('./storage/legacyAppCleanup')
+      .then((module) => module.cleanupLegacyApps())
+      .catch(() => {});
+  }, 15_000).unref?.();
+}
+
 void import('./app');
