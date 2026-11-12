@@ -3,16 +3,18 @@
 """
 refresh-site.py — DakeMusic 官网静态版本刷新脚本
 ===================================================
-用途：把最新安装包版本静态写进首页与下载页，页面不再依赖 JS 才有正确版本。
+用途：把最新安装包版本静态写进下载页，页面不再依赖 JS 才有正确版本。
+
+官网首页由 site/ 维护、用 deploy-site.ps1 部署，本脚本不再处理首页。
 
 用法（上传新 exe 到服务器 dl 目录后执行）：
-    python scripts/refresh-site.py            # 仅本地刷新 scripts/*.html
+    python scripts/refresh-site.py            # 仅本地刷新 scripts/dl-index.html
     python scripts/refresh-site.py --upload   # 刷新并 scp 上传到腾讯云 + 验证
 
 原理：
     1. 读取 https://dkyy.top/dl-files/ （nginx autoindex json）
     2. 解析出最新 .exe 的版本号 / 大小 / 日期
-    3. 把版本字段直接写死在 scripts/home-index.html 与 scripts/dl-index.html
+    3. 把版本字段直接写死在 scripts/dl-index.html
     4. 页内保留原有 JS 作为兜底（版本一致时无感知）
 
 作者：知之 Dake | QQ: 983064062
@@ -27,13 +29,11 @@ import urllib.request
 from datetime import datetime, timezone
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HOME_HTML = os.path.join(BASE, 'scripts', 'home-index.html')
 DL_HTML = os.path.join(BASE, 'scripts', 'dl-index.html')
 DL_FILES_URL = 'https://dkyy.top/dl-files/'
 
 SSH_KEY = os.path.join(os.path.expanduser('~'), '.ssh', 'dakemusic_webroom')
 SSH_HOST = 'ubuntu@106.52.9.146'
-REMOTE_HOME = '/var/www/html/index.html'
 REMOTE_DL = '/var/www/dkyy/dl/index.html'
 
 # 各版本一句话简介（与下载页 JS 中的 DESC 保持一致）
@@ -43,16 +43,6 @@ DESC = {
 
 # 下载页历史卡片只展示该版本及之后（更早的安装包仍留在服务器，只是不再列在页面上）
 HISTORY_FROM = '2.4.7'
-
-# 各版本完整更新日志（用于首页 changelog；未配置的版本保留原条目并提示）
-CHANGELOG = {
-    '2.4.7': [
-        'UI布局轻量改动，播放控制优化',
-        '迷你播放器升级为「唱歌模式」：支持原声/伴奏一键切换、升降调调节，支持键盘快捷键（空格播放暂停、←→切歌、↑↓升降调）',
-        '各位反馈的BUG基本修复',
-    ],
-}
-
 
 def fetch_json(url):
     req = urllib.request.Request(url, headers={'User-Agent': 'DakeMusic-refresh/1.0'})
@@ -116,49 +106,6 @@ def latest_exe():
     floor = parse_ver(HISTORY_FROM)
     history = [e for e in exes[1:] if floor is None or cmp_ver(e['ver'], floor) <= 0]
     return exes[0], history
-
-
-def inject_home(path, latest):
-    html = open(path, encoding='utf-8').read()
-    ver, name, size, date = latest['ver']['full'], latest['name'], latest['size'], latest['date']
-    size_s = fmt_size(size)
-
-    # 徽标
-    html, n1 = re.subn(r'(id="hero-badge">)v[\d.]+(?:\s*)(已发布)',
-                       lambda m: m.group(1) + 'v' + ver + ' ' + m.group(2), html)
-    # 所有下载链接（hero / 导航 / 下载卡）
-    html, n2 = re.subn(r'href="/dl/DakeMusic-[\d.]+(?:-beta)?\.exe"',
-                       lambda m: 'href="/dl/' + name + '"', html)
-    # 版本号
-    html, n3 = re.subn(r'(id="dl-ver">)DakeMusic [\d.]+(?:\s*</div>)',
-                       lambda m: m.group(1) + 'DakeMusic ' + ver + '</div>', html)
-    # 元信息（系统 · 大小 · 日期）
-    html, n4 = re.subn(r'(id="dl-meta">Windows x64 · )约 [\d.]+ MB( · [\d-]+)',
-                       lambda m: m.group(1) + '约 ' + size_s + ' · ' + date, html)
-
-    # JSON-LD 结构化数据（softwareVersion / downloadUrl / installUrl 随最新版联动）
-    html, n7 = re.subn(r'"softwareVersion": "[\d.]+(?:-beta)?"',
-                       lambda m: '"softwareVersion": "' + ver + '"', html)
-    html, n8 = re.subn(r'"downloadUrl": "https://dkyy\.top/dl/DakeMusic-[\d.]+(?:-beta)?\.exe"',
-                       lambda m: '"downloadUrl": "https://dkyy.top/dl/' + name + '"', html)
-    html, n9 = re.subn(r'"installUrl": "https://dkyy\.top/dl/DakeMusic-[\d.]+(?:-beta)?\.exe"',
-                       lambda m: '"installUrl": "https://dkyy.top/dl/' + name + '"', html)
-
-    # 更新日志（限定在 .changelog 容器内，避免误匹配页脚链接列表）
-    items = CHANGELOG.get(latest['ver']['full'])
-    if items is not None:
-        html, n5 = re.subn(r'<h4>v[\d.]+ 更新</h4>', '<h4>v' + ver + ' 更新</h4>', html)
-        lis = '\n'.join('            <li>' + i + '</li>' for i in items)
-        html, n6 = re.subn(r'(<div class="changelog">\s*<h4>v[\d.]+ 更新</h4>\s*<ul>).*?(</ul>\s*</div>)',
-                           lambda m: m.group(1) + '\n' + lis + '\n          ' + m.group(2), html, flags=re.S)
-    else:
-        n5 = n6 = 0
-        print('[提示] CHANGELOG 未配置 v%s 的更新日志，首页保留现有条目，请补充到 refresh-site.py' % ver)
-
-    open(path, 'w', encoding='utf-8').write(html)
-    return {'hero_badge': n1, 'dl_links': n2, 'dl_ver': n3, 'dl_meta': n4,
-            'jsonld_ver': n7, 'jsonld_dl': n8, 'jsonld_install': n9,
-            'chg_title': n5, 'chg_list': n6}
 
 
 def inject_dl(path, latest, history):
@@ -247,10 +194,6 @@ def main():
     print('    最新：DakeMusic %s · %s · %s' % (latest['ver']['full'], fmt_size(latest['size']), latest['date']))
     print('    历史：%s' % ', '.join(f['ver']['full'] for f in history) if history else '无')
 
-    print('==> 刷新首页')
-    r1 = inject_home(HOME_HTML, latest)
-    print('    %s' % r1)
-
     print('==> 刷新下载页')
     r2 = inject_dl(DL_HTML, latest, history)
     print('    %s' % r2)
@@ -260,13 +203,11 @@ def main():
         return
 
     print('==> 上传到服务器')
-    scp(HOME_HTML, SSH_HOST + ':' + REMOTE_HOME)
     scp(DL_HTML, SSH_HOST + ':' + REMOTE_DL)
-    print('    已上传：%s' % REMOTE_HOME)
     print('    已上传：%s' % REMOTE_DL)
 
     print('==> 线上验证')
-    for url, label in (('https://dkyy.top/', '首页'), ('https://dkyy.top/dl/', '下载页')):
+    for url, label in (('https://dkyy.top/dl/', '下载页'),):
         try:
             out = fetch_text(url)
         except Exception as exc:
