@@ -36,6 +36,8 @@ native/*/package-lock.json
 *.rpm
 *.AppImage
 *.zip
+# 例外：音频引擎构建依赖的 ffmpeg 精简源码包，CI 与本地都必须拿到
+!native/**/ffmpeg_slim.zip
 *.7z
 *.rar
 *.bak
