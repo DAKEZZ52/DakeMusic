@@ -32,7 +32,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DL_HTML = os.path.join(BASE, 'scripts', 'dl-index.html')
 DL_FILES_URL = 'https://dkyy.top/dl-files/'
 
-SSH_KEY = os.path.join(os.path.expanduser('~'), '.ssh', 'lyrise_webroom')
+SSH_KEY = os.path.join(os.path.expanduser('~'), '.ssh', 'dakemusic_webroom')
 SSH_HOST = 'ubuntu@106.52.9.146'
 REMOTE_DL = '/var/www/dkyy/dl/index.html'
 
@@ -42,7 +42,7 @@ DESC = {
 }
 
 # 下载页历史卡片只展示该版本及之后（更早的安装包仍留在服务器，只是不再列在页面上）
-HISTORY_FROM = '2.4.7'
+HISTORY_FROM = '2.4.9'
 
 def fetch_json(url):
     req = urllib.request.Request(url, headers={'User-Agent': 'LyriseMusic-refresh/1.0'})
@@ -102,7 +102,7 @@ def latest_exe():
         raise RuntimeError('dl 目录未发现任何 exe')
     exes.sort(key=lambda x: (x['ver']['major'], x['ver']['minor'], x['ver']['patch'],
                              -x['ver']['beta']), reverse=True)
-    # LyriseMusic: 历史卡片只保留 HISTORY_FROM 及之后的版本
+    # LyriseMusic: 历史卡片只保留 HISTORY_FROM 及之后的版本（旧品牌安装包已归档到 dl/archive/）
     floor = parse_ver(HISTORY_FROM)
     history = [e for e in exes[1:] if floor is None or cmp_ver(e['ver'], floor) <= 0]
     return exes[0], history
