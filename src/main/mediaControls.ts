@@ -67,8 +67,8 @@ function loadNativeModule(): NativeMediaControls | null {
   try {
     // 打包后在 extraResources 中
     const resourcePath = app.isPackaged
-      ? path.join(process.resourcesPath, 'native', 'echo-media-controls.node')
-      : path.join(__dirname, '../../native/echo-media-controls/echo-media-controls.node');
+      ? path.join(process.resourcesPath, 'native', 'dake-media-controls.node')
+      : path.join(__dirname, '../../native/dake-media-controls/dake-media-controls.node');
 
     log.info('[MediaControls] Loading native addon:', resourcePath);
     return nativeRequire(resourcePath) as NativeMediaControls;
@@ -77,7 +77,7 @@ function loadNativeModule(): NativeMediaControls | null {
     // 开发环境可能未编译，尝试直接加载
     try {
       return nativeRequire(
-        path.join(process.cwd(), 'native/echo-media-controls'),
+        path.join(process.cwd(), 'native/dake-media-controls'),
       ) as NativeMediaControls;
     } catch (err2) {
       log.error(

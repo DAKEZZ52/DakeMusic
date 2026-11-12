@@ -13,7 +13,7 @@ if (process.platform !== 'win32') {
       const addonArg = process.argv.find((arg) => arg.startsWith('--addon='));
       const addonPath = addonArg
         ? path.resolve(addonArg.slice('--addon='.length))
-        : path.resolve(__dirname, '../native/echo-platform-adaptor/echo-platform-adaptor.node');
+        : path.resolve(__dirname, '../native/dake-platform-adaptor/dake-platform-adaptor.node');
       const native = require(addonPath);
       console.log({ electron: process.versions.electron, os: os.release(), addonPath });
       for (const transparent of [false, true]) {

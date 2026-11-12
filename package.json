@@ -147,29 +147,29 @@
         ]
       },
       {
-        "from": "native/echo-media-controls/echo-media-controls.node",
-        "to": "native/echo-media-controls.node",
+        "from": "native/dake-media-controls/dake-media-controls.node",
+        "to": "native/dake-media-controls.node",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "native/echo-audio-player/echo-audio-player.node",
-        "to": "native/echo-audio-player.node",
+        "from": "native/dake-audio-player/dake-audio-player.node",
+        "to": "native/dake-audio-player.node",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "native/echo-audio-capture/echo-audio-capture.node",
-        "to": "native/echo-audio-capture.node",
+        "from": "native/dake-audio-capture/dake-audio-capture.node",
+        "to": "native/dake-audio-capture.node",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "native/echo-sqlite-store/echo-sqlite-store.node",
-        "to": "native/echo-sqlite-store.node",
+        "from": "native/dake-sqlite-store/dake-sqlite-store.node",
+        "to": "native/dake-sqlite-store.node",
         "filter": [
           "**/*"
         ]
@@ -217,8 +217,8 @@
       "icon": "icons/icon.icns",
       "extraResources": [
         {
-          "from": "native/echo-platform-adaptor/echo-platform-adaptor.node",
-          "to": "native/echo-platform-adaptor.node"
+          "from": "native/dake-platform-adaptor/dake-platform-adaptor.node",
+          "to": "native/dake-platform-adaptor.node"
         }
       ],
       "category": "public.app-category.music",
@@ -260,8 +260,8 @@
       "icon": "icons/icon.ico",
       "extraResources": [
         {
-          "from": "native/echo-platform-adaptor/echo-platform-adaptor.node",
-          "to": "native/echo-platform-adaptor.node"
+          "from": "native/dake-platform-adaptor/dake-platform-adaptor.node",
+          "to": "native/dake-platform-adaptor.node"
         }
       ],
       "target": [

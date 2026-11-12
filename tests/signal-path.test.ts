@@ -51,7 +51,6 @@ test('驱动文案：未知后端也能显示，并带上独占/共享', () => {
   assert.equal(formatBackend(null, false), '共享模式');
   assert.equal(formatBackend(null, true), 'WASAPI 独占');
   assert.equal(formatBackend({ backend: 'wasapi' }, false), 'WASAPI · 共享');
-  assert.equal(formatBackend({ backend: 'alsa' }, true), 'ALSA · 独占');
   assert.equal(formatBackend({ backend: 'weird' }, false), 'weird · 共享');
 });
 

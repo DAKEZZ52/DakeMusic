@@ -1,0 +1,16 @@
+{
+  "name": "dake-audio-capture",
+  "version": "0.1.0",
+  "main": "dake-audio-capture.node",
+  "devDependencies": {
+    "@napi-rs/cli": "^3.5.1"
+  },
+  "napi": {
+    "binaryName": "dake-audio-capture",
+    "triples": {}
+  },
+  "scripts": {
+    "build": "napi build --release --no-const-enum",
+    "build:debug": "napi build --no-const-enum"
+  }
+}

@@ -56,7 +56,7 @@ import { mkdirSync, writeFileSync } from 'fs';
 
 const analyzeBundle = process.env.ANALYZE_BUNDLE === '1';
 const bundleAnalysisPlugin = () => ({
-  name: 'echo-bundle-analysis',
+  name: 'dake-bundle-analysis',
   generateBundle(
     _options: unknown,
     bundle: Record<string, { type: string; code?: string; source?: unknown }>,
@@ -121,11 +121,11 @@ export default defineConfig({
                 // require 自身原生绑定 ../bin/napi-v6/<platform>/<arch>/onnxruntime_binding.node，
                 // 必须外置，否则内联进 bundle 后会到 dist-electron/ 下找而报 Cannot find module。
                 'onnxruntime-node',
-                '../../native/echo-audio-capture',
-                '../../native/echo-media-controls',
-                '../../native/echo-platform-adaptor',
-                '../../native/echo-audio-player',
-                '../../native/echo-sqlite-store',
+                '../../native/dake-audio-capture',
+                '../../native/dake-media-controls',
+                '../../native/dake-platform-adaptor',
+                '../../native/dake-audio-player',
+                '../../native/dake-sqlite-store',
               ],
             },
           },

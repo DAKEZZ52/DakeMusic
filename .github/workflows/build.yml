@@ -113,11 +113,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            native/echo-audio-capture
-            native/echo-media-controls
-            native/echo-platform-adaptor
-            native/echo-audio-player
-            native/echo-sqlite-store
+            native/dake-audio-capture
+            native/dake-media-controls
+            native/dake-platform-adaptor
+            native/dake-audio-player
+            native/dake-sqlite-store
 
       - name: Add Rust cross-compile target
         if: matrix.rust_target != ''
@@ -137,13 +137,13 @@ jobs:
             fi
           }
           pids=()
-          build_addon echo-audio-capture & pids+=("$!")
-          build_addon echo-media-controls & pids+=("$!")
+          build_addon dake-audio-capture & pids+=("$!")
+          build_addon dake-media-controls & pids+=("$!")
           if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
-            build_addon echo-platform-adaptor & pids+=("$!")
+            build_addon dake-platform-adaptor & pids+=("$!")
           fi
-          build_addon echo-audio-player & pids+=("$!")
-          build_addon echo-sqlite-store & pids+=("$!")
+          build_addon dake-audio-player & pids+=("$!")
+          build_addon dake-sqlite-store & pids+=("$!")
 
           status=0
           for pid in "${pids[@]}"; do
@@ -156,14 +156,14 @@ jobs:
         shell: bash
         run: |
           set -e
-          addon="native/echo-audio-player/echo-audio-player.node"
+          addon="native/dake-audio-player/dake-audio-player.node"
           if [ ! -f "$addon" ]; then
             echo "ERROR: ffmpeg player addon not found: $addon"
             exit 1
           fi
 
-          otool -L "$addon" | tee /tmp/echo-audio-player-otool.txt
-          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv).*\.(dylib|so)' /tmp/echo-audio-player-otool.txt; then
+          otool -L "$addon" | tee /tmp/dake-audio-player-otool.txt
+          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv).*\.(dylib|so)' /tmp/dake-audio-player-otool.txt; then
             echo "ERROR: ffmpeg player addon unexpectedly links to system FFmpeg/mpv libraries"
             exit 1
           fi
@@ -217,9 +217,9 @@ jobs:
         shell: bash
         run: |
           set -e
-          addons=(echo-audio-capture echo-media-controls echo-audio-player echo-sqlite-store)
+          addons=(dake-audio-capture dake-media-controls dake-audio-player dake-sqlite-store)
           if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
-            addons+=(echo-platform-adaptor)
+            addons+=(dake-platform-adaptor)
           fi
           for addon in "${addons[@]}"; do
             matches=$(find release \( \

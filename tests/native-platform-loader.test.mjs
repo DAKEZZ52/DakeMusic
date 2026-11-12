@@ -48,13 +48,13 @@ test('platform addon is shared by composition and taskbar with one validated loa
   assert.equal(e.get(), e.api);
   // 用 path.join 生成期望值，避免 Windows（反斜杠）与 POSIX 的差异
   assert.deepEqual(e.paths, [
-    path.join('/app/native/echo-platform-adaptor/echo-platform-adaptor.node'),
+    path.join('/app/native/dake-platform-adaptor/dake-platform-adaptor.node'),
   ]);
 });
 test('packaged loading uses the Windows extraResources destination', () => {
   const e = setup({ packaged: true });
   e.get();
-  assert.deepEqual(e.paths, [path.join('/app/resources/native/echo-platform-adaptor.node')]);
+  assert.deepEqual(e.paths, [path.join('/app/resources/native/dake-platform-adaptor.node')]);
 });
 test('missing ABI surface degrades once and non-Windows never loads the DLL', () => {
   const e = setup({ valid: false });

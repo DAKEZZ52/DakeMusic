@@ -29,8 +29,8 @@ let native: NativePlatform | null | undefined;
 const loadAddon = () =>
   createRequire(join(process.cwd(), 'package.json'))(
     app.isPackaged
-      ? join(process.resourcesPath, 'native/echo-platform-adaptor.node')
-      : join(__dirname, '../../native/echo-platform-adaptor/echo-platform-adaptor.node'),
+      ? join(process.resourcesPath, 'native/dake-platform-adaptor.node')
+      : join(__dirname, '../../native/dake-platform-adaptor/dake-platform-adaptor.node'),
   );
 
 export interface NativeWindowPointer {
@@ -52,7 +52,7 @@ export function getNativeWindowPointer(): NativeWindowPointer | null {
       typeof candidate.startWindowPointerMonitor !== 'function' ||
       typeof candidate.stopWindowPointerMonitor !== 'function'
     ) {
-      throw new Error('Rebuild echo-platform-adaptor for window pointer support');
+      throw new Error('Rebuild dake-platform-adaptor for window pointer support');
     }
     windowPointer = candidate as NativeWindowPointer;
   } catch (error) {
@@ -76,7 +76,7 @@ export function getNativePlatform(): NativePlatform | null {
       'taskbarSetLivePreview',
     ];
     if (!methods.every((method) => typeof candidate[method] === 'function')) {
-      throw new Error('echo-platform-adaptor native API mismatch');
+      throw new Error('dake-platform-adaptor native API mismatch');
     }
     native = candidate as NativePlatform;
   } catch (error) {

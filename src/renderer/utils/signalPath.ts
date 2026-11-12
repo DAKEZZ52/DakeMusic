@@ -62,9 +62,6 @@ const BACKEND_LABELS: Record<string, string> = {
   wasapi: 'WASAPI',
   dsound: 'DirectSound',
   coreaudio: 'CoreAudio',
-  alsa: 'ALSA',
-  pulse: 'PulseAudio',
-  pipewire: 'PipeWire',
 };
 
 export const formatBackend = (stats?: OutputStatsLike | null, exclusive = false): string => {

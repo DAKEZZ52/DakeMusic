@@ -2,7 +2,7 @@
  * DakeMusic 原生音频采集模块
  * 作者：知之Dake
  * 文件：audioCapture.ts
- * 描述：系统声音 / 麦克风输入原生采集组件（echo-audio-capture）的加载、取用与生命周期封装
+ * 描述：系统声音 / 麦克风输入原生采集组件（dake-audio-capture）的加载、取用与生命周期封装
  */
 import { app } from 'electron';
 import path from 'path';
@@ -67,10 +67,10 @@ export function loadAudioCapture(): NativeAudioCapture | null {
   if (nativeModule !== undefined) return nativeModule;
 
   const candidates = app.isPackaged
-    ? [path.join(process.resourcesPath, 'native', 'echo-audio-capture.node')]
+    ? [path.join(process.resourcesPath, 'native', 'dake-audio-capture.node')]
     : [
-        path.join(__dirname, '../../native/echo-audio-capture/echo-audio-capture.node'),
-        path.join(process.cwd(), 'native/echo-audio-capture/echo-audio-capture.node'),
+        path.join(__dirname, '../../native/dake-audio-capture/dake-audio-capture.node'),
+        path.join(process.cwd(), 'native/dake-audio-capture/dake-audio-capture.node'),
       ];
 
   for (const candidate of candidates) {
@@ -86,7 +86,7 @@ export function loadAudioCapture(): NativeAudioCapture | null {
 
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    nativeModule = require('../../native/echo-audio-capture') as NativeAudioCapture;
+    nativeModule = require('../../native/dake-audio-capture') as NativeAudioCapture;
     return nativeModule;
   } catch (error) {
     log.warn('[AudioCapture] Native addon unavailable:', error);

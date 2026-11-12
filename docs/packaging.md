@@ -64,7 +64,7 @@ whether the native API returns success. Before shipping an Electron upgrade:
    energy-saving settings and remote desktop where available; record OS build,
    Electron version and visible results separately from API success.
 
-Review `native/echo-platform-adaptor/README.md` alongside Electron's constructor,
+Review `native/dake-platform-adaptor/README.md` alongside Electron's constructor,
 `IsTranslucent`, `ShouldWindowContentsBeTransparent` and `SetBackgroundMaterial`
 implementations. Automated state tests and cross-compilation do not replace these
 Windows visual checks. `thickFrame` is a Windows-only option in Electron 43.6.0;
@@ -95,11 +95,11 @@ Windows packaging was not tested in this comparison.
 
 ## Native platform addon
 
-Windows additionally builds `native/echo-platform-adaptor` for DWM background
+Windows additionally builds `native/dake-platform-adaptor` for DWM background
 composition and taskbar previews. Its `.node` file is listed in `win.extraResources`
 and verified by the release workflow. It is not a dependency of
-`echo-media-controls` and is not packaged on macOS. See
-[window shell build instructions](../native/echo-platform-adaptor/README.md).
+`dake-media-controls` and is not packaged on macOS. See
+[window shell build instructions](../native/dake-platform-adaptor/README.md).
 
 When a packaged Windows build still appears opaque, collect `复制窗口诊断信息`
 from Appearance settings before changing the compositor implementation again.

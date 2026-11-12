@@ -1162,10 +1162,10 @@ export class PlayerController extends EventEmitter {
 
   private resolveAddonPath(): string | null {
     const candidates = app.isPackaged
-      ? [path.join(process.resourcesPath, 'native', 'echo-audio-player.node')]
+      ? [path.join(process.resourcesPath, 'native', 'dake-audio-player.node')]
       : [
-          path.join(__dirname, '../../native/echo-audio-player/echo-audio-player.node'),
-          path.join(process.cwd(), 'native/echo-audio-player/echo-audio-player.node'),
+          path.join(__dirname, '../../native/dake-audio-player/dake-audio-player.node'),
+          path.join(process.cwd(), 'native/dake-audio-player/dake-audio-player.node'),
         ];
     return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
   }
@@ -1173,6 +1173,6 @@ export class PlayerController extends EventEmitter {
   private loadAddon(): PlayerAddon {
     const addonPath = this.resolveAddonPath();
     if (addonPath) return nativeRequire(addonPath) as PlayerAddon;
-    return nativeRequire(path.join(process.cwd(), 'native/echo-audio-player')) as PlayerAddon;
+    return nativeRequire(path.join(process.cwd(), 'native/dake-audio-player')) as PlayerAddon;
   }
 }

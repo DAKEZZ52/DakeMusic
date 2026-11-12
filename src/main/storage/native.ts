@@ -50,15 +50,15 @@ const loadNativeStorageAddon = (): NativeStorageAddon => {
   if (addon) return addon;
 
   const primaryPath = app.isPackaged
-    ? join(process.resourcesPath, 'native', 'echo-sqlite-store.node')
-    : join(__dirname, '../../native/echo-sqlite-store/echo-sqlite-store.node');
+    ? join(process.resourcesPath, 'native', 'dake-sqlite-store.node')
+    : join(__dirname, '../../native/dake-sqlite-store/dake-sqlite-store.node');
 
   try {
     addon = nativeRequire(primaryPath) as NativeStorageAddon;
     return addon;
   } catch (primaryError) {
     try {
-      addon = nativeRequire(join(process.cwd(), 'native/echo-sqlite-store')) as NativeStorageAddon;
+      addon = nativeRequire(join(process.cwd(), 'native/dake-sqlite-store')) as NativeStorageAddon;
       return addon;
     } catch (fallbackError) {
       console.error('[Storage] Native storage addon is unavailable', primaryError, fallbackError);

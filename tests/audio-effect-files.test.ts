@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { createImportedAudioEffectId } from '../src/main/audioEffectFiles.ts';
 
 test('local convolution IDs use the file content SHA-256 instead of its path', async (t) => {
-  const directory = await mkdtemp(join(tmpdir(), 'echo-audio-effect-'));
+  const directory = await mkdtemp(join(tmpdir(), 'dakemusic-audio-effect-'));
   t.after(() => rm(directory, { recursive: true, force: true }));
   const first = join(directory, 'first.wav');
   const renamed = join(directory, 'renamed.irs');
