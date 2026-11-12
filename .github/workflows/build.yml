@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: build-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -331,7 +331,8 @@ jobs:
   release:
     name: Publish Release Assets
     timeout-minutes: 20
-    if: startsWith(github.ref, 'refs/tags/')
+    # 任一平台失败时不阻塞已成功平台的发布：只要不是整批取消就继续
+    if: startsWith(github.ref, 'refs/tags/') && !cancelled()
     needs: build
     runs-on: ubuntu-latest
     permissions:
