@@ -27,7 +27,7 @@ const open = computed({
 const dismiss = () => {
   if (version.value) {
     try {
-      localStorage.setItem('dakemusic_whatsnew_seen', version.value);
+      localStorage.setItem('lyrise_whatsnew_seen', version.value);
     } catch {
       // 存储不可用时忽略：本次仍会关闭，只是下次还会弹
     }

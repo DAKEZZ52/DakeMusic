@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房模块
+ * LyriseMusic 语聊房模块
  * 作者：知之Dake
  * 文件：roomApi.ts
  * 描述：房间管理后端 API 封装 - JWT 会话鉴权 + 内存缓存
@@ -13,7 +13,7 @@ import {
 
 const API_BASE = DAKE_API_BASE_URL;
 
-// DakeMusic: 简单内存缓存
+// LyriseMusic: 简单内存缓存
 const cache = new Map<string, { data: any; expire: number }>();
 const CACHE_DURATION = 30 * 1000; // 30秒缓存
 
@@ -30,7 +30,7 @@ function getSessionToken(): string | null {
 }
 
 async function request(path: string, options: RequestOptions = {}) {
-  // DakeMusic: GET 请求加缓存（cache: false 可跳过，用于增删后必须拿到最新数据的场景）
+  // LyriseMusic: GET 请求加缓存（cache: false 可跳过，用于增删后必须拿到最新数据的场景）
   const useCache = (!options.method || options.method === 'GET') && options.cache !== false;
   const cacheKey = path;
   if (useCache) {
@@ -64,7 +64,7 @@ async function request(path: string, options: RequestOptions = {}) {
     throw new Error(`服务器错误 (${res.status}): ${text.slice(0, 120)}`);
   }
   if (!res.ok) {
-    // DakeMusic: 会话失效（token 过期 / 未带 token）统一清除本地登录态，避免残留无效会话
+    // LyriseMusic: 会话失效（token 过期 / 未带 token）统一清除本地登录态，避免残留无效会话
     if (res.status === 401 && (data.error === 'TOKEN_EXPIRED' || data.error === 'UNAUTHORIZED')) {
       localStorage.removeItem('chat_session');
       // 401 时清空缓存
@@ -77,7 +77,7 @@ async function request(path: string, options: RequestOptions = {}) {
     throw new Error(data.error || '请求失败');
   }
 
-  // DakeMusic: GET 请求写入缓存
+  // LyriseMusic: GET 请求写入缓存
   if (useCache) {
     cache.set(cacheKey, { data, expire: Date.now() + CACHE_DURATION });
   }
@@ -85,7 +85,7 @@ async function request(path: string, options: RequestOptions = {}) {
   return data;
 }
 
-// DakeMusic: 手动清除缓存（更新资料后调用）
+// LyriseMusic: 手动清除缓存（更新资料后调用）
 export function clearApiCache() {
   cache.clear();
 }
@@ -105,7 +105,7 @@ export const roomApi = {
   login: (name: string, password: string) =>
     request('/api/auth/login', { method: 'POST', auth: false, body: { name, password } }),
 
-  // DakeMusic: peiwan 陪玩平台账号密码登录
+  // LyriseMusic: peiwan 陪玩平台账号密码登录
   peiwanLogin: (account: string, password: string) =>
     request('/api/auth/peiwan-login', { method: 'POST', auth: false, body: { account, password } }),
 
@@ -114,7 +114,7 @@ export const roomApi = {
 
   // 更新个人资料
   /** 只改昵称等资料；账号 name 后端不接受修改 */
-  // DakeMusic: 加上 city, gender
+  // LyriseMusic: 加上 city, gender
   updateProfile: async (data: {
     nickname?: string;
     avatar?: string;
@@ -151,7 +151,7 @@ export const roomApi = {
 
   leaveRoom: (roomId: string) => request(`/api/rooms/${roomId}/leave`, { method: 'POST' }),
 
-  // DakeMusic: 房间聊天历史（进房时补齐之前的文字/系统消息）
+  // LyriseMusic: 房间聊天历史（进房时补齐之前的文字/系统消息）
   getMessages: (roomId: string, limit = 50) =>
     request(`/api/rooms/${roomId}/messages?limit=${limit}`, { auth: true, cache: false }),
   /** 只持久化聊天，不重复广播（实时消息已通过 LiveKit 发出） */
@@ -188,11 +188,11 @@ export const roomApi = {
   grantAdmin: (userId: number) => request(`/api/admin/users/${userId}`, { method: 'POST' }),
   revokeAdmin: (userId: number) => request(`/api/admin/users/${userId}`, { method: 'DELETE' }),
 
-  // DakeMusic: 根超管任免超管（仅环境变量里的根超管可调用）
+  // LyriseMusic: 根超管任免超管（仅环境变量里的根超管可调用）
   setSuperAdmin: (userId: number, isAdmin: boolean) =>
     request(`/api/users/${userId}/super-admin`, { method: 'POST', body: { isAdmin } }),
 
-  // ===== DakeMusic: 房间点歌台 =====
+  // ===== LyriseMusic: 房间点歌台 =====
   /** 点歌进队列（任何人，免审核，每人最多3首） */
   requestSong: (
     roomId: string,
@@ -214,7 +214,7 @@ export const roomApi = {
   removeSong: (roomId: string, index: number) =>
     request(`/api/rooms/${roomId}/queue/${index}`, { method: 'DELETE' }),
 
-  // ===== DakeMusic: 全站违禁词（增删由服务端校验超管身份） =====
+  // ===== LyriseMusic: 全站违禁词（增删由服务端校验超管身份） =====
   getBadWords: () => request('/api/bad-words', { auth: false, cache: false }),
   addBadWord: (word: string) => request('/api/bad-words/add', { method: 'POST', body: { word } }),
   deleteBadWord: (word: string) =>

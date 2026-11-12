@@ -7,7 +7,7 @@
  * - `automix-pro`    节奏融合：结合节拍和段落调整混音
  * - `none`           关闭（硬切）
  *
- * 引擎侧（native/dake-audio-player `transition` 模块）按同名字符串解析。
+ * 引擎侧（native/lyrise-audio-player `transition` 模块）按同名字符串解析。
  */
 export type TrackTransitionMode = 'none' | 'gapless' | 'fade' | 'automix-basic' | 'automix-pro';
 

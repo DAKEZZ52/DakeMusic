@@ -98,7 +98,7 @@ const handleUpgradeSvip = async () => {
 </script>
 
 <template>
-  <!-- DakeMusic: 外框对齐“账号档案”卡片（圆角/边框/背景/阴影/内边距一致）；标题由父页面提供，彩色只体现在内部条目 -->
+  <!-- LyriseMusic: 外框对齐“账号档案”卡片（圆角/边框/背景/阴影/内边距一致）；标题由父页面提供，彩色只体现在内部条目 -->
   <div
     class="p-2 rounded-[18px] bg-[var(--content-panel-bg)] border border-[var(--content-panel-border)] shadow-sm"
   >

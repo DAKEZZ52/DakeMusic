@@ -302,7 +302,7 @@ const offsetStepLabel = computed(() => {
 // 本地计算 currentIndex，不再依赖主窗口传来的值
 const currentIndex = computed(() => activeLineIndex.value);
 const isPlaying = computed(() => playback.value?.isPlaying ?? false);
-const songName = computed(() => playback.value?.title || 'DakeMusic');
+const songName = computed(() => playback.value?.title || 'LyriseMusic');
 const artistName = computed(() => playback.value?.artist || '');
 const alignment = computed(() => settings.value?.alignment ?? 'center');
 const showNextLinePreview = computed(() => settings.value?.showNextLinePreview ?? true);
@@ -504,8 +504,8 @@ const renderLyricLines = computed<RenderLine[]>(() => {
   const idx = visibleCurrentIndex.value;
   // 无歌词
   if (!lines.length) {
-    if (!songName.value) return placeholder('DakeMusic Desktop Lyric');
-    return placeholder('DakeMusic - 听你想听');
+    if (!songName.value) return placeholder('LyriseMusic Desktop Lyric');
+    return placeholder('LyriseMusic - 听你想听');
   }
   // 索引小于 0，显示歌曲名称
   if (idx < 0) {

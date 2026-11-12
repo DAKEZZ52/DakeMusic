@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 房间点歌台
+  LyriseMusic 房间点歌台
   作者：知之Dake
   文件：SongRequestPanel.vue
   描述：房间内搜索点歌、队列展示、DJ切歌/删歌
@@ -81,7 +81,7 @@
 
 <script setup lang="ts">
 /**
- * DakeMusic 房间点歌台逻辑
+ * LyriseMusic 房间点歌台逻辑
  * 作者：知之Dake
  * 文件：SongRequestPanel.vue
  * 描述：搜索结果统一用 mapSearchSong 规整为标准 Song，再点歌/缓存/播放
@@ -153,7 +153,7 @@ async function doSearch() {
   if (!kw) return;
   try {
     const res: any = await search(kw, 'song', 1, 20);
-    // DakeMusic: 用 mapSearchSong 把各音源原始数据统一规整为标准 Song
+    // LyriseMusic: 用 mapSearchSong 把各音源原始数据统一规整为标准 Song
     const rawList = extractSearchLists(res);
     searchResults.value = rawList.map((item: any) => mapSearchSong(item));
   } catch (e: any) {
@@ -187,7 +187,7 @@ async function onRequest(s: Song, i: number) {
       duration: s.duration || 0, // 标准 Song 的 duration 已是秒
       songData: s, // 完整标准 Song，供房间所有人直接播放
     });
-    // DakeMusic: 缓存标准 Song 对象（取原始对象），切歌时用来真实播放
+    // LyriseMusic: 缓存标准 Song 对象（取原始对象），切歌时用来真实播放
     store.cacheSong(songId, toRaw(s));
     flashAdded(key);
     // 房间空闲时服务端会自动开播这首，反馈要区分“开播”与“排队”，否则用户会以为还在等

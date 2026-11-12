@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房 - 违禁词
+ * LyriseMusic 语聊房 - 违禁词
  * 描述：违禁词列表加载、文本过滤、增删与房间广播。
  */
 import { ref } from 'vue';
@@ -38,7 +38,7 @@ export function useBadWords(ctx: { getLKRoom: () => Promise<any> }) {
     try {
       const lkRoom = await getLKRoom();
       if (!lkRoom?.localParticipant) return;
-      const payload = JSON.stringify({ kind: 'dakemusic-badwords-refresh', time: Date.now() });
+      const payload = JSON.stringify({ kind: 'lyrise-badwords-refresh', time: Date.now() });
       await lkRoom.localParticipant.publishData(new TextEncoder().encode(payload), {
         reliable: true,
       });

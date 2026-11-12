@@ -44,7 +44,7 @@
 
 | 数据 | 位置 |
 |---|---|
-| 应用设置 | 渲染层 Pinia `setting`，由 `window.electron.storage` 落到原生 SQLite（`native/dake-sqlite-store`） |
+| 应用设置 | 渲染层 Pinia `setting`，由 `window.electron.storage` 落到原生 SQLite（`native/lyrise-sqlite-store`） |
 | 本地音乐库 | `userData/local-music-libraries.json`（库列表 + 曲目缓存） |
 | 开发模式 userData | 项目根 `.dev-userdata/`（`src/main/index.ts` 强制切换） |
 | 播放缓存 / 下载 | `userData` 下的下载目录与缓存目录 |

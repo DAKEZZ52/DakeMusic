@@ -1,7 +1,7 @@
 const DEFAULT_UPDATE_CHECK_ERROR = '更新检查失败，请稍后重试。';
 const UPDATE_METADATA_PUBLISHING_ERROR = '新版本正在发布，更新文件尚未准备完成，请稍后重试。';
 export const UPDATE_SIGNATURE_ERROR =
-  '更新包未通过 macOS 签名校验，重试无法解决。请手动下载最新 DMG，退出 DakeMusic 后替换「应用程序」中的旧版本。';
+  '更新包未通过 macOS 签名校验，重试无法解决。请手动下载最新 DMG，退出 LyriseMusic 后替换「应用程序」中的旧版本。';
 
 const readErrorMessage = (error: unknown): string => {
   if (error instanceof Error) return error.message.trim();

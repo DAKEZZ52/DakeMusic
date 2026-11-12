@@ -1373,7 +1373,7 @@ export const useLyricStore = defineStore('lyric', {
         const currentCandidateKey = getLyricCandidateKey(target);
         this.parseLyricContent(resolved.detail, normalizedHash, { detailResolved: true });
 
-        // DakeMusic: 官方候选存在但内容为空（纯音乐 / 占位歌词）时，按歌名再兜底一次。
+        // LyriseMusic: 官方候选存在但内容为空（纯音乐 / 占位歌词）时，按歌名再兜底一次。
         // 否则会一直停在“暂无歌词”，即使其它平台明明有这首歌的歌词。
         if (this.lines.length === 0) {
           const trackRecord = (options?.track ?? {}) as {

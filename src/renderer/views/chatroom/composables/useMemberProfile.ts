@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房 - 成员资料卡
+ * LyriseMusic 语聊房 - 成员资料卡
  * 描述：成员资料弹窗、加载状态与资料墙图片预览。
  */
 import { ref } from 'vue';
@@ -11,7 +11,7 @@ export function useMemberProfile() {
   const loadingUser = ref(false);
 
   async function openUserProfile(identity?: string) {
-    // DakeMusic: 防止 identity 为 undefined 时报错
+    // LyriseMusic: 防止 identity 为 undefined 时报错
     if (!identity) return;
     const userId = Number(identity.replace('user_', ''));
     if (!userId) return;
@@ -27,7 +27,7 @@ export function useMemberProfile() {
       loadingUser.value = false;
     }
   }
-  // DakeMusic: 资料卡图片墙 - 应用内点击放大预览
+  // LyriseMusic: 资料卡图片墙 - 应用内点击放大预览
   const previewPhotoUrl = ref('');
   function openPhoto(url: string) {
     previewPhotoUrl.value = url;

@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房模块
+ * LyriseMusic 语聊房模块
  * 作者：知之Dake
  * 文件：livekitClient.ts
  * 描述：LiveKit 音视频客户端封装 - 房间连接/成员管理/消息收发/设备管理
@@ -51,10 +51,10 @@ export interface LiveKitClientCallbacks {
   onSeatsUpdate?: (seats: any[]) => void;
   onSpeakingChange?: (identity: string, speaking: boolean) => void;
   onMetadataChanged?: (identity: string, metadata: string) => void;
-  // DakeMusic: 座位管理模块专用数据通道（kind=dakemusic-seat）
+  // LyriseMusic: 座位管理模块专用数据通道（kind=lyrise-seat）
   onSeatData?: (payload: any, fromIdentity: string) => void;
   onSeatPeerConnected?: (identity: string) => void;
-  // DakeMusic: 房间点歌台事件（queue:updated / track:changed）
+  // LyriseMusic: 房间点歌台事件（queue:updated / track:changed）
   onQueueEvent?: (payload: { type: string; queue?: any[]; track?: any }) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
@@ -123,7 +123,7 @@ export class LiveKitClient {
 
       await this.room.localParticipant.setMicrophoneEnabled(false);
 
-      // DakeMusic: 不再通过 LiveKit metadata 同步大头像（会导致信令报错、反复重连、语音中断）
+      // LyriseMusic: 不再通过 LiveKit metadata 同步大头像（会导致信令报错、反复重连、语音中断）
       // 头像统一通过后端 /api/users/:id 获取，LiveKit metadata 仅由后端在 join 时写入账号信息
       // 保留 localStorage 头像仅本地使用，不发送到 LiveKit
 
@@ -175,7 +175,7 @@ export class LiveKitClient {
     }
   }
 
-  // DakeMusic: 更新本地头像显示，不再通过 LiveKit metadata 发送（避免超大 base64 导致重连断语音）
+  // LyriseMusic: 更新本地头像显示，不再通过 LiveKit metadata 发送（避免超大 base64 导致重连断语音）
   // 头像保存到后端后，其他人通过后端 API 拉取
   async updateLocalMetadata(avatar: string): Promise<void> {
     if (!this.room) return;
@@ -243,13 +243,13 @@ export class LiveKitClient {
   }
 
   /**
-   * DakeMusic: 座位协议数据广播（kind=dakemusic-seat，与聊天消息区分）
+   * LyriseMusic: 座位协议数据广播（kind=lyrise-seat，与聊天消息区分）
    * @param payload 座位协议消息（内部会自动加 kind）
    * @param destinationIdentities 传 identity 列表则单播给指定成员（如房主给新成员同步座位快照）
    */
   async publishSeatData(payload: any, destinationIdentities?: string[]): Promise<void> {
     if (!this.room) return;
-    const envelope = { ...payload, kind: 'dakemusic-seat' };
+    const envelope = { ...payload, kind: 'lyrise-seat' };
     const data = new TextEncoder().encode(JSON.stringify(envelope));
     const opts: any = { reliable: true };
     if (destinationIdentities?.length) {
@@ -350,18 +350,18 @@ export class LiveKitClient {
         if (!data || typeof data !== 'object') return;
 
         /*
-         * DakeMusic 数据广播协议（统一靠 JSON 里的 kind 字段区分，全部走 publishData）：
-         *   dakemusic-seat             座位协议（落座/换座/申请/审批/快照），交给座位模块 onSeatData
-         *   dakemusic-lyric            歌词：lyric-sync（全量）/ lyric-heartbeat（轻量行号）
-         *   dakemusic-seat-mode        房间座位模式 normal / duet
-         *   dakemusic-user-style       某人的麦位框 / 声波皮肤
-         *   dakemusic-badwords-refresh 通知全员重拉违禁词
+         * LyriseMusic 数据广播协议（统一靠 JSON 里的 kind 字段区分，全部走 publishData）：
+         *   lyrise-seat             座位协议（落座/换座/申请/审批/快照），交给座位模块 onSeatData
+         *   lyrise-lyric            歌词：lyric-sync（全量）/ lyric-heartbeat（轻量行号）
+         *   lyrise-seat-mode        房间座位模式 normal / duet
+         *   lyrise-user-style       某人的麦位框 / 声波皮肤
+         *   lyrise-badwords-refresh 通知全员重拉违禁词
          * 除座位外，其余控制协议由 ChatRoom 独立 room.on('dataReceived') 处理。
-         * 这里统一拦截所有 dakemusic-* 控制协议，不让它进入聊天消息层（也不依赖 store 的二次过滤）。
+         * 这里统一拦截所有 lyrise-* 控制协议，不让它进入聊天消息层（也不依赖 store 的二次过滤）。
          */
-        if (typeof data.kind === 'string' && data.kind.startsWith('dakemusic-')) {
+        if (typeof data.kind === 'string' && data.kind.startsWith('lyrise-')) {
           // 座位协议只能来自真实参与者；服务端不会发这个 kind
-          if (data.kind === 'dakemusic-seat' && participant) {
+          if (data.kind === 'lyrise-seat' && participant) {
             this.callbacks.onSeatData?.(data, fromIdentity);
           }
           // 其余控制协议（含 lyric / seat-mode / user-style / badwords-refresh）由 ChatRoom 处理，此处直接丢弃
@@ -370,7 +370,7 @@ export class LiveKitClient {
         // 兼容旧版：无 kind 但带 type=lyric-sync 的歌词消息，同样不进公屏
         if (data.type === 'lyric-sync') return;
 
-        // DakeMusic: 点歌台事件只允许服务端下发（participant 为空），
+        // LyriseMusic: 点歌台事件只允许服务端下发（participant 为空），
         // 普通成员伪造 music_* 事件会让所有人切歌/清队列。
         if (
           data.payload &&

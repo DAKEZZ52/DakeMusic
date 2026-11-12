@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 本地音乐统计与管理面板
+ * LyriseMusic - 本地音乐统计与管理面板
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：本地音乐页顶部一栏合并卡（与下载页 dlm-merge-card 同风格）：
  *      本地统计（文件夹数/曲目数/最近扫描）+ 曲库管理清单（重扫/移除）。
  *      组件拆分子模块，只读 store 数据，不承载列表渲染。

@@ -1,8 +1,8 @@
-name = "dakemusic-plugin-marketplace"
+name = "lyrise-plugin-marketplace"
 main = "worker.js"
 compatibility_date = "2026-07-01"
 
 [[d1_databases]]
 binding = "PLUGIN_STATS_DB"
-database_name = "dakemusic-plugin-stats"
+database_name = "lyrise-plugin-stats"
 database_id = "replace-with-your-d1-database-id"

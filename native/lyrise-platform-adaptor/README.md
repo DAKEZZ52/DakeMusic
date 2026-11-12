@@ -1,4 +1,4 @@
-# dake-platform-adaptor
+# lyrise-platform-adaptor
 
 Windows and macOS desktop window integration. This addon owns HWND/DWM behavior and
 local AppKit mouse observation; it has no
@@ -6,7 +6,7 @@ SMTC/Now Playing lifecycle or audio dependencies.
 
 - `src/window_composition.rs`: DWM alpha clear and optional Accent BlurBehind backends.
 - `src/taskbar.rs`: iconic thumbnail and Aero Peek cover previews, moved from
-  `dake-media-controls` without changing their API or image processing.
+  `lyrise-media-controls` without changing their API or image processing.
 - `src/main/native/platform.ts` in the application: shared loader and API validation.
 - `src/window_pointer.rs`: macOS local mouse-down monitor for the main window. It
   returns every event unchanged so native dragging and double-click behavior remain
@@ -15,27 +15,27 @@ SMTC/Now Playing lifecycle or audio dependencies.
 ## Build on Windows or macOS
 
 ```sh
-cd native/dake-platform-adaptor
+cd native/lyrise-platform-adaptor
 npm install
 npm run build
 ```
 
-This generates `dake-platform-adaptor.node` and `index.d.ts`. Restart the application
+This generates `lyrise-platform-adaptor.node` and `index.d.ts`. Restart the application
 after rebuilding the addon. Windows and macOS release jobs build and package it
-as `resources/native/dake-platform-adaptor.node`. Only Windows loads and packages it.
+as `resources/native/lyrise-platform-adaptor.node`. Only Windows loads and packages it.
 `Cargo.lock` is committed for reproducible dependency resolution.
 
 Cross-target type checking from a machine with the Windows Rust target installed:
 
 ```sh
-cargo check --manifest-path native/dake-platform-adaptor/Cargo.toml --target x86_64-pc-windows-msvc --locked
+cargo check --manifest-path native/lyrise-platform-adaptor/Cargo.toml --target x86_64-pc-windows-msvc --locked
 ```
 
 ## Ownership and fallback
 
 Only the main process calls this addon, synchronously on the HWND's UI thread.
 No window handles or Accent state values are accepted directly from a renderer.
-Media controls remain in `dake-media-controls`; enabling/disabling media controls
+Media controls remain in `lyrise-media-controls`; enabling/disabling media controls
 does not initialize or tear down this addon.
 
 `SetWindowCompositionAttribute` is dynamically resolved and its Accent policy is

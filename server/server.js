@@ -368,7 +368,7 @@ async function consturctServer(moduleDefs) {
         };
       }
 
-      // Step 4.5（DakeMusic 修复 20028）：把合并后的认证 Cookie 回写到 req.cookies。
+      // Step 4.5（LyriseMusic 修复 20028）：把合并后的认证 Cookie 回写到 req.cookies。
       // 酷狗播放接口校验的是请求 Cookie 中的 dfid（token 绑定设备），URL cookie=
       // 参数里的 dfid 不会进入出网请求，带 token 播放会因随机 dfid ≠ token 绑定
       // 设备被 20028「本次请求需要验证」拦截。回写后模块/请求工厂读取 dfid 时

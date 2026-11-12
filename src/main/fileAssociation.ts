@@ -1,5 +1,5 @@
 /**
- * DakeMusic - 文件关联处理
+ * LyriseMusic - 文件关联处理
  * 当用户双击 .flac/.mp3 等文件时，Windows 会把文件路径作为命令行参数传给应用。
  * 本模块负责从 argv 中提取音频文件路径，并发送给渲染层播放。
  */
@@ -34,7 +34,7 @@ export function extractAudioFilesFromArgv(argv: string[]): string[] {
   const files: string[] = [];
   for (const arg of argv) {
     if (!arg || arg.startsWith('-') || arg.startsWith('--')) continue;
-    // 跳过 dakemusic:// 协议 URL
+    // 跳过 lyrise:// 协议 URL
     if (arg.includes('://')) continue;
     // 跳过 electron/vite 内部路径（含 node_modules、dist、electron.exe 本身）
     if (/[\\/](node_modules|dist|dist-electron)[\\/]/.test(arg)) continue;

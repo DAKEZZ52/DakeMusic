@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 语聊房模块
+  LyriseMusic 语聊房模块
   作者：知之Dake
   文件：ChatRoomFloating.vue
   描述：悬浮窗组件 - 可拖动的悬浮房间卡片 / 收起态小圆钮
@@ -10,8 +10,8 @@ import { useRouter, useRoute } from 'vue-router';
 import { useChatRoomStore } from '@/stores/chatRoom';
 import Tooltip from '@/components/ui/Tooltip.vue';
 import { logger } from '@/utils/logger';
-// DakeMusic: 默认房间封面
-import defaultCover from '/dakemusic-default-room-cover.png?url';
+// LyriseMusic: 默认房间封面
+import defaultCover from '/lyrise-default-room-cover.png?url';
 
 const store = useChatRoomStore();
 const router = useRouter();
@@ -33,7 +33,7 @@ let dotMoved = false; // 小圆钮是否真拖动过（区分拖动与点击）
 const showLeaveConfirm = ref(false);
 
 // 默认房间封面（与房间列表页、房间内页完全一致）
-const DEFAULT_COVER_KEY = '__dakemusic_default__';
+const DEFAULT_COVER_KEY = '__lyrise_default__';
 
 const DEFAULT_COVER = defaultCover;
 
@@ -76,7 +76,7 @@ watch(
   },
 );
 
-// DakeMusic: 每次新进入房间，悬浮窗默认收起成小圆钮，不展开
+// LyriseMusic: 每次新进入房间，悬浮窗默认收起成小圆钮，不展开
 watch(
   () => store.isConnected,
   (connected, old) => {

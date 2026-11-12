@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * DakeMusic 人声分离 - 音频来源选择组件
+ * LyriseMusic 人声分离 - 音频来源选择组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：iOS 风格分段控件（当前播放歌曲 / 本地文件）与来源行展示，
  *      纯展示组件，交互通过事件上抛由页面壳统一处理。
  */

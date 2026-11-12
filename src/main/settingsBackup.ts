@@ -1,5 +1,5 @@
 /**
- * DakeMusic - 设置备份 / 导出导入模块
+ * LyriseMusic - 设置备份 / 导出导入模块
  * 作者：知之（DAKE知之）
  * 说明：仅备份应用设置与桌面歌词设置，插件系统已整体移除。
  */
@@ -21,8 +21,8 @@ import { normalizeLogSettings, type AppLogLevel } from '../shared/logging';
 import { getStorePersistenceKey } from '../shared/storePersistence';
 import { isBlockedObjectKey } from '../shared/objectSafety';
 import {
-  LEGACY_SETTINGS_BACKUP_EXTENSION,
-  LEGACY_SETTINGS_BACKUP_FORMAT,
+  LEGACY_SETTINGS_BACKUP_EXTENSIONS,
+  LEGACY_SETTINGS_BACKUP_FORMATS,
   SETTINGS_BACKUP_EXTENSION,
   SETTINGS_BACKUP_FORMAT,
   SETTINGS_BACKUP_VERSION,
@@ -80,8 +80,9 @@ const sanitizeDesktopLyricSettings = (value: unknown): Record<string, unknown> =
 };
 
 const validateArchive = (value: unknown): SettingsBackupArchive => {
-  if (!isPlainObject(value)) throw new Error('不是有效的 DakeMusic 备份文件');
-  if (value.format !== SETTINGS_BACKUP_FORMAT && value.format !== LEGACY_SETTINGS_BACKUP_FORMAT) {
+  if (!isPlainObject(value)) throw new Error('不是有效的 LyriseMusic 备份文件');
+  const knownFormats: string[] = [SETTINGS_BACKUP_FORMAT, ...LEGACY_SETTINGS_BACKUP_FORMATS];
+  if (typeof value.format !== 'string' || !knownFormats.includes(value.format)) {
     throw new Error('备份文件格式不受支持');
   }
   if (value.version !== SETTINGS_BACKUP_VERSION) throw new Error('备份版本不受支持');
@@ -209,13 +210,13 @@ export const exportSettingsBackup = async (
     }
     const date = new Date().toISOString().slice(0, 10);
     const options = {
-      title: '创建 DakeMusic 备份',
-      defaultPath: `DakeMusic-backup-${date}.${SETTINGS_BACKUP_EXTENSION}`,
+      title: '创建 LyriseMusic 备份',
+      defaultPath: `LyriseMusic-backup-${date}.${SETTINGS_BACKUP_EXTENSION}`,
       buttonLabel: '创建备份',
       filters: [
         {
-          name: 'DakeMusic 备份',
-          extensions: [SETTINGS_BACKUP_EXTENSION, LEGACY_SETTINGS_BACKUP_EXTENSION],
+          name: 'LyriseMusic 备份',
+          extensions: [SETTINGS_BACKUP_EXTENSION, ...LEGACY_SETTINGS_BACKUP_EXTENSIONS],
         },
       ],
     };
@@ -248,12 +249,12 @@ export const inspectSettingsBackup = async (): Promise<SettingsBackupInspectResu
   try {
     await cleanupInspections();
     const options: OpenDialogOptions = {
-      title: '从备份恢复 DakeMusic',
+      title: '从备份恢复 LyriseMusic',
       buttonLabel: '选择备份',
       filters: [
         {
-          name: 'DakeMusic 备份',
-          extensions: [SETTINGS_BACKUP_EXTENSION, LEGACY_SETTINGS_BACKUP_EXTENSION],
+          name: 'LyriseMusic 备份',
+          extensions: [SETTINGS_BACKUP_EXTENSION, ...LEGACY_SETTINGS_BACKUP_EXTENSIONS],
         },
       ],
       properties: ['openFile'],

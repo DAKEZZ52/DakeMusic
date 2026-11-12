@@ -1,6 +1,6 @@
-/** * DakeMusic 播放控制 - 音量弹层 * 文件：VolumePopover.vue *
+/** * LyriseMusic 播放控制 - 音量弹层 * 文件：VolumePopover.vue *
 描述：播放条/歌词页的音量控制（静音切换与音量滑杆） * 作者：知之（DAKE知之） * 版权：© 2026
-DakeMusic. All rights reserved. */
+LyriseMusic. All rights reserved. */
 <script setup lang="ts">
 import { ref } from 'vue';
 import { SliderRoot, SliderTrack, SliderRange, SliderThumb } from 'reka-ui';

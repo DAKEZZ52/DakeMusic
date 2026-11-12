@@ -1,8 +1,8 @@
 <script setup lang="ts">
 /**
- * DakeMusic 人声分离 - 分离模型选择组件
+ * LyriseMusic 人声分离 - 分离模型选择组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：MDX-Net 分离模型列表（可收起），每行展示模型名称/描述/下载状态
  *      （已下载 / 下载中进度 / 独立下载按钮），纯展示组件。
  */

@@ -5,7 +5,7 @@
 | 项目 | 协议 | 能否复制代码 |
 |---|---|---|
 | Folia | AGPL-3.0 | ❌ 与 GPL-3.0-only 冲突 |
-| DakeMusic | GPL-3.0 | 本项目 |
+| LyriseMusic | GPL-3.0 | 本项目 |
 
 ## 1. 音质链路面板
 

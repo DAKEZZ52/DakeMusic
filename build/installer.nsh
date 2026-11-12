@@ -2,6 +2,9 @@
   ; 安装前强制结束残留进程（包括卸载程序），解决重装时卸载器被锁定的问题。
   nsExec::ExecToStack 'taskkill /F /IM "${APP_EXECUTABLE_FILENAME}" /T'
   nsExec::ExecToStack 'taskkill /F /IM "Uninstall ${PRODUCT_NAME}.exe" /T'
+  ; 品牌改名后，从旧版升级时先结束旧进程，避免文件占用
+  nsExec::ExecToStack 'taskkill /F /IM "DakeMusic.exe" /T'
+  nsExec::ExecToStack 'taskkill /F /IM "Uninstall DakeMusic.exe" /T'
 
   ; taskkill 返回后文件锁可能仍需一点时间释放，循环删除直到成功或超时。
   StrCpy $0 0

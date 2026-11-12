@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 本地音乐操作栏组件
+ * LyriseMusic - 本地音乐操作栏组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：本地音乐页顶部操作行（图一云盘页风格）：播放全部 / 添加文件夹 / 添加单曲。
  *      组件拆分子模块，样式与 DetailPageActionRow 全站一致。
  -->

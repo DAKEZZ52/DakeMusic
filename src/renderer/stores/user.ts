@@ -258,7 +258,7 @@ export const useUserStore = defineStore('user', {
       await this.fetchUserInfo();
       return true;
     },
-    // DakeMusic: 自动领取每日VIP（实验功能）
+    // LyriseMusic: 自动领取每日VIP（实验功能）
     async autoClaimVipIfNeeded() {
       if (!this.isLoggedIn) return;
       try {

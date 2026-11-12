@@ -538,7 +538,7 @@ export const ensureMiniPlayerWindow = async () => {
   const preload = join(__dirname, '../preload/index.js');
   const bounds = resolveMiniPlayerBounds();
   const win = new BrowserWindow({
-    title: 'DakeMusic Mini Player',
+    title: 'LyriseMusic Mini Player',
     ...(!app.isPackaged ? { icon: join(process.cwd(), 'build/icons/icon.png') } : {}),
     ...bounds,
     frame: false,

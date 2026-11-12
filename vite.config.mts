@@ -3,7 +3,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import type { Plugin } from 'vite';
 import { CONTENT_SECURITY_POLICY } from './src/shared/csp';
 
-// DakeMusic: 构建标识 + Ed25519 签名
+// LyriseMusic: 构建标识 + Ed25519 签名
 // 私钥只在打包机（.keys/build-ed25519.pem），服务器只存公钥；
 // 改过的包无法伪造签名，服务端据此拒绝非官方构建。
 const pkgVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
@@ -121,11 +121,11 @@ export default defineConfig({
                 // require 自身原生绑定 ../bin/napi-v6/<platform>/<arch>/onnxruntime_binding.node，
                 // 必须外置，否则内联进 bundle 后会到 dist-electron/ 下找而报 Cannot find module。
                 'onnxruntime-node',
-                '../../native/dake-audio-capture',
-                '../../native/dake-media-controls',
-                '../../native/dake-platform-adaptor',
-                '../../native/dake-audio-player',
-                '../../native/dake-sqlite-store',
+                '../../native/lyrise-audio-capture',
+                '../../native/lyrise-media-controls',
+                '../../native/lyrise-platform-adaptor',
+                '../../native/lyrise-audio-player',
+                '../../native/lyrise-sqlite-store',
               ],
             },
           },

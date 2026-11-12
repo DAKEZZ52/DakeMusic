@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房 - 合唱伴奏读取
+ * LyriseMusic 语聊房 - 合唱伴奏读取
  * 描述：把本地歌曲文件读成 ArrayBuffer 交给渲染层解码（走 IPC，避免 file:// 的 CSP/CORS 限制）。
  *       只允许读取常见音频扩展名，且有大小上限。
  */

@@ -1,15 +1,15 @@
 # Third-Party Notices
 
-DakeMusic is distributed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
+LyriseMusic is distributed under the GNU General Public License v3.0. See [LICENSE](LICENSE).
 
-This file summarizes important third-party components used by DakeMusic, especially components that are bundled with the application or affect redistribution terms. It is not a full dependency lockfile. For complete dependency trees, see [pnpm-lock.yaml](pnpm-lock.yaml) and the Cargo lockfiles under `native/`.
+This file summarizes important third-party components used by LyriseMusic, especially components that are bundled with the application or affect redistribution terms. It is not a full dependency lockfile. For complete dependency trees, see [pnpm-lock.yaml](pnpm-lock.yaml) and the Cargo lockfiles under `native/`.
 
 ## Bundled And License-Relevant Components
 
 | Component         | Use                                                            | License                                                              | Source / Notice                                                                                                                                 |
 | ----------------- | -------------------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ffmpeg-audio`    | FFmpeg-based audio decoding in `dake-audio-player`            | GPL-3.0-only                                                         | Vendored at `native/dake-audio-player/vendor/ffmpeg-audio`; upstream: https://github.com/apoint123/ffmpeg-audio                                |
-| `soundtouch-rs`   | Tempo and playback-speed processing in `dake-audio-player`    | LGPL-2.1                                                             | Vendored at `native/dake-audio-player/vendor/soundtouch-rs`; upstream: https://github.com/apoint123/soundtouch-rs; see `LICENSES/LGPL-2.1.txt` |
+| `ffmpeg-audio`    | FFmpeg-based audio decoding in `lyrise-audio-player`            | GPL-3.0-only                                                         | Vendored at `native/lyrise-audio-player/vendor/ffmpeg-audio`; upstream: https://github.com/apoint123/ffmpeg-audio                                |
+| `soundtouch-rs`   | Tempo and playback-speed processing in `lyrise-audio-player`    | LGPL-2.1                                                             | Vendored at `native/lyrise-audio-player/vendor/soundtouch-rs`; upstream: https://github.com/apoint123/soundtouch-rs; see `LICENSES/LGPL-2.1.txt` |
 | FFmpeg            | Audio demuxing, decoding and resampling through `ffmpeg-audio` | LGPL-2.1-or-later / GPL-2.0-or-later depending on enabled components | https://ffmpeg.org/; see `LICENSES/LGPL-2.1.txt`                                                                                                |
 | Electron          | Desktop runtime                                                | MIT                                                                  | https://www.electronjs.org/                                                                                                                     |
 | Vue               | Renderer UI framework                                          | MIT                                                                  | https://vuejs.org/                                                                                                                              |
@@ -21,13 +21,13 @@ This file summarizes important third-party components used by DakeMusic, especia
 
 ## Native Modules
 
-- `native/dake-audio-player` embeds the playback engine and depends on vendored `ffmpeg-audio` and `soundtouch-rs`.
-- `native/dake-audio-capture` captures system output and microphone/input-device audio through native platform APIs.
-- `native/dake-media-controls` integrates platform media controls.
-- `native/dake-sqlite-store` provides local SQLite-backed storage.
+- `native/lyrise-audio-player` embeds the playback engine and depends on vendored `ffmpeg-audio` and `soundtouch-rs`.
+- `native/lyrise-audio-capture` captures system output and microphone/input-device audio through native platform APIs.
+- `native/lyrise-media-controls` integrates platform media controls.
+- `native/lyrise-sqlite-store` provides local SQLite-backed storage.
 
 ## GPLv3 Distribution Note
 
-Because DakeMusic links and distributes GPL-licensed playback components, DakeMusic distribution builds are provided under GPLv3-compatible terms, with the project license set to GNU GPL v3.0.
+Because LyriseMusic links and distributes GPL-licensed playback components, LyriseMusic distribution builds are provided under GPLv3-compatible terms, with the project license set to GNU GPL v3.0.
 
-When redistributing DakeMusic binaries, provide the corresponding source code, this notice file, and the full GPLv3 license text.
+When redistributing LyriseMusic binaries, provide the corresponding source code, this notice file, and the full GPLv3 license text.

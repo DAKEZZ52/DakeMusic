@@ -1,6 +1,6 @@
-# dake-audio-capture
+# lyrise-audio-capture
 
-跨平台的系统输出与输入设备音频采集 N-API 模块。它只负责采集、短期缓冲和 PCM 转换，不依赖听歌识曲接口，也不读取 DakeMusic 播放器内部音频。
+跨平台的系统输出与输入设备音频采集 N-API 模块。它只负责采集、短期缓冲和 PCM 转换，不依赖听歌识曲接口，也不读取 LyriseMusic 播放器内部音频。
 
 ## 后端
 

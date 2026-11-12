@@ -1,5 +1,5 @@
 /*!
- * DakeMusic 语聊房模块
+ * LyriseMusic 语聊房模块
  * 作者：知之Dake
  * 文件：auralSkins.ts
  * 描述：麦位说话声波皮肤配置 - 用户可切换的说话时头像周围装饰
@@ -181,7 +181,7 @@ export const AURAL_SKINS: AuralSkin[] = [
     name: '月华流照',
     url: 'https://img-play.daidaiyuyin.com/img/2a7934ddd739aa905152eedd94ea8180.webp/110x98',
   },
-  // DakeMusic: 新增声波（150x150 webp）
+  // LyriseMusic: 新增声波（150x150 webp）
   {
     id: 'zx_maomao',
     name: '仲夏幻猫声波',
@@ -446,7 +446,7 @@ export const AURAL_SKINS: AuralSkin[] = [
 
 export function getMyAuralId(): string {
   try {
-    return localStorage.getItem('dakemusic_aural_id') || 'default';
+    return localStorage.getItem('lyrise_aural_id') || 'default';
   } catch {
     return 'default';
   }
@@ -454,7 +454,7 @@ export function getMyAuralId(): string {
 
 export function setMyAuralId(id: string) {
   try {
-    localStorage.setItem('dakemusic_aural_id', id);
+    localStorage.setItem('lyrise_aural_id', id);
   } catch (e) {
     logger.debug('AuralSkins', '保存光环皮肤失败', e);
   }

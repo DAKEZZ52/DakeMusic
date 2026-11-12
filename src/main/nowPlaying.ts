@@ -220,9 +220,9 @@ const sendSnapshot = () => {
 
 export const getNowPlayingSnapshot = () => snapshot;
 
-const DEFAULT_WINDOW_TITLE = 'DakeMusic';
+const DEFAULT_WINDOW_TITLE = 'LyriseMusic';
 
-/** 根据当前播放信息更新主窗口标题（任务栏/后台任务窗口显示）：歌手-歌名，无有效信息时回退 DakeMusic */
+/** 根据当前播放信息更新主窗口标题（任务栏/后台任务窗口显示）：歌手-歌名，无有效信息时回退 LyriseMusic */
 const applyWindowTitle = (playback: NowPlayingPlaybackPayload | null | undefined) => {
   const showTitle = isCoverPreviewEnabled();
   const artist = showTitle ? String(playback?.artist ?? '').trim() : '';
@@ -276,7 +276,7 @@ export const syncNowPlayingSnapshot = (payload: NowPlayingSnapshotPatch) => {
 export const registerNowPlayingHandlers = (context: IpcContext) => {
   ipcRegistry.registerHandler('now-playing:get-snapshot', () => getNowPlayingSnapshot());
 
-  // 任务栏封面预览开关：关闭时标题固定为 DakeMusic，并让任务栏回退到窗口实时画面
+  // 任务栏封面预览开关：关闭时标题固定为 LyriseMusic，并让任务栏回退到窗口实时画面
   ipcRegistry.registerListener('update-taskbar-cover-preview', (_event, enabled: boolean) => {
     setCoverPreviewEnabled(Boolean(enabled));
     setMainAppSetting('taskbarCoverPreview', Boolean(enabled));

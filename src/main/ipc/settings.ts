@@ -98,7 +98,7 @@ const SUPPORTED_IMPULSE_RESPONSE_EXTENSIONS = new Set([
 const MAX_COMMUNITY_IMPULSE_RESPONSE_BYTES = 32 * 1024 * 1024;
 const MAX_COMMUNITY_VPF_BYTES = 1024 * 1024;
 const VPF_MAGIC = Buffer.from('ViPER4WindowsX', 'ascii');
-// Keep in sync with SECTION_SIZES in native/dake-audio-player/src/vpf.rs.
+// Keep in sync with SECTION_SIZES in native/lyrise-audio-player/src/vpf.rs.
 const VPF_SECTION_SIZES = [0x170, 0x2e4, 0x2e8, 0x31c] as const;
 const MAX_COMMUNITY_AUDIO_PENDING_WRITE_BYTES = 4 * 1024 * 1024;
 const COMMUNITY_AUDIO_DOWNLOAD_TIMEOUT_MS = 30_000;
@@ -148,7 +148,7 @@ const requestJson = async <T>(url: string): Promise<T> => {
   try {
     const response = await networkFetch(url, {
       signal: controller.signal,
-      headers: { 'User-Agent': 'DakeMusic-Updater', Accept: 'application/json' },
+      headers: { 'User-Agent': 'LyriseMusic-Updater', Accept: 'application/json' },
     });
     if (!response.ok) throw new Error(`GitHub API returned HTTP ${response.status}`);
     return (await response.json()) as T;
@@ -682,7 +682,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     autoUpdater.allowPrerelease = prerelease;
     // GitHub provider 走 API 不读 channel，这里仅为在切换通道时保持状态一致
     autoUpdater.channel = prerelease ? 'beta' : 'latest';
-    // DakeMusic: electron-updater 的 channel setter 会自动把 allowDowngrade 置为 true，
+    // LyriseMusic: electron-updater 的 channel setter 会自动把 allowDowngrade 置为 true，
     // 这里显式关闭，避免读到旧版本信息时误把降级当成更新
     autoUpdater.allowDowngrade = false;
     activeUpdateSource = {
@@ -723,7 +723,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     };
   };
 
-  // DakeMusic: 腾讯云自有更新源（国内直连，作为首选源；GitHub/加速器仅在腾讯云不可用时兜底）
+  // LyriseMusic: 腾讯云自有更新源（国内直连，作为首选源；GitHub/加速器仅在腾讯云不可用时兜底）
   // prerelease=true 时订阅独立的 beta 通道（beta.yml），正式用户仍走 latest.yml，互不影响
   const TENCENT_DL_URL = DAKE_DOWNLOAD_BASE_URL;
   const configureTencentUpdateSource = (prerelease: boolean) => {
@@ -750,7 +750,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
   }) => {
     activeUpdateSource = { ...context, usingAccelerator: false, usingTencent: false };
     try {
-      // DakeMusic: 首选腾讯云（国内直连，一次命中即可，不再先等 GitHub 超时）
+      // LyriseMusic: 首选腾讯云（国内直连，一次命中即可，不再先等 GitHub 超时）
       configureTencentUpdateSource(context.prerelease);
       return await autoUpdater.checkForUpdates();
     } catch (err) {
@@ -776,7 +776,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
   };
 
   const downloadUpdateWithFallback = async (token: CancellationToken) => {
-    // DakeMusic: 检查阶段命中的是腾讯云，就沿用同一源下载，避免跨源 sha512 不一致
+    // LyriseMusic: 检查阶段命中的是腾讯云，就沿用同一源下载，避免跨源 sha512 不一致
     if (activeUpdateSource.usingTencent) {
       configureTencentUpdateSource(activeUpdateSource.prerelease);
       await autoUpdater.checkForUpdates();
@@ -826,7 +826,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     updateInstallExitTimeout = setTimeout(() => {
       if (downloadState.status !== 'installing') return;
       failUpdateInstall(
-        '更新安装器已启动但应用未能退出，请关闭 DakeMusic 后重试。',
+        '更新安装器已启动但应用未能退出，请关闭 LyriseMusic 后重试。',
         'Install exit timeout',
       );
       log.error('[Updater] Force exiting after install quit timeout');

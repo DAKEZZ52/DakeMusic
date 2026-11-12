@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 人声分离操作栏组件
+ * LyriseMusic - 人声分离操作栏组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：人声分离页顶部操作行（云盘页风格）：开始分离主按钮。
  *      开始条件由页面壳计算传入，本组件只负责按钮展示与事件上抛。
  -->

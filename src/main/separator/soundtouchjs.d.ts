@@ -1,5 +1,5 @@
 /**
- * DakeMusic - soundtouchjs 类型声明
+ * LyriseMusic - soundtouchjs 类型声明
  * 文件：soundtouchjs.d.ts
  * 描述：soundtouchjs 无自带类型声明，这里按实际用到的 API 子集声明。
  * 版权：Copyright © 2026 Dake（知之Dake）. All Rights Reserved.

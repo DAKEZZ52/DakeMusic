@@ -1,6 +1,8 @@
-// 分享协议名（dakemusic://）
-export const SHARE_SCHEME = 'dakemusic';
-// 分享落地页：部署于 dkyy.top 官网（site/share/index.html），解析 dakemusic:// 并唤起客户端
+// 分享协议名（lyrise://）
+export const SHARE_SCHEME = 'lyrise';
+/** 历史协议名，仅用于解析旧分享链接，不再生成 */
+export const LEGACY_SHARE_SCHEMES = ['dakemusic', 'echomusic'] as const;
+// 分享落地页：部署于 dkyy.top 官网（site/share/index.html），解析 lyrise:// 并唤起客户端
 export const SHARE_WEB_BASE_URL = 'https://dkyy.top/share/';
 
 export type ShareResourceType = 'song' | 'playlist' | 'artist' | 'album';
@@ -80,7 +82,8 @@ const parseCustomShareUrl = (value: string): ShareTarget | null => {
   } catch {
     return null;
   }
-  if (url.protocol !== `${SHARE_SCHEME}:`) return null;
+  const acceptedSchemes = [SHARE_SCHEME, ...LEGACY_SHARE_SCHEMES].map((scheme) => `${scheme}:`);
+  if (!acceptedSchemes.includes(url.protocol)) return null;
 
   const segments = url.pathname
     .split('/')
@@ -208,7 +211,7 @@ export const extractShareTarget = (value: string): ShareTarget | null => {
 
 export const buildShareText = (target: ShareTarget): string => {
   const title = readText(target.title);
-  const sharer = readText(target.sharer) || 'DakeMusic';
+  const sharer = readText(target.sharer) || 'LyriseMusic';
   const label = SHARE_TYPE_LABELS[target.type];
   const headline = `${sharer} 给你分享了${label}${title ? `「${title}」` : ''}，快去看看吧`;
   return `${headline}\n${buildShareWebUrl(target)}`;

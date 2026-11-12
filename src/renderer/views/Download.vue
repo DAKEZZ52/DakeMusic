@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 下载管理视图（页面壳，云盘页风格）
+  LyriseMusic 下载管理视图（页面壳，云盘页风格）
   作者：知之（DAKE知之）
   文件：Download.vue
   描述：收缩头部（SliverHeader）+ 顶部操作行（DownloadActionBar）+

@@ -52,18 +52,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01334b89b69ff726750c5ce5073fc8bd860e99aa9a8fc5ca11b04730e3aee97a"
 
 [[package]]
-name = "dake-sqlite-store"
-version = "0.1.0"
-dependencies = [
- "napi",
- "napi-build",
- "napi-derive",
- "once_cell",
- "rusqlite",
- "serde_json",
-]
-
-[[package]]
 name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -212,6 +200,18 @@ dependencies = [
  "cc",
  "pkg-config",
  "vcpkg",
+]
+
+[[package]]
+name = "lyrise-sqlite-store"
+version = "0.1.0"
+dependencies = [
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "once_cell",
+ "rusqlite",
+ "serde_json",
 ]
 
 [[package]]

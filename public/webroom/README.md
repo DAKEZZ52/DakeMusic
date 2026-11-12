@@ -1,8 +1,8 @@
-# DakeMusic 语聊房 · 网页版
+# LyriseMusic 语聊房 · 网页版
 
 `public/webroom/` 是从桌面端语聊房布局延伸出来的独立网页版，原生 HTML / CSS / JS，无构建依赖。页面只提供一种使用方式：
 
-- **真实房间**：使用 DakeMusic 账号登录，进入生产房间，通过 LiveKit 同步语音、麦位、歌词、公屏和播放队列。演示模式入口已移除（原有演示数据仅作为登录门背后的背景占位，无法进入）。
+- **真实房间**：使用 LyriseMusic 账号登录，进入生产房间，通过 LiveKit 同步语音、麦位、歌词、公屏和播放队列。演示模式入口已移除（原有演示数据仅作为登录门背后的背景占位，无法进入）。
 
 ## 本地预览
 
@@ -132,7 +132,7 @@ DAKE_WEBROOM_DEBUG.clear()        // 清空上面的记录
 ## 资源复用
 
 - `/chatroom-bg.jpg`
-- `/dakemusic-default-room-cover.png`
+- `/lyrise-default-room-cover.png`
 - `/seat/speaking-ring.webp`
 
 ## 演示数据

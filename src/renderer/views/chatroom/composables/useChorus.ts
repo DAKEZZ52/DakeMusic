@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房 - 合唱（M1：时钟同步与起播对齐）
+ * LyriseMusic 语聊房 - 合唱（M1：时钟同步与起播对齐）
  * 描述：以房间服务器时间为基准校准本机时钟，房主发起倒计时后所有端在同一个
  *       服务器时刻起唱；M1 阶段只做对齐与状态同步，不推送音频。
  */
@@ -27,7 +27,7 @@ export interface ChorusContext {
   isAllowedSender: (identity: string) => boolean;
 }
 
-const CHORUS_KIND = 'dakemusic-chorus';
+const CHORUS_KIND = 'lyrise-chorus';
 const CLOCK_SAMPLES = 5;
 
 export function useChorus(ctx: ChorusContext) {

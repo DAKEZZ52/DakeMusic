@@ -28,7 +28,7 @@
 | 4 | 版本低于 `DAKE_BUILD_ENFORCE_FROM`（默认 2.4.8） | 放行（老客户端） |
 | 5 | 其余 | **403 `NON_OFFICIAL_BUILD`** |
 
-第 4 条在没有版本号时会用 `User-Agent` 里的 `DakeMusic/x.y.z` 兜底，
+第 4 条在没有版本号时会用 `User-Agent` 里的 `LyriseMusic/x.y.z` 兜底，
 所以「删掉请求头」也绕不过去（UA 会暴露版本）。
 
 ## 实测（线上）

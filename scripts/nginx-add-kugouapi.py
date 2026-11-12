@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# DakeMusic nginx 增加 /kugouapi/ 反代（旧 /kugou 作废，新入口指向 3101）
-# 作者：知之（DAKE知之）  版权：© 2026 DakeMusic
+# LyriseMusic nginx 增加 /kugouapi/ 反代（旧 /kugou 作废，新入口指向 3101）
+# 作者：知之（DAKE知之）  版权：© 2026 LyriseMusic
 import re, sys, shutil
 
 p = '/etc/nginx/sites-enabled/dkyy.top'

@@ -17,7 +17,7 @@ param(
   [string]$SshHost = '106.52.9.146',
   [string]$User = 'ubuntu',
   [int]$Port = 22,
-  [string]$KeyPath = "$env:USERPROFILE\.ssh\dakemusic_webroom",
+  [string]$KeyPath = "$env:USERPROFILE\.ssh\lyrise_webroom",
   [string]$RemoteRoot = '/var/www/html',
   [string]$SiteUrl = 'https://dkyy.top/webroom/',
   [switch]$SkipVerify

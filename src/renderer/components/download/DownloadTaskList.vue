@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 下载任务列表组件
+ * LyriseMusic - 下载任务列表组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：下载管理页任务表格（云盘页歌曲表风格）：列头（歌曲/状态/进度/操作）+ 任务行，
  *      空状态引导；任务操作直接调用 download store 的 action。
  -->

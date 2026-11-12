@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-refresh-site.py — DakeMusic 官网静态版本刷新脚本
+refresh-site.py — LyriseMusic 官网静态版本刷新脚本
 ===================================================
 用途：把最新安装包版本静态写进下载页，页面不再依赖 JS 才有正确版本。
 
@@ -32,7 +32,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DL_HTML = os.path.join(BASE, 'scripts', 'dl-index.html')
 DL_FILES_URL = 'https://dkyy.top/dl-files/'
 
-SSH_KEY = os.path.join(os.path.expanduser('~'), '.ssh', 'dakemusic_webroom')
+SSH_KEY = os.path.join(os.path.expanduser('~'), '.ssh', 'lyrise_webroom')
 SSH_HOST = 'ubuntu@106.52.9.146'
 REMOTE_DL = '/var/www/dkyy/dl/index.html'
 
@@ -45,13 +45,13 @@ DESC = {
 HISTORY_FROM = '2.4.7'
 
 def fetch_json(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'DakeMusic-refresh/1.0'})
+    req = urllib.request.Request(url, headers={'User-Agent': 'LyriseMusic-refresh/1.0'})
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.loads(r.read().decode('utf-8'))
 
 
 def fetch_text(url):
-    req = urllib.request.Request(url, headers={'User-Agent': 'DakeMusic-refresh/1.0'})
+    req = urllib.request.Request(url, headers={'User-Agent': 'LyriseMusic-refresh/1.0'})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read().decode('utf-8', 'replace')
 
@@ -102,7 +102,7 @@ def latest_exe():
         raise RuntimeError('dl 目录未发现任何 exe')
     exes.sort(key=lambda x: (x['ver']['major'], x['ver']['minor'], x['ver']['patch'],
                              -x['ver']['beta']), reverse=True)
-    # DakeMusic: 历史卡片只保留 HISTORY_FROM 及之后的版本
+    # LyriseMusic: 历史卡片只保留 HISTORY_FROM 及之后的版本
     floor = parse_ver(HISTORY_FROM)
     history = [e for e in exes[1:] if floor is None or cmp_ver(e['ver'], floor) <= 0]
     return exes[0], history
@@ -123,7 +123,7 @@ def inject_dl(path, latest, history):
         '<div class="latest">'
         '<div class="latest-info">'
         '<span class="latest-label"><span class="latest-dot"></span>最新版本</span>'
-        '<div class="latest-name">DakeMusic ' + ver + '</div>'
+        '<div class="latest-name">LyriseMusic ' + ver + '</div>'
         '<div class="latest-meta">Windows x64 · 约 ' + size_s + ' · ' + date + desc + '</div>'
         '</div>'
         '<a class="btn" href="' + name + '">'
@@ -145,7 +145,7 @@ def inject_dl(path, latest, history):
             '<div class="ver-card">'
             '<div class="ver-icon">' + icon + '</div>'
             '<div class="ver-info">'
-            '<div class="ver-name">DakeMusic ' + v + tag + '</div>'
+            '<div class="ver-name">LyriseMusic ' + v + tag + '</div>'
             '<div class="ver-meta">Windows x64 · 约 ' + fmt_size(f['size']) + ' · ' + f['date'] + d + '</div>'
             '</div>'
             '<a class="ver-btn" href="' + f['name'] + '">' + down + ' 下载</a>'
@@ -191,7 +191,7 @@ def main():
     upload = '--upload' in sys.argv
     print('==> 读取 %s' % DL_FILES_URL)
     latest, history = latest_exe()
-    print('    最新：DakeMusic %s · %s · %s' % (latest['ver']['full'], fmt_size(latest['size']), latest['date']))
+    print('    最新：LyriseMusic %s · %s · %s' % (latest['ver']['full'], fmt_size(latest['size']), latest['date']))
     print('    历史：%s' % ', '.join(f['ver']['full'] for f in history) if history else '无')
 
     print('==> 刷新下载页')
@@ -213,7 +213,7 @@ def main():
         except Exception as exc:
             print('    %s -> 读取失败：%s' % (label, exc))
             continue
-        ok = 'DakeMusic ' + latest['ver']['full'] in out
+        ok = 'LyriseMusic ' + latest['ver']['full'] in out
         print('    %s v%s -> %s' % (label, latest['ver']['full'], 'OK' if ok else '未命中'))
 
     print('完成。' if upload else '')

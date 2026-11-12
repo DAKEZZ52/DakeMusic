@@ -1,8 +1,8 @@
 {
-  "name": "dakemusic-room-server",
+  "name": "lyrise-room-server",
   "version": "1.0.0",
   "type": "module",
-  "description": "DakeMusic 语聊房后端",
+  "description": "LyriseMusic 语聊房后端",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"

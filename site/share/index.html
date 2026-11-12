@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>DakeMusic 分享 · 打开歌单</title>
+<title>LyriseMusic 分享 · 打开歌单</title>
 <!--
-  DakeMusic 分享落地页
+  LyriseMusic 分享落地页
   作者：知之（DAKE知之）
-  版权：© 2026 DakeMusic. All rights reserved.
-  说明：解析 dakemusic:// 与 ?type=&id= 形式的分享链接，唤起桌面客户端。
+  版权：© 2026 LyriseMusic. All rights reserved.
+  说明：解析 lyrise:// 与 ?type=&id= 形式的分享链接，唤起桌面客户端。
 -->
-<meta name="description" content="你收到一份来自 DakeMusic 的音乐分享，点击即可在客户端中打开。">
+<meta name="description" content="你收到一份来自 LyriseMusic 的音乐分享，点击即可在客户端中打开。">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="DakeMusic">
-<meta property="og:title" content="DakeMusic 分享">
-<meta property="og:description" content="你收到一份来自 DakeMusic 的音乐分享，点击即可在客户端中打开。">
+<meta property="og:site_name" content="LyriseMusic">
+<meta property="og:title" content="LyriseMusic 分享">
+<meta property="og:description" content="你收到一份来自 LyriseMusic 的音乐分享，点击即可在客户端中打开。">
 <meta property="og:url" content="https://dkyy.top/share/">
 <style>
 :root {
@@ -188,14 +188,14 @@ body::after {
 <body>
 <div class="card">
   <a class="brand" href="https://dkyy.top/">
-    <img src="https://dkyy.top/assets/img/logo.png" alt="DakeMusic" width="40" height="40">
+    <img src="https://dkyy.top/assets/img/logo.png" alt="LyriseMusic" width="40" height="40">
     <span class="brand-name"><em>Dake</em>Music</span>
   </a>
   <div class="tag" id="shareTag">音乐分享</div>
-  <h1 class="title" id="shareTitle">打开 DakeMusic</h1>
+  <h1 class="title" id="shareTitle">打开 LyriseMusic</h1>
   <p class="sub" id="shareSub">你收到一份音乐分享，点击下方按钮在客户端中打开</p>
   <div class="actions">
-    <a class="btn btn-primary" id="openBtn" href="https://dkyy.top/">打开 DakeMusic</a>
+    <a class="btn btn-primary" id="openBtn" href="https://dkyy.top/">打开 LyriseMusic</a>
     <button class="btn btn-ghost" id="copyBtn" type="button">复制网页分享链接</button>
   </div>
   <div class="link-block">
@@ -205,10 +205,10 @@ body::after {
     </div>
     <div class="link-row">
       <span class="link-label">App 链接</span>
-      <button class="link-value" id="appLink" type="button" title="点击复制">dakemusic://</button>
+      <button class="link-value" id="appLink" type="button" title="点击复制">lyrise://</button>
     </div>
   </div>
-  <div class="foot"><a href="https://dkyy.top/">返回 DakeMusic 官网</a></div>
+  <div class="foot"><a href="https://dkyy.top/">返回 LyriseMusic 官网</a></div>
 </div>
 <div class="toast" id="toast">分享链接已复制</div>
 <script>
@@ -220,7 +220,7 @@ body::after {
   var id = '';
   var rawTarget = params.get('target');
   if (rawTarget) {
-    var m = /^dakemusic:\/\/([^/]+)\/([^?/]+)/i.exec(String(rawTarget));
+    var m = /^lyrise:\/\/([^/]+)\/([^?/]+)/i.exec(String(rawTarget));
     if (m) { type = decodeURIComponent(m[1]); id = decodeURIComponent(m[2]); }
   }
   if (!type || !id) { type = params.get('type') || ''; id = params.get('id') || ''; }
@@ -230,13 +230,13 @@ body::after {
   }
   if (!type || !id) { return; }
 
-  var schemeUrl = 'dakemusic://' + type + '/' + encodeURIComponent(id);
+  var schemeUrl = 'lyrise://' + type + '/' + encodeURIComponent(id);
   var webShareUrl = location.href.split('#')[0];
   var label = TYPE_LABELS[type] || '内容';
-  document.title = 'DakeMusic 分享 · 打开' + label;
+  document.title = 'LyriseMusic 分享 · 打开' + label;
   document.getElementById('shareTag').textContent = '分享的' + label;
-  document.getElementById('shareTitle').textContent = '打开 DakeMusic';
-  document.getElementById('shareSub').textContent = '你收到一份来自 DakeMusic 的' + label + '分享，点击即可在客户端中打开';
+  document.getElementById('shareTitle').textContent = '打开 LyriseMusic';
+  document.getElementById('shareSub').textContent = '你收到一份来自 LyriseMusic 的' + label + '分享，点击即可在客户端中打开';
   document.getElementById('openBtn').setAttribute('href', schemeUrl);
   document.getElementById('webLink').textContent = webShareUrl;
   document.getElementById('appLink').textContent = schemeUrl;

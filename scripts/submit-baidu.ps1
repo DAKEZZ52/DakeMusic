@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-  向百度主动推送接口提交 DakeMusic 的页面 URL。
+  向百度主动推送接口提交 LyriseMusic 的页面 URL。
 
 .DESCRIPTION
   需要在百度搜索资源平台获取普通收录的 API token，然后设置环境变量：

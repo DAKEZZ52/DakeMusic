@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * DakeMusic - 通用图标渲染组件
+ * LyriseMusic - 通用图标渲染组件
  * 作者：知之（DAKE知之）
  * 说明：随插件系统精简后保留，负责标题栏等位置的图标渲染。
  */

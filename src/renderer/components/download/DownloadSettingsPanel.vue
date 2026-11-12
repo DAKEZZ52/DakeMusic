@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 下载设置组件
+ * LyriseMusic - 下载设置组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：下载设置分区内容：保存目录（打开/更改）、同时下载数（步进 1~8）、
  *      写入歌曲信息开关，设置读写直接走 download store。
  *      只渲染内容区不画外壳，由页面壳与「下载统计」共用一个分区卡。
@@ -18,7 +18,7 @@ const downloadStore = useDownloadStore();
 
 /** 下载目录显示（为空时使用默认目录）。 */
 const saveDirText = computed(
-  () => downloadStore.settings.saveDir || '默认下载目录（音乐文件夹 / DakeMusic）',
+  () => downloadStore.settings.saveDir || '默认下载目录（音乐文件夹 / LyriseMusic）',
 );
 
 /** 并发数（用于步进按钮）。 */

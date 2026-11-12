@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房 - 歌词面板与房间数据通道
+ * LyriseMusic 语聊房 - 歌词面板与房间数据通道
  * 描述：本地/远端歌词对齐、LiveKit 歌词广播（全量+心跳+分片）、麦位装扮与座位模式广播。
  */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -71,11 +71,11 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
 
   // 判断：本机是否为播放源（房主作为播放源）
   const isLocalSongSource = computed(() => {
-    // DakeMusic: 用真房主判断播放源，避免根超管进自己房间被误判成听众
+    // LyriseMusic: 用真房主判断播放源，避免根超管进自己房间被误判成听众
     return !!store.isRoomHost;
   });
 
-  // DakeMusic: 本地播放器是否正对应房间当前曲目。
+  // LyriseMusic: 本地播放器是否正对应房间当前曲目。
   // 房间里的每个客户端都会本地播放同一首歌，因此即使房主歌词广播丢包，
   // 也能直接用本地歌词库显示，不必卡在“暂无歌词”。
   const isLocalRoomTrack = computed(() => {
@@ -94,7 +94,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
   // 歌词来源：房主，或本地确实在播房间这首歌的客户端，优先读本地歌词库
   const useLocalLyric = computed(() => isLocalSongSource.value || isLocalRoomTrack.value);
 
-  // DakeMusic: 是否应该由本机广播歌词。
+  // LyriseMusic: 是否应该由本机广播歌词。
   // 房主（播放源）照旧广播；另外允许「坐在主麦上、且本地正在放房间这首歌」的 DJ 广播，
   // 否则管理员/成员在放歌时，网页端与其它客户端都拿不到歌词。
   const shouldBroadcastLyrics = computed(
@@ -125,7 +125,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
     return null;
   });
 
-  // DakeMusic: 房间点歌台当前曲目，作为标题/歌手的兜底，
+  // LyriseMusic: 房间点歌台当前曲目，作为标题/歌手的兜底，
   // 避免本地播放器尚未接上（或听众端广播丢失）时面板一直显示“暂无播放”。
   const roomTrackTitle = computed(() => {
     void lyricTick.value;
@@ -256,7 +256,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
       const room = await getLKRoom();
       if (!room?.localParticipant) return;
       const payload = JSON.stringify({
-        kind: 'dakemusic-lyric',
+        kind: 'lyrise-lyric',
         type: 'lyric-sync',
         lines: lyricStore.lines,
         currentIndex: lyricStore.currentIndex,
@@ -265,7 +265,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
         time: Date.now(),
       });
       const buf = new TextEncoder().encode(payload);
-      // DakeMusic: LiveKit 单包上限 64KB，歌词过大时切片发送，接收端按 transferId 重组
+      // LyriseMusic: LiveKit 单包上限 64KB，歌词过大时切片发送，接收端按 transferId 重组
       const MAX = 60000;
       if (buf.length <= MAX) {
         await room.localParticipant.publishData(buf, { reliable: true });
@@ -278,7 +278,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
         // 包头：JSON 头 + '\n'，后面紧跟原始字节切片
         const header = new TextEncoder().encode(
           JSON.stringify({
-            kind: 'dakemusic-lyric-chunk',
+            kind: 'lyrise-lyric-chunk',
             transferId,
             index: i,
             total,
@@ -304,7 +304,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
       const room = await getLKRoom();
       if (!room?.localParticipant) return;
       const payload = JSON.stringify({
-        kind: 'dakemusic-lyric',
+        kind: 'lyrise-lyric',
         type: 'lyric-heartbeat',
         currentIndex: lyricStore.currentIndex,
         songTitle: songTitle.value,
@@ -316,7 +316,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
     }
   }
 
-  /** DakeMusic: 应用全量歌词同步（换歌/丢包兜底/新人进房共用） */
+  /** LyriseMusic: 应用全量歌词同步（换歌/丢包兜底/新人进房共用） */
   function applyLyricSync(obj: any) {
     const rawLines = Array.isArray(obj.lines) ? obj.lines : [];
     remoteLyricData.value.lines = rawLines
@@ -333,7 +333,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
     remoteLyricData.value.timestamp = Number.isFinite(ts) ? ts : 0;
   }
 
-  /** DakeMusic: 歌词分片重组缓存 transferId -> {total, parts, count, updatedAt} */
+  /** LyriseMusic: 歌词分片重组缓存 transferId -> {total, parts, count, updatedAt} */
   const LYRIC_CHUNK_MAX_TOTAL = 64; // 最多 64 包 × 60KB ≈ 3.8MB，防止超大内存占用
   const LYRIC_CHUNK_TTL = 30_000;
   const lyricChunkBuffer = new Map<
@@ -408,12 +408,12 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
       const from = participant?.identity || '';
       if (!from || !(data instanceof Uint8Array) || data.length > 2_000_000) return;
 
-      // DakeMusic: 先判断是否为歌词分片（包头为 JSON + '\n'，后面是原始字节）
+      // LyriseMusic: 先判断是否为歌词分片（包头为 JSON + '\n'，后面是原始字节）
       const nlIdx = data.indexOf(0x0a);
       if (nlIdx > 0 && nlIdx < 300) {
         try {
           const header = JSON.parse(new TextDecoder().decode(data.slice(0, nlIdx)));
-          if (header.kind === 'dakemusic-lyric-chunk') {
+          if (header.kind === 'lyrise-lyric-chunk') {
             // 只有房主或主麦 DJ 能发歌词，避免任意成员覆盖全房间歌词
             if (!isLyricSourceSender(from)) return;
             handleLyricChunk(header, data.slice(nlIdx + 1));
@@ -443,23 +443,23 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
           remoteLyricData.value.currentIndex = obj.currentIndex;
         }
       } else if (
-        obj.kind === 'dakemusic-seat-mode' &&
+        obj.kind === 'lyrise-seat-mode' &&
         (obj.mode === 'normal' || obj.mode === 'duet')
       ) {
-        // DakeMusic: 房主/平台管理员切换对唱/普通模式，房内其他人同步
+        // LyriseMusic: 房主/平台管理员切换对唱/普通模式，房内其他人同步
         if (!isGlobalAdminSender(from)) return;
         applySeatModeFromRemote(obj.mode);
-      } else if (obj.kind === 'dakemusic-user-style' && obj.identity === from) {
-        // DakeMusic: 某用户广播自己的麦位框/声波皮肤（只能改自己的，不能冒充别人）
+      } else if (obj.kind === 'lyrise-user-style' && obj.identity === from) {
+        // LyriseMusic: 某用户广播自己的麦位框/声波皮肤（只能改自己的，不能冒充别人）
         store.userStyles[obj.identity] = {
           frameUrl: typeof obj.frameUrl === 'string' ? obj.frameUrl.slice(0, 2048) : '',
           auralUrl: typeof obj.auralUrl === 'string' ? obj.auralUrl.slice(0, 2048) : '',
         };
-      } else if (obj.kind === 'dakemusic-chorus') {
+      } else if (obj.kind === 'lyrise-chorus') {
         if (!isLyricSourceSender(from)) return;
         ctx.onChorusMessage?.(obj, from);
-      } else if (obj.kind === 'dakemusic-badwords-refresh') {
-        // DakeMusic: 违禁词有变更，房间所有人重新拉取（仅房主/平台管理员可触发）
+      } else if (obj.kind === 'lyrise-badwords-refresh') {
+        // LyriseMusic: 违禁词有变更，房间所有人重新拉取（仅房主/平台管理员可触发）
         if (!isGlobalAdminSender(from)) return;
         loadBadWords();
       }
@@ -468,13 +468,13 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
     }
   }
 
-  // DakeMusic: 广播自己的麦位框/声波皮肤给房内所有人
+  // LyriseMusic: 广播自己的麦位框/声波皮肤给房内所有人
   async function broadcastMyStyle() {
     try {
       const lkRoom = await getLKRoom();
       if (!lkRoom?.localParticipant || !store.myIdentity) return;
       const payload = JSON.stringify({
-        kind: 'dakemusic-user-style',
+        kind: 'lyrise-user-style',
         identity: store.myIdentity,
         frameUrl: getSeatFrameUrl(getMySeatFrameId()) || '',
         auralUrl: getAuralUrl(getMyAuralId()) || '',
@@ -492,7 +492,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
     broadcastMyStyle();
   }
 
-  // DakeMusic: 有新人进房，立刻把自己的框/声波/当前座位模式/当前歌词广播给他，他不用等下次
+  // LyriseMusic: 有新人进房，立刻把自己的框/声波/当前座位模式/当前歌词广播给他，他不用等下次
   async function onNewParticipant() {
     try {
       await broadcastMyStyle();
@@ -501,7 +501,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
         // 座位模式只有房主/平台管理员需要广播；普通成员广播会被接收端权限校验丢弃
         if (store.isOwner || store.isAdmin || store.isRootSuper) {
           const payload = JSON.stringify({
-            kind: 'dakemusic-seat-mode',
+            kind: 'lyrise-seat-mode',
             mode: currentSeatMode.value,
             time: Date.now(),
           });
@@ -509,7 +509,7 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
             reliable: true,
           });
         }
-        // DakeMusic: 房主/主麦 DJ 有新人进房立刻广播当前歌曲/歌词，新人进来就同步看到
+        // LyriseMusic: 房主/主麦 DJ 有新人进房立刻广播当前歌曲/歌词，新人进来就同步看到
         if (shouldBroadcastLyrics.value) await broadcastLyricSync();
       }
     } catch (e) {
@@ -527,12 +527,12 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
       room.on('dataReceived', onRoomDataReceived);
       room.on('participantConnected', onNewParticipant);
 
-      // DakeMusic: 进房后等其他人都连上，广播一次自己的麦位框/声波；同时监听本地选装扮变化
+      // LyriseMusic: 进房后等其他人都连上，广播一次自己的麦位框/声波；同时监听本地选装扮变化
       setTimeout(() => {
         broadcastMyStyle();
       }, 1500);
-      window.addEventListener('dakemusic-frame-changed', onLocalStyleChanged);
-      window.addEventListener('dakemusic-aural-changed', onLocalStyleChanged);
+      window.addEventListener('lyrise-frame-changed', onLocalStyleChanged);
+      window.addEventListener('lyrise-aural-changed', onLocalStyleChanged);
 
       // 歌词广播：房主或主麦 DJ 都会广播（函数内部有 shouldBroadcastLyrics 守卫）
       watchBroadcastStop = watch(
@@ -560,8 +560,8 @@ export function useRoomLyrics(ctx: RoomLyricsContext) {
         room.off('participantConnected', onNewParticipant);
       }
     });
-    window.removeEventListener('dakemusic-frame-changed', onLocalStyleChanged);
-    window.removeEventListener('dakemusic-aural-changed', onLocalStyleChanged);
+    window.removeEventListener('lyrise-frame-changed', onLocalStyleChanged);
+    window.removeEventListener('lyrise-aural-changed', onLocalStyleChanged);
   });
 
   return {

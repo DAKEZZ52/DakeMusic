@@ -1,7 +1,7 @@
 {
-  "name": "dake-music",
+  "name": "lyrise-music",
   "version": "2.4.8",
-  "description": "DakeMusic desktop client.",
+  "description": "LyriseMusic desktop client.",
   "license": "GPL-3.0-only",
   "author": "Dake <983064062@qq.com>",
   "main": "dist-electron/main/index.js",
@@ -88,8 +88,8 @@
     "livekit-client": "^2.22.3"
   },
   "build": {
-    "appId": "com.dake.dakemusic",
-    "productName": "DakeMusic",
+    "appId": "com.lyrise.music",
+    "productName": "LyriseMusic",
     "publish": [
       {
         "provider": "generic",
@@ -98,7 +98,7 @@
       {
         "provider": "github",
         "owner": "DAKEZZ52",
-        "repo": "DakeMusic"
+        "repo": "LyriseMusic"
       }
     ],
     "compression": "maximum",
@@ -111,9 +111,9 @@
     },
     "protocols": [
       {
-        "name": "DakeMusic",
+        "name": "LyriseMusic",
         "schemes": [
-          "dakemusic"
+          "lyrise"
         ]
       }
     ],
@@ -147,29 +147,29 @@
         ]
       },
       {
-        "from": "native/dake-media-controls/dake-media-controls.node",
-        "to": "native/dake-media-controls.node",
+        "from": "native/lyrise-media-controls/lyrise-media-controls.node",
+        "to": "native/lyrise-media-controls.node",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "native/dake-audio-player/dake-audio-player.node",
-        "to": "native/dake-audio-player.node",
+        "from": "native/lyrise-audio-player/lyrise-audio-player.node",
+        "to": "native/lyrise-audio-player.node",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "native/dake-audio-capture/dake-audio-capture.node",
-        "to": "native/dake-audio-capture.node",
+        "from": "native/lyrise-audio-capture/lyrise-audio-capture.node",
+        "to": "native/lyrise-audio-capture.node",
         "filter": [
           "**/*"
         ]
       },
       {
-        "from": "native/dake-sqlite-store/dake-sqlite-store.node",
-        "to": "native/dake-sqlite-store.node",
+        "from": "native/lyrise-sqlite-store/lyrise-sqlite-store.node",
+        "to": "native/lyrise-sqlite-store.node",
         "filter": [
           "**/*"
         ]
@@ -217,8 +217,8 @@
       "icon": "icons/icon.icns",
       "extraResources": [
         {
-          "from": "native/dake-platform-adaptor/dake-platform-adaptor.node",
-          "to": "native/dake-platform-adaptor.node"
+          "from": "native/lyrise-platform-adaptor/lyrise-platform-adaptor.node",
+          "to": "native/lyrise-platform-adaptor.node"
         }
       ],
       "category": "public.app-category.music",
@@ -226,9 +226,9 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.inherit.plist",
       "extendInfo": {
-        "NSAppleEventsUsageDescription": "DakeMusic 需要通过系统事件执行您设置的定时关机动作。",
-        "NSMicrophoneUsageDescription": "DakeMusic 需要访问麦克风以识别正在播放的歌曲",
-        "NSAudioCaptureUsageDescription": "DakeMusic 需要捕获系统音频以识别正在播放的歌曲"
+        "NSAppleEventsUsageDescription": "LyriseMusic 需要通过系统事件执行您设置的定时关机动作。",
+        "NSMicrophoneUsageDescription": "LyriseMusic 需要访问麦克风以识别正在播放的歌曲",
+        "NSAudioCaptureUsageDescription": "LyriseMusic 需要捕获系统音频以识别正在播放的歌曲"
       },
       "target": [
         "zip",
@@ -260,8 +260,8 @@
       "icon": "icons/icon.ico",
       "extraResources": [
         {
-          "from": "native/dake-platform-adaptor/dake-platform-adaptor.node",
-          "to": "native/dake-platform-adaptor.node"
+          "from": "native/lyrise-platform-adaptor/lyrise-platform-adaptor.node",
+          "to": "native/lyrise-platform-adaptor.node"
         }
       ],
       "target": [

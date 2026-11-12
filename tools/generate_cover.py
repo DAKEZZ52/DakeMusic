@@ -29,7 +29,7 @@ draw = ImageDraw.Draw(img)
 
 # 文字
 main_text = "情敌贝多芬"
-sub_text = "DakeMusic Small Room"
+sub_text = "LyriseMusic Small Room"
 
 # 字体大小根据图片尺寸
 main_font_size = int(size * 0.1)  # 10% 图片宽度
@@ -78,7 +78,7 @@ for dx, dy in [(1, 1), (-1, -1)]:
 draw.text((sub_x, sub_y), sub_text, font=sub_font, fill=(255, 255, 255, 220))
 
 # 保存为 PNG
-output_path = r"C:\Users\Dake\Desktop\DakeMusic\public\dakemusic-default-room-cover.png"
+output_path = r"C:\Users\Dake\Desktop\LyriseMusic\public\lyrise-default-room-cover.png"
 img = img.convert('RGB')
 img.save(output_path, 'PNG')
 

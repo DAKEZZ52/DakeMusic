@@ -1,12 +1,12 @@
 {
-  "name": "dake-platform-adaptor",
+  "name": "lyrise-platform-adaptor",
   "version": "0.1.0",
-  "main": "dake-platform-adaptor.node",
+  "main": "lyrise-platform-adaptor.node",
   "devDependencies": {
     "@napi-rs/cli": "^3.5.1"
   },
   "napi": {
-    "binaryName": "dake-platform-adaptor",
+    "binaryName": "lyrise-platform-adaptor",
     "triples": {}
   },
   "scripts": {

@@ -1,6 +1,6 @@
 # 音效引擎与设置 UI
 
-DakeMusic 根据引擎 manifest 生成设置，不内置任何 Provider 的音效名称或专属参数逻辑。
+LyriseMusic 根据引擎 manifest 生成设置，不内置任何 Provider 的音效名称或专属参数逻辑。
 引擎负责算法、默认值、参数校验和实际值回显；播放器负责展示、保存和调用。
 ABI 仍是 v2，以下只是 JSON 的兼容扩展。
 
@@ -141,11 +141,11 @@ node --experimental-strip-types --test tests/audio-effect-support.test.mjs tests
 
 ## 验证
 
-DakeMusic 的测试只验证通用 manifest、设置持久化、资源能力和 ABI 宿主行为。
+LyriseMusic 的测试只验证通用 manifest、设置持久化、资源能力和 ABI 宿主行为。
 具体 Provider 的预设、参数映射、算法输出、采样率及延迟应在对应 Provider 仓库验证。
 
 ```sh
 node --experimental-strip-types --test tests/audio-effect-support.test.mjs tests/dsp-provider-settings.test.ts tests/latest-request-queue.test.ts tests/effect-settings-navigation.test.mjs
 pnpm exec vue-tsc --noEmit
-cargo test --manifest-path native/dake-audio-player/Cargo.toml
+cargo test --manifest-path native/lyrise-audio-player/Cargo.toml
 ```

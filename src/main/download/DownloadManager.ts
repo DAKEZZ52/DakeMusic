@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载管理器模块
+ * LyriseMusic 下载管理器模块
  * 作者：知之Dake
  * 文件：DownloadManager.ts
  * 描述：歌曲下载任务的全局管理——任务表、并发控制与等待队列、增删/暂停/继续/取消/重试、

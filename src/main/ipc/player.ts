@@ -64,7 +64,7 @@ export function registerPlayerIpc(ref: PlayerRef): void {
     async (_event, mode: 'headphone' | 'speaker' = 'speaker') => {
       const result = await dialog.showOpenDialog({
         properties: ['openFile'],
-        filters: [{ name: 'DakeMusic 音效引擎', extensions: ['dll', 'dylib', 'so'] }],
+        filters: [{ name: 'LyriseMusic 音效引擎', extensions: ['dll', 'dylib', 'so'] }],
       });
       if (result.canceled || !result.filePaths[0]) return null;
       const sourcePath = await fs.promises.realpath(result.filePaths[0]);

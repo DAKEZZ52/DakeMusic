@@ -712,7 +712,7 @@ onMounted(() => loadData());
                   </div>
                 </template>
 
-                <!-- DakeMusic: 每日权益标题（与左栏“账号档案”对称，保证顶部对齐） -->
+                <!-- LyriseMusic: 每日权益标题（与左栏“账号档案”对称，保证顶部对齐） -->
                 <div class="flex items-center gap-2 mb-4">
                   <Icon :icon="iconGift" width="16" height="16" class="text-primary-text" />
                   <h3 class="text-[16px] font-black">每日权益</h3>

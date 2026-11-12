@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载模块（共享类型）
+ * LyriseMusic 下载模块（共享类型）
  * 作者：知之Dake
  * 文件：download.ts
  * 描述：歌曲下载任务的状态机、任务快照、创建请求、下载设置与 IPC 通道常量（主进程与渲染层共用）
@@ -91,7 +91,7 @@ export interface DownloadTaskSnapshot {
 
 /** 下载设置。 */
 export interface DownloadSettings {
-  /** 保存目录（空字符串表示使用默认 音乐目录/DakeMusic）。 */
+  /** 保存目录（空字符串表示使用默认 音乐目录/LyriseMusic）。 */
   saveDir: string;
   /** 最大并发下载数。 */
   maxConcurrency: number;

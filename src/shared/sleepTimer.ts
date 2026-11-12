@@ -3,6 +3,6 @@ export type SleepTimerActionResult = { ok: true } | { ok: false; error: string }
 
 export const sleepTimerActionLabels: Record<SleepTimerAction, string> = {
   pause: '停止播放',
-  quit: '退出 DakeMusic',
+  quit: '退出 LyriseMusic',
   shutdown: '关机',
 };

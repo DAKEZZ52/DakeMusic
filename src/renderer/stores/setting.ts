@@ -223,14 +223,14 @@ export const useSettingStore = defineStore('setting', {
     customBackgroundImage: '',
     customBackgroundOverlay: 40,
     customBackgroundTextColor: 'auto' as 'auto' | 'dark' | 'light',
-    // DakeMusic 语聊房模块 - 作者：知之Dake
+    // LyriseMusic 语聊房模块 - 作者：知之Dake
     // 描述：语聊房自定义背景图设置
     chatroomBackgroundImage: '',
     chatroomBackgroundOverlay: 30,
     importBackgroundConfirmDismissed: false,
     cloudUploadBackgroundConfirmDismissed: false,
     checkPrerelease: false,
-    // DakeMusic: 默认开启国内加速源，提升更新下载速度
+    // LyriseMusic: 默认开启国内加速源，提升更新下载速度
     githubProxyUrl: 'https://mirror.ghproxy.com',
     appVersion: '',
     isPrerelease: false,
@@ -287,7 +287,7 @@ export const useSettingStore = defineStore('setting', {
     lyricOffsetStep: 0.1,
     // DevTools 开关
     devToolsEnabled: false,
-    // DakeMusic: 自动领取每日VIP
+    // LyriseMusic: 自动领取每日VIP
     autoClaimVip: false,
   }),
   getters: {
@@ -459,7 +459,7 @@ export const useSettingStore = defineStore('setting', {
         const appInfo = await window.electron.appInfo.get();
         this.appVersion = String(appInfo.version || '').trim();
         this.isPrerelease = Boolean(appInfo.isPrerelease);
-        // DakeMusic: 测试版通道已下线（beta.yml 已删除），强制走正式通道，覆盖历史遗留的预发布开关
+        // LyriseMusic: 测试版通道已下线（beta.yml 已删除），强制走正式通道，覆盖历史遗留的预发布开关
         this.checkPrerelease = false;
         this.appIsPackaged = Boolean(appInfo.isPackaged);
       } catch {
@@ -826,7 +826,7 @@ export const useSettingStore = defineStore('setting', {
     clearCustomBackground() {
       this.customBackgroundImage = '';
     },
-    // DakeMusic 语聊房模块 - 作者：知之Dake
+    // LyriseMusic 语聊房模块 - 作者：知之Dake
     // 描述：语聊房背景相关方法
     setChatroomBackgroundImage(base64: string) {
       this.chatroomBackgroundImage = base64;
@@ -852,7 +852,7 @@ export const useSettingStore = defineStore('setting', {
       'windowFrostBackend',
       'windowBackgroundNeedsRestart',
       'windowBackgroundUnavailableReason',
-      // DakeMusic: 测试版通道已下线，预发布开关不再持久化，一律走正式通道
+      // LyriseMusic: 测试版通道已下线，预发布开关不再持久化，一律走正式通道
       'checkPrerelease',
     ],
   },

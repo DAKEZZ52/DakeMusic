@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载任务模块
+ * LyriseMusic 下载任务模块
  * 作者：知之Dake
  * 文件：DownloadTask.ts
  * 描述：单个歌曲下载任务的执行体——基于 Electron net 流式下载（走代理/重定向），

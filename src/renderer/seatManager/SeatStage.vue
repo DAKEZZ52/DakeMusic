@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 座位管理模块
+  LyriseMusic 座位管理模块
   作者：知之Dake
   文件：SeatStage.vue
   描述：座位/麦位舞台 UI - 1 个大主座（上）+ 6 个小座位（双排 3+3）
@@ -40,14 +40,14 @@ const {
 const mainSeat = computed(() => seats.value.find((s) => s.isMain) || null);
 const smallSeats = computed(() => seats.value.filter((s) => !s.isMain));
 
-// DakeMusic: 麦位布局模式切换（实际模式由房主广播的 dakemusic-seat-mode 事件驱动）
+// LyriseMusic: 麦位布局模式切换（实际模式由房主广播的 lyrise-seat-mode 事件驱动）
 const seatMode = ref<'normal' | 'duet'>('normal');
 // 对唱模式：第一个小座升为大座，剩下 4 个小座
 const duetBigSeat = computed(() => smallSeats.value[0] || null);
 
-// DakeMusic: 我的麦位说话声波皮肤
+// LyriseMusic: 我的麦位说话声波皮肤
 const myAuralUrl = ref(getAuralUrl(getMyAuralId()));
-// DakeMusic: 把自己的 style 同时写入 store.userStyles[myIdentity]，自己看自己立刻生效
+// LyriseMusic: 把自己的 style 同时写入 store.userStyles[myIdentity]，自己看自己立刻生效
 function syncMyStyleToStore() {
   if (!store.myIdentity) return;
   store.userStyles[store.myIdentity] = {
@@ -60,30 +60,30 @@ function onAuralChanged(e: Event) {
   myAuralUrl.value = getAuralUrl(id);
   syncMyStyleToStore();
 }
-onMounted(() => window.addEventListener('dakemusic-aural-changed', onAuralChanged));
-onUnmounted(() => window.removeEventListener('dakemusic-aural-changed', onAuralChanged));
+onMounted(() => window.addEventListener('lyrise-aural-changed', onAuralChanged));
+onUnmounted(() => window.removeEventListener('lyrise-aural-changed', onAuralChanged));
 
-// DakeMusic: 我的麦位框
+// LyriseMusic: 我的麦位框
 const myFrameUrl = ref(getSeatFrameUrl(getMySeatFrameId()));
 function onFrameChanged(e: Event) {
   const id = (e as CustomEvent).detail as string;
   myFrameUrl.value = getSeatFrameUrl(id);
   syncMyStyleToStore();
 }
-onMounted(() => window.addEventListener('dakemusic-frame-changed', onFrameChanged));
-onUnmounted(() => window.removeEventListener('dakemusic-frame-changed', onFrameChanged));
-// DakeMusic: 进房后立刻把自己 style 写进 store，自己看自己的框/声波立即生效
+onMounted(() => window.addEventListener('lyrise-frame-changed', onFrameChanged));
+onUnmounted(() => window.removeEventListener('lyrise-frame-changed', onFrameChanged));
+// LyriseMusic: 进房后立刻把自己 style 写进 store，自己看自己的框/声波立即生效
 onMounted(() => {
   setTimeout(syncMyStyleToStore, 0);
 });
 
-// DakeMusic: 监听外部切换模式
+// LyriseMusic: 监听外部切换模式
 function onSetMode(e: Event) {
   seatMode.value = (e as CustomEvent).detail as 'normal' | 'duet';
-  window.dispatchEvent(new CustomEvent('dakemusic-seat-mode-changed', { detail: seatMode.value }));
+  window.dispatchEvent(new CustomEvent('lyrise-seat-mode-changed', { detail: seatMode.value }));
 }
-onMounted(() => window.addEventListener('dakemusic-set-seat-mode', onSetMode));
-onUnmounted(() => window.removeEventListener('dakemusic-set-seat-mode', onSetMode));
+onMounted(() => window.addEventListener('lyrise-set-seat-mode', onSetMode));
+onUnmounted(() => window.removeEventListener('lyrise-set-seat-mode', onSetMode));
 
 // 座位 id → 可读名
 function seatLabel(seatId: string) {
@@ -129,7 +129,7 @@ function speakingOf(identity?: string) {
   return !!memberOf(identity)?.isSpeaking;
 }
 
-// DakeMusic: 根据 occupant.identity 查房内同步过来的麦位框/声波 URL，返回该麦位的 CSS 变量
+// LyriseMusic: 根据 occupant.identity 查房内同步过来的麦位框/声波 URL，返回该麦位的 CSS 变量
 function seatStyleOf(identity?: string) {
   if (!identity) return {};
   const s = store.userStyles[identity];
@@ -450,7 +450,7 @@ function onSmallClick(seatId: string) {
       </div>
     </template>
 
-    <!-- DakeMusic: 对唱模式：2 个大座并排 + 4 个小座 -->
+    <!-- LyriseMusic: 对唱模式：2 个大座并排 + 4 个小座 -->
     <template v-else>
       <div class="duet-row">
         <!-- 左大座（主座） -->
@@ -550,7 +550,7 @@ function onSmallClick(seatId: string) {
   justify-content: center;
 }
 
-/* DakeMusic: 6 个小座位一排并排 */
+/* LyriseMusic: 6 个小座位一排并排 */
 .seat-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -601,7 +601,7 @@ function onSmallClick(seatId: string) {
   object-fit: cover;
   border-radius: 50%;
 }
-/* DakeMusic: 麦位框 - 围绕头像的圆形装饰，盖在头像上面；URL 由 LiveKit 数据通道按 occupant.identity 同步 */
+/* LyriseMusic: 麦位框 - 围绕头像的圆形装饰，盖在头像上面；URL 由 LiveKit 数据通道按 occupant.identity 同步 */
 .seat .seat-avatar::after {
   content: '';
   position: absolute;
@@ -1033,7 +1033,7 @@ function onSmallClick(seatId: string) {
   border-color: rgba(255, 77, 109, 0.4);
 }
 
-/* DakeMusic: 布局切换按钮 */
+/* LyriseMusic: 布局切换按钮 */
 .seat-mode-btn {
   position: absolute;
   top: 8px;
@@ -1052,7 +1052,7 @@ function onSmallClick(seatId: string) {
   background: rgba(138, 92, 255, 0.5);
 }
 
-/* DakeMusic: 对唱模式 */
+/* LyriseMusic: 对唱模式 */
 .duet-row {
   display: flex;
   align-items: center;

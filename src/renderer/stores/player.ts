@@ -679,7 +679,7 @@ export const usePlayerStore = defineStore(
           void paused
             .then(async () => {
               const execute = window.electron?.power?.executeSleepTimerAction;
-              if (!execute) throw new Error('请重启 DakeMusic 后使用退出或关机动作');
+              if (!execute) throw new Error('请重启 LyriseMusic 后使用退出或关机动作');
               const result = await execute(action);
               if (!result.ok) throw new Error(result.error);
             })

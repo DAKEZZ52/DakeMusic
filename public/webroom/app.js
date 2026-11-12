@@ -1,5 +1,5 @@
 /* =========================================================
-   DakeMusic 语聊房 · 网页版交互
+   LyriseMusic 语聊房 · 网页版交互
    纯原生 JS，无构建依赖。
    - 未登录 / 演示模式：使用本地演示数据
    - 登录后：接入 dkyy.top 房间服务 + LiveKit 实时语音与 DataChannel
@@ -809,7 +809,7 @@
     if (state.mode === 'live') {
       const lines = state.liveLyrics.lines;
       const title = state.currentTrack?.title || state.liveLyrics.songTitle || '等待歌曲';
-      const artist = state.currentTrack?.artist || state.liveLyrics.songArtist || 'DakeMusic';
+      const artist = state.currentTrack?.artist || state.liveLyrics.songArtist || 'LyriseMusic';
       setText('#lyricTitle', title);
       setText('#lyricArtist', artist);
       updateLyricSyncStatus();
@@ -848,14 +848,14 @@
     const track = state.mode === 'live' ? state.currentTrack : currentSong();
     if (state.mode === 'live') {
       const title = track?.title || state.liveLyrics.songTitle || '等待开播';
-      const artist = track?.artist || state.liveLyrics.songArtist || 'DakeMusic';
+      const artist = track?.artist || state.liveLyrics.songArtist || 'LyriseMusic';
       setText('#nowTitle', title);
       setText('#nowArtist', artist);
       setText('#drawerTitle', title);
       setText('#drawerArtist', artist);
       setText('#lyricTitle', title);
       setText('#lyricArtist', artist);
-      const cover = cleanAvatar(track?.cover) || state.room?.coverImage || 'assets/dakemusic-default-room-cover.png';
+      const cover = cleanAvatar(track?.cover) || state.room?.coverImage || 'assets/lyrise-default-room-cover.png';
       const image = $('.np-cover img');
       if (image) image.src = cover;
       return;
@@ -868,7 +868,7 @@
     setText('#lyricTitle', track.title);
     setText('#lyricArtist', track.artist);
     const image = $('.np-cover img');
-    if (image) image.src = 'assets/dakemusic-default-room-cover.png';
+    if (image) image.src = 'assets/lyrise-default-room-cover.png';
   };
 
   const updateProgress = () => {
@@ -1264,16 +1264,16 @@
       '今晚主题：把耳机分你一半。点歌请按顺序，上麦先打招呼，禁止刷屏～',
     );
     const cover = $('#roomCover');
-    if (cover) cover.src = 'assets/dakemusic-default-room-cover.png';
+    if (cover) cover.src = 'assets/lyrise-default-room-cover.png';
     const npCover = $('.np-cover img');
-    if (npCover) npCover.src = 'assets/dakemusic-default-room-cover.png';
+    if (npCover) npCover.src = 'assets/lyrise-default-room-cover.png';
     setText('#seatHint', '点击空位上麦 · 主座需房主同意');
     setHtml('#drawerTip', `${icon('info')}点歌后自动加入队列，房主或麦上成员可切歌`);
     const search = $('#songSearch');
     if (search) search.placeholder = '搜索歌曲 / 歌手';
     setHtml('#queueRefreshBtn', `${icon('trash')}<span>清空</span>`);
     setConnectionStatus('演示模式', 'warn');
-    document.title = '深夜电台 · DakeMusic 语聊房';
+    document.title = '深夜电台 · LyriseMusic 语聊房';
     applySeatModeUI();
   };
 
@@ -1287,7 +1287,7 @@
     const roomIdText = $('#roomIdText');
     if (roomIdText) roomIdText.title = room.roomId || '';
     const cover = $('#roomCover');
-    if (cover) cover.src = room.coverImage || 'assets/dakemusic-default-room-cover.png';
+    if (cover) cover.src = room.coverImage || 'assets/lyrise-default-room-cover.png';
     setText(
       '#roomNotice',
       room.description || `欢迎来到「${room.name || '语聊房'}」，文明聊天，一起听歌～`,
@@ -1312,7 +1312,7 @@
     else if (state.connectState === 'failed') setConnectionStatus('语音连接失败', 'off');
     else if (state.connectState === 'disconnected') setConnectionStatus('语音已断开', 'off');
     else setConnectionStatus('未连接', 'warn');
-    document.title = `${room.name || '语聊房'} · DakeMusic 语聊房`;
+    document.title = `${room.name || '语聊房'} · LyriseMusic 语聊房`;
     applySeatModeUI();
   };
 
@@ -1513,21 +1513,21 @@
       updateEntryUser();
       setAuthError('');
       setRoomError('');
-      document.title = '选择一个房间 · DakeMusic 语聊房';
+      document.title = '选择一个房间 · LyriseMusic 语聊房';
       window.setTimeout(() => $('#roomIdInput')?.focus(), 80);
       return;
     }
 
-    document.title = 'DakeMusic 语聊房 · 网页版';
+    document.title = 'LyriseMusic 语聊房 · 网页版';
 
     state.authMode = view;
     const register = view === 'register';
-    setText('#authTitle', register ? '创建 DakeMusic 账号' : '登录后进入房间');
+    setText('#authTitle', register ? '创建 LyriseMusic 账号' : '登录后进入房间');
     setText(
       '#authSubtitle',
       register
         ? '注册后即可进入房间，和桌面端共用账号、麦位与歌词。'
-        : '使用 DakeMusic 账号，和桌面端共享同一间房、同一份歌词。',
+        : '使用 LyriseMusic 账号，和桌面端共享同一间房、同一份歌词。',
     );
     setText('#authSwitchText', register ? '已有账号？' : '还没有账号？');
     setText('#toggleRegister', register ? '登录' : '注册');
@@ -1819,7 +1819,7 @@
     setText('#roomCount', `${list.length} 个匹配`);
     picker.innerHTML = list
       .map((room) => {
-        const cover = cleanAvatar(room.coverImage) || 'assets/dakemusic-default-room-cover.png';
+        const cover = cleanAvatar(room.coverImage) || 'assets/lyrise-default-room-cover.png';
         const mode = room.seatMode === 'duet' ? '对唱' : '普通';
         return `<button class="room-pick" type="button" data-room-id="${escapeHtml(
           room.id,
@@ -2467,11 +2467,11 @@
   }
 
   const publishSeat = (payload, destinations) =>
-    publishJson({ ...payload, kind: 'dakemusic-seat' }, destinations);
+    publishJson({ ...payload, kind: 'lyrise-seat' }, destinations);
 
   const publishSeatModeTo = (destinations) =>
     publishJson(
-      { kind: 'dakemusic-seat-mode', mode: state.seatMode, time: Date.now() },
+      { kind: 'lyrise-seat-mode', mode: state.seatMode, time: Date.now() },
       destinations,
     );
 
@@ -2479,7 +2479,7 @@
     if (!state.liveLyrics.lines.length) return false;
     return publishJson(
       {
-        kind: 'dakemusic-lyric',
+        kind: 'lyrise-lyric',
         type: 'lyric-sync',
         lines: state.liveLyrics.lines.map((line) => ({ time: line.t, text: line.text })),
         currentIndex: state.liveLyrics.currentIndex,
@@ -2644,7 +2644,7 @@
     } catch {
       return false;
     }
-    if (!header || header.kind !== 'dakemusic-lyric-chunk') return false;
+    if (!header || header.kind !== 'lyrise-lyric-chunk') return false;
     const chunkAllowed = isLyricSourceSender(from);
     recordPacket(from, header.kind, 'chunk', chunkAllowed, {
       index: header.index,
@@ -2741,7 +2741,7 @@
   function handleSeatData(message, from) {
     if (!message || !from) return;
     const type = message.type;
-    recordPacket(from, 'dakemusic-seat', type, true, { seatId: message.seatId || '' });
+    recordPacket(from, 'lyrise-seat', type, true, { seatId: message.seatId || '' });
 
     if (type === 'seat/snapshot') {
       if (!isGlobalAdminSender(from)) return;
@@ -2939,11 +2939,11 @@
     if (!data || typeof data !== 'object') return;
 
     const kind = typeof data.kind === 'string' ? data.kind : '';
-    if (kind.startsWith('dakemusic-')) {
-      if (kind === 'dakemusic-seat') {
+    if (kind.startsWith('lyrise-')) {
+      if (kind === 'lyrise-seat') {
         if (participant) handleSeatData(data, from);
         return;
-      }      if (kind === 'dakemusic-lyric') {
+      }      if (kind === 'lyrise-lyric') {
         const allowed = isLyricSourceSender(from);
         recordPacket(from, kind, data.type, allowed, { lines: data.lines?.length ?? 0 });
         if (!allowed) return;
@@ -2951,7 +2951,7 @@
         else if (data.type === 'lyric-heartbeat') applyLyricHeartbeat(data);
         return;
       }
-      if (kind === 'dakemusic-seat-mode') {
+      if (kind === 'lyrise-seat-mode') {
         if (!isGlobalAdminSender(from)) return;
         if (data.mode === 'normal' || data.mode === 'duet') {
           state.seatMode = data.mode;
@@ -2961,11 +2961,11 @@
         }
         return;
       }
-      if (kind === 'dakemusic-badwords-refresh') {
+      if (kind === 'lyrise-badwords-refresh') {
         if (isGlobalAdminSender(from)) void loadBadWords();
         return;
       }
-      if (kind === 'dakemusic-user-style') return;
+      if (kind === 'lyrise-user-style') return;
       return;
     }
 
@@ -3758,7 +3758,7 @@
     }
   }
 
-  // DakeMusic: 把酷狗搜索结果映射为与桌面端一致的标准 Song 结构（hash 用于桌面端解析播放地址）
+  // LyriseMusic: 把酷狗搜索结果映射为与桌面端一致的标准 Song 结构（hash 用于桌面端解析播放地址）
   function mapKugouToSong(info) {
     const hash = String(info?.hash || '').trim();
     const title = String(info?.songname || '').trim() || '未知歌曲';
@@ -3893,7 +3893,7 @@
     ];
     state.songs.push({
       title,
-      artist: 'DakeMusic 点歌',
+      artist: 'LyriseMusic 点歌',
       duration,
       requester: '你 点歌',
       lyrics: lyricLines.map((text, index) => ({ t: index * 20, text })),
@@ -4330,7 +4330,7 @@
         toggleLyrics();
         break;
       case 'home':
-        showToast('你已经在 DakeMusic 语聊房', 'info');
+        showToast('你已经在 LyriseMusic 语聊房', 'info');
         break;
       default:
         break;

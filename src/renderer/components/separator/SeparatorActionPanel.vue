@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 人声分离输出选项组件
+ * LyriseMusic - 人声分离输出选项组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：分离页「输出选项」分区卡：保存位置 / 模型位置（可打开/更改）+
  *      调性开关与目标调下拉；开始分离按钮在顶部操作行（SeparatorActionBar）。
  -->

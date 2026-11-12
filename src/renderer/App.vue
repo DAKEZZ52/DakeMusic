@@ -129,7 +129,7 @@ const handleDakeKeydown = (e: KeyboardEvent) => {
   const key = e.key.toLowerCase();
   if (/^[a-z]$/.test(key)) {
     dakeBuffer = (dakeBuffer + key).slice(-9);
-    if (dakeBuffer === 'dakemusic') {
+    if (dakeBuffer === 'lyrise') {
       dakeBuffer = '';
       void triggerDakeEgg();
     }
@@ -147,7 +147,7 @@ const maybeShowWhatsNew = () => {
   const version = String(settings.appVersion || '');
   if (!version || !findRelease(version)) return;
   try {
-    if (localStorage.getItem('dakemusic_whatsnew_seen') === version) return;
+    if (localStorage.getItem('lyrise_whatsnew_seen') === version) return;
   } catch {
     // 存储不可用时也弹，用户可以手动关闭
   }
@@ -319,7 +319,7 @@ const checkClipboardShareTarget = async () => {
     lastHandledClipboardText = normalizedText;
 
     const label = getShareResourceLabel(target.type);
-    toastStore.showAction(`检测到 DakeMusic ${label}分享`, {
+    toastStore.showAction(`检测到 LyriseMusic ${label}分享`, {
       label: '打开',
       handler: () => openShareTarget(target),
     });
@@ -436,7 +436,7 @@ onMounted(async () => {
   await waitForSqlitePersistHydration();
   if (userStore.isLoggedIn) {
     void userStore.fetchUserInfoOnce();
-    // DakeMusic: 自动领取每日VIP
+    // LyriseMusic: 自动领取每日VIP
     if (settings.autoClaimVip) {
       setTimeout(() => userStore.autoClaimVipIfNeeded(), 3000);
       vipClaimTimer = window.setInterval(() => userStore.autoClaimVipIfNeeded(), 60 * 60 * 1000);

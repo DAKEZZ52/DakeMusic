@@ -1,6 +1,6 @@
-/** * DakeMusic 桌面端底部播放条 * 文件：PlayerBar.vue *
+/** * LyriseMusic 桌面端底部播放条 * 文件：PlayerBar.vue *
 描述：歌曲信息、播放控制、进度条与右侧功能操作（收藏/下载/原声伴奏/桌面歌词/队列等） *
-作者：知之（DAKE知之） * 版权：© 2026 DakeMusic. All rights reserved. */
+作者：知之（DAKE知之） * 版权：© 2026 LyriseMusic. All rights reserved. */
 <script setup lang="ts">
 import { useRouter } from 'vue-router';
 import { computed, ref, onMounted, onUnmounted, watch, nextTick } from 'vue';

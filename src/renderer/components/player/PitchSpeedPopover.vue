@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * DakeMusic 播放控制 - 升降调 / 倍速弹层
+ * LyriseMusic 播放控制 - 升降调 / 倍速弹层
  * 文件：PitchSpeedPopover.vue
  * 描述：升降调支持 ABC 调快速定位（以 C 为基准的 12 个调 + 原调，点击即跳转），
  *       滑块范围为 -12 ~ +12 半音（一个八度）；倍速播放保持原交互。

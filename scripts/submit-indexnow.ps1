@@ -1,7 +1,7 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-  向 IndexNow 提交 DakeMusic 的页面 URL（Bing、Yandex、Seznam 等共享）。
+  向 IndexNow 提交 LyriseMusic 的页面 URL（Bing、Yandex、Seznam 等共享）。
 
 .DESCRIPTION
   IndexNow key 文件必须能从站点根目录访问：

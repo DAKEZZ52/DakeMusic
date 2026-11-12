@@ -1,5 +1,5 @@
 /**
- * DakeMusic 聊天房后端
+ * LyriseMusic 聊天房后端
  * 作者：知之Dake
  * 文件：index.js
  * 描述：用户系统、房间管理、LiveKit语音、网页版托管 + 房间消息/麦位/WebSocket
@@ -83,7 +83,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_users_name ON users(name);
 `);
 
-// DakeMusic: 违禁词表
+// LyriseMusic: 违禁词表
 db.exec(`CREATE TABLE IF NOT EXISTS bad_words (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   word TEXT UNIQUE NOT NULL,
@@ -372,7 +372,7 @@ app.use(express.json({ limit: '20mb' }));
 app.use(apiLimiter);
 app.use(logReq);
 
-// ===== DakeMusic: 客户端构建标识（Ed25519 验签，可拦截） =====
+// ===== LyriseMusic: 客户端构建标识（Ed25519 验签，可拦截） =====
 // 官方构建头：v=2.4.8;b=20261106T0031;ch=release;sig=<base64url>
 // 规则：
 //   1) 网页版语聊房（同源 Origin/Referer）放行 —— 浏览器无法签名
@@ -454,7 +454,7 @@ app.use((req, res, next) => {
   }
 
   // 老客户端兜底：请求头没有版本时，用 User-Agent 里的应用版本判断
-  const uaVersion = (String(req.headers['user-agent'] || '').match(/DakeMusic\/(\d+\.\d+\.\d+)/) || [])[1] || '';
+  const uaVersion = (String(req.headers['user-agent'] || '').match(/LyriseMusic\/(\d+\.\d+\.\d+)/) || [])[1] || '';
   const effective = result.version || uaVersion;
   if (!versionGte(effective, BUILD_ENFORCE_FROM)) {
     noteClientBuild(req, 'legacy', { version: effective || 'unknown', reason: result.reason });
@@ -474,7 +474,7 @@ app.use((req, res, next) => {
 
 
 
-// DakeMusic: 管理后台（同源访问，不走 CORS）
+// LyriseMusic: 管理后台（同源访问，不走 CORS）
 initAdmin({ db, rooms: () => rooms, jwtSecret: JWT_SECRET });
 app.use('/admin', adminRouter);
 
@@ -487,19 +487,19 @@ app.use(cors({
   credentials: true,
 }));
 
-// ============ DakeMusic: 托管网页版静态文件（已关闭） ============
+// ============ LyriseMusic: 托管网页版静态文件（已关闭） ============
 // app.use(express.static(path.join(__dirname, 'web')));
 
 // ===== 健康检查 =====
 app.get('/api/health', (req, res) => res.json({ ok: true, ts: Date.now(), users: db.prepare('SELECT COUNT(*) as c FROM users').get().c }));
 
-// ===== DakeMusic: 公开违禁词列表（前端发消息时过滤） =====
+// ===== LyriseMusic: 公开违禁词列表（前端发消息时过滤） =====
 app.get('/api/bad-words', (req, res) => {
   const rows = db.prepare('SELECT word FROM bad_words ORDER BY id DESC').all();
   res.json({ words: rows.map(r => r.word) });
 });
 
-// DakeMusic: 违禁词增删必须服务端鉴权（列表是全站共享的，客户端隐藏按钮不构成权限控制）
+// LyriseMusic: 违禁词增删必须服务端鉴权（列表是全站共享的，客户端隐藏按钮不构成权限控制）
 function requireBadWordAdmin(req, res, next) {
   const token = req.headers.authorization?.replace('Bearer ', '');
   if (!token) return res.status(401).json({ error: 'UNAUTHORIZED' });
@@ -566,7 +566,7 @@ app.post('/api/auth/login', authLimiter, (req, res) => {
   });
 });
 
-// ===== DakeMusic: peiwan 账号密码登录（陪玩平台对接）=====
+// ===== LyriseMusic: peiwan 账号密码登录（陪玩平台对接）=====
 app.post('/api/auth/peiwan-login', authLimiter, async (req, res) => {
   if (!PEIWAN_API_BASE) return res.status(503).json({ error: '陪玩平台未配置(PEIWAN_API_BASE)' });
   const { account, password } = req.body || {};
@@ -719,7 +719,7 @@ app.get('/api/users/:id', (req, res) => {
   });
 });
 
-// ===== DakeMusic: 根超管任免超管 =====
+// ===== LyriseMusic: 根超管任免超管 =====
 app.post('/api/users/:id/super-admin', authSession, (req, res) => {
   const me = currentDbUser(req);
   if (!me || !isRootSuperAccount(me.name)) {
@@ -737,7 +737,7 @@ app.post('/api/users/:id/super-admin', authSession, (req, res) => {
   res.json({ ok: true, userId: target.id, isAdmin: next });
 });
 
-// ===== DakeMusic: 管理员面板 - 列出所有用户（仅超管可访问）=====
+// ===== LyriseMusic: 管理员面板 - 列出所有用户（仅超管可访问）=====
 app.get('/api/admin/users', authSession, (req, res) => {
   const me = currentDbUser(req);
   if (!me || !isRootSuperAccount(me.name)) {
@@ -1048,7 +1048,7 @@ app.patch('/api/rooms/:id', authSession, requireOwner, (req, res) => {
     if (cover === null) return res.status(413).json({ error: '封面图过大，请换一张更小的图片' });
     room.coverImage = cover;
   }
-  // DakeMusic: 对唱/普通模式持久化，房主不在线时新进房的人也能看到正确布局
+  // LyriseMusic: 对唱/普通模式持久化，房主不在线时新进房的人也能看到正确布局
   if (seatMode === 'normal' || seatMode === 'duet') room.seatMode = seatMode;
   saveRooms();
   res.json({ ok: true, name: room.name, seatMode: room.seatMode === 'duet' ? 'duet' : 'normal' });
@@ -1131,7 +1131,7 @@ app.post('/api/rooms/:id/messages', authSession, chatLimiter, (req, res) => {
     is_system: false,
     created_at: new Date(now).toISOString(),
   };
-  // DakeMusic: 客户端已经通过 LiveKit 实时广播过这条聊天，这里只做历史持久化，
+  // LyriseMusic: 客户端已经通过 LiveKit 实时广播过这条聊天，这里只做历史持久化，
   // silent=true 时不再走 WebSocket，避免 web 端收到重复消息。
   if (!silent) wsBroadcast(req.params.id, { type: 'message', ...msg });
   res.json(msg);
@@ -1266,7 +1266,7 @@ app.post('/api/rooms/:id/seat-status', authSession, (req, res) => {
   res.json({ success: true, seat });
 });
 
-// ============ DakeMusic: 房间点歌台 ============
+// ============ LyriseMusic: 房间点歌台 ============
 // 队列存于 room.musicQueue（内存），正在播的存 room.currentTrack。
 // 权限：房主或当前在麦上的人 = DJ，可切歌/删歌；任何人可点歌、可删自己点的。
 
@@ -1305,7 +1305,7 @@ function toPublicTrack(track) {
   if (!track || typeof track !== 'object') return track;
   const copy = { ...track };
   delete copy.requestedByAvatar;
-  // DakeMusic: 带上当前播放进度，供中途进房/断线重连的客户端 seek 对齐。
+  // LyriseMusic: 带上当前播放进度，供中途进房/断线重连的客户端 seek 对齐。
   // 用服务端时间计算，避免各客户端时钟不一致。
   const startedAt = Number(track.startedAt) || 0;
   copy.position = startedAt > 0 ? Math.max(0, (Date.now() - startedAt) / 1000) : 0;
@@ -1344,7 +1344,7 @@ app.post('/api/rooms/:id/request-song', authSession, (req, res) => {
     addedAt: Date.now(),
   };
   room.musicQueue.push(item);
-  // DakeMusic: 房间当前没有正在播放的歌时，新点的第一首直接开播，
+  // LyriseMusic: 房间当前没有正在播放的歌时，新点的第一首直接开播，
   // 否则用户点完歌只看到队列里有歌却永远不响（此前只有“切歌”按钮能触发，而它只在有当前曲目时出现）。
   let startedTrack = null;
   if (!room.currentTrack) {

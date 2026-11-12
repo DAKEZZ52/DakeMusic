@@ -1,6 +1,6 @@
-/** * DakeMusic 播放控制 - 音质选择弹层 * 文件：QualityPopover.vue *
+/** * LyriseMusic 播放控制 - 音质选择弹层 * 文件：QualityPopover.vue *
 描述：音质/音源切换（标准、高品质、无损等），触发按钮带音质徽标 * 作者：知之（DAKE知之） * 版权：©
-2026 DakeMusic. All rights reserved. */
+2026 LyriseMusic. All rights reserved. */
 <script setup lang="ts">
 import { computed, watch, ref } from 'vue';
 import Popover from '@/components/ui/Popover.vue';

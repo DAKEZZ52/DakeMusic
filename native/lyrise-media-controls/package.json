@@ -1,12 +1,12 @@
 {
-  "name": "dake-audio-player",
+  "name": "lyrise-media-controls",
   "version": "0.1.0",
-  "main": "dake-audio-player.node",
+  "main": "lyrise-media-controls.node",
   "devDependencies": {
     "@napi-rs/cli": "^3.5.1"
   },
   "napi": {
-    "binaryName": "dake-audio-player",
+    "binaryName": "lyrise-media-controls",
     "triples": {}
   },
   "scripts": {

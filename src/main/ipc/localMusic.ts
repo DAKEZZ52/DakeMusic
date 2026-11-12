@@ -1,7 +1,7 @@
 /*
- * DakeMusic - 本地音乐库 IPC
+ * LyriseMusic - 本地音乐库 IPC
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：本地音乐库的扫描、持久化与目录管理通道。
  *       - 持久化：库列表与曲目缓存写入 userData/local-music-libraries.json，
  *         再次启动无需重新全量扫描。

@@ -1,5 +1,5 @@
 /**
- * DakeMusic 播放器核心控制模块
+ * LyriseMusic 播放器核心控制模块
  * 作者：知之Dake
  * 文件：controller.ts
  * 描述：主进程播放引擎主控制器，调度音频图、播放状态、特效与频谱快照
@@ -1162,10 +1162,10 @@ export class PlayerController extends EventEmitter {
 
   private resolveAddonPath(): string | null {
     const candidates = app.isPackaged
-      ? [path.join(process.resourcesPath, 'native', 'dake-audio-player.node')]
+      ? [path.join(process.resourcesPath, 'native', 'lyrise-audio-player.node')]
       : [
-          path.join(__dirname, '../../native/dake-audio-player/dake-audio-player.node'),
-          path.join(process.cwd(), 'native/dake-audio-player/dake-audio-player.node'),
+          path.join(__dirname, '../../native/lyrise-audio-player/lyrise-audio-player.node'),
+          path.join(process.cwd(), 'native/lyrise-audio-player/lyrise-audio-player.node'),
         ];
     return candidates.find((candidate) => fs.existsSync(candidate)) ?? null;
   }
@@ -1173,6 +1173,6 @@ export class PlayerController extends EventEmitter {
   private loadAddon(): PlayerAddon {
     const addonPath = this.resolveAddonPath();
     if (addonPath) return nativeRequire(addonPath) as PlayerAddon;
-    return nativeRequire(path.join(process.cwd(), 'native/dake-audio-player')) as PlayerAddon;
+    return nativeRequire(path.join(process.cwd(), 'native/lyrise-audio-player')) as PlayerAddon;
   }
 }

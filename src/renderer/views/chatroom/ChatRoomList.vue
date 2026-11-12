@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 语聊房模块
+  LyriseMusic 语聊房模块
   作者：知之Dake
   文件：ChatRoomList.vue
   描述：房间列表页 - 房间卡片展示 + 创建/编辑/加入房间
@@ -13,8 +13,8 @@ import { roomApi } from '@/utils/roomApi';
 import Button from '@/components/ui/Button.vue';
 import Tooltip from '@/components/ui/Tooltip.vue';
 import { logger } from '@/utils/logger';
-// DakeMusic: 默认房间封面
-import defaultCover from '/dakemusic-default-room-cover.png?url';
+// LyriseMusic: 默认房间封面
+import defaultCover from '/lyrise-default-room-cover.png?url';
 
 // ===== 房间卡片 3D 倾斜动效（鼠标跟随透视倾斜） =====
 /** 最大倾斜角度（度），克制取值避免眩晕。 */
@@ -61,7 +61,7 @@ function tiltStyle(roomId: string): string {
 
 const router = useRouter();
 const store = useChatRoomStore();
-// DakeMusic: 设置 store（用于自定义背景）
+// LyriseMusic: 设置 store（用于自定义背景）
 const settingStore = useSettingStore();
 
 // ===== 登录/注册 =====
@@ -94,7 +94,7 @@ async function handleAuth() {
       );
       await store.login(loginNameInput.value.trim(), loginPasswordInput.value);
     } else {
-      // DakeMusic: 优先走 peiwan 登录；peiwan 未部署/接口不存在/任何失败都自动回退到老账号登录
+      // LyriseMusic: 优先走 peiwan 登录；peiwan 未部署/接口不存在/任何失败都自动回退到老账号登录
       try {
         await store.loginPeiwan(loginNameInput.value.trim(), loginPasswordInput.value);
       } catch {
@@ -159,7 +159,7 @@ const pendingDeleteId = ref('');
 const pendingDeleteName = ref('');
 const deleting = ref(false);
 
-// DakeMusic: 刷新 loading 状态
+// LyriseMusic: 刷新 loading 状态
 const refreshing = ref(false);
 async function handleRefresh() {
   if (refreshing.value) return;
@@ -426,7 +426,7 @@ async function leaveCurrentRoom() {
 
 // ===== 默认房间封面 =====
 // 哨兵值：代表"用系统默认封面"。房主上传后会变成真实图片数据，默认即消失。
-const DEFAULT_COVER_KEY = '__dakemusic_default__';
+const DEFAULT_COVER_KEY = '__lyrise_default__';
 
 const DEFAULT_COVER = defaultCover;
 
@@ -441,7 +441,7 @@ function isDefaultCover(cover?: string): boolean {
   return !cover || cover === DEFAULT_COVER_KEY;
 }
 
-// DakeMusic 语聊房模块 - 作者：知之Dake
+// LyriseMusic 语聊房模块 - 作者：知之Dake
 // 描述：从 localStorage 读取我的头像（确保即使不在房间里也能显示）
 const localMyAvatar = ref(localStorage.getItem('chatroom_avatarImage') || '');
 
@@ -463,7 +463,7 @@ async function confirmEditRoom() {
       editRoomCover.value,
     );
     showEditDialog.value = false;
-    // DakeMusic: 如果编辑的是当前房间，同步更新 store 里的封面，悬浮窗即时生效
+    // LyriseMusic: 如果编辑的是当前房间，同步更新 store 里的封面，悬浮窗即时生效
     if (store.currentRoomId === editRoomId.value) {
       store.currentRoomCoverImage = editRoomCover.value || '';
     }
@@ -570,7 +570,7 @@ async function onEditCoverSelected(e: Event) {
 
 <template>
   <div class="crl-page relative min-h-[calc(100vh-120px)]">
-    <!-- DakeMusic 语聊房模块 - 作者：知之Dake -->
+    <!-- LyriseMusic 语聊房模块 - 作者：知之Dake -->
     <!-- 描述：自定义背景层 - 铺满整个内容区域 -->
     <div
       v-if="settingStore.chatroomBackgroundImage"

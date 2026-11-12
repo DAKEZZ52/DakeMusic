@@ -172,7 +172,7 @@ function downloadUrl(
     /** 发起一次 HTTP GET，成功返回响应流，失败 reject。 */
     const getOnce = (u: string): Promise<import('node:http').IncomingMessage> =>
       new Promise((res, rej) => {
-        const req = https.get(u, { headers: { 'User-Agent': 'DakeMusic' } }, res);
+        const req = https.get(u, { headers: { 'User-Agent': 'LyriseMusic' } }, res);
         // 连接/首响应超时
         const connectTimer = setTimeout(() => {
           req.destroy(new Error('连接超时'));

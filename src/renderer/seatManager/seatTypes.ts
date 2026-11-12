@@ -1,5 +1,5 @@
 /*
- * DakeMusic 座位管理模块
+ * LyriseMusic 座位管理模块
  * 作者：知之Dake
  * 文件：seatTypes.ts
  * 描述：座位/麦位类型定义与座位协议常量
@@ -57,7 +57,7 @@ export interface MainSeatRequest {
 /** 我（本地成员）的主座申请状态 */
 export type MyRequestState = 'none' | 'pending' | 'approved' | 'rejected';
 
-/** 座位协议消息类型（经 LiveKit DataChannel 传输，kind=dakemusic-seat） */
+/** 座位协议消息类型（经 LiveKit DataChannel 传输，kind=lyrise-seat） */
 export enum SeatMsgType {
   /** 座位全量快照（房主单播给新加入成员） */
   Snapshot = 'seat/snapshot',
@@ -83,7 +83,7 @@ export enum SeatMsgType {
 
 /** 座位协议消息体 */
 export interface SeatMessage {
-  kind?: 'dakemusic-seat';
+  kind?: 'lyrise-seat';
   type: SeatMsgType;
   seatId?: string;
   identity?: string;

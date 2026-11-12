@@ -4,7 +4,7 @@ export type GithubReleaseAsset = {
 };
 
 export const MAC_MANUAL_UPDATE_MESSAGE =
-  '当前 macOS 发行版暂不支持应用内自动安装。请下载 DMG，退出 DakeMusic 后，将新版本拖入「应用程序」替换旧版本。';
+  '当前 macOS 发行版暂不支持应用内自动安装。请下载 DMG，退出 LyriseMusic 后，将新版本拖入「应用程序」替换旧版本。';
 
 // CI currently uses ad-hoc signing on both Mac architectures. Revisit this policy
 // only after releases use a stable Developer ID; existing ad-hoc installs still

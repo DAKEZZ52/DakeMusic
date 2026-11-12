@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 本地音乐页
+ * LyriseMusic - 本地音乐页
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：本地音乐主页面（图一云盘页风格）：收缩头部（SliverHeader）+
  *      操作行（LocalMusicActionBar）+ 顶部一栏合并卡（LocalMusicStatsPanel：
  *      本地统计 + 曲库管理）+ 全宽统一歌曲表（SongListHeader + SongList，

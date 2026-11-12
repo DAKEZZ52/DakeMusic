@@ -133,21 +133,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "914a755b7c2d4af2bdcff7ce1739e2db9a1b81a9b07123d8015786ae03c0980d"
 
 [[package]]
-name = "dake-audio-capture"
-version = "0.1.0"
-dependencies = [
- "block2",
- "cpal",
- "dispatch2",
- "napi",
- "napi-build",
- "napi-derive",
- "objc2",
- "objc2-foundation",
- "rubato",
-]
-
-[[package]]
 name = "dasp_sample"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -365,6 +350,21 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+
+[[package]]
+name = "lyrise-audio-capture"
+version = "0.1.0"
+dependencies = [
+ "block2",
+ "cpal",
+ "dispatch2",
+ "napi",
+ "napi-build",
+ "napi-derive",
+ "objc2",
+ "objc2-foundation",
+ "rubato",
+]
 
 [[package]]
 name = "mach2"

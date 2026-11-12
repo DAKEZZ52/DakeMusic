@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房 - 聊天消息
+ * LyriseMusic 语聊房 - 聊天消息
  * 描述：消息展示与本地提示、成员进出追踪、发送文字/图片（本地压缩）。
  */
 import { computed, onUnmounted, ref, watch } from 'vue';
@@ -173,7 +173,7 @@ export function useRoomChatMessages(ctx: RoomChatContext) {
     }
   }
 
-  // DakeMusic: 发送图片到公屏（本地压缩成小图，base64 随消息广播，无需上传接口）
+  // LyriseMusic: 发送图片到公屏（本地压缩成小图，base64 随消息广播，无需上传接口）
   const sendingImage = ref(false);
 
   /** 压缩图片为 base64，逐级降尺寸/质量，直到 JSON 体积在 LiveKit 消息限制内（<13KB） */

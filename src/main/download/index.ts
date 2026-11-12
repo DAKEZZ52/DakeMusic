@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载 IPC 模块
+ * LyriseMusic 下载 IPC 模块
  * 作者：知之Dake
  * 文件：index.ts
  * 描述：注册歌曲下载相关的 IPC 处理器（创建/列表/暂停/继续/取消/重试/删除、设置、选目录、打开文件）

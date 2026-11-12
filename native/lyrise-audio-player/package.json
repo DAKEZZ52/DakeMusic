@@ -1,12 +1,12 @@
 {
-  "name": "dake-audio-capture",
+  "name": "lyrise-audio-player",
   "version": "0.1.0",
-  "main": "dake-audio-capture.node",
+  "main": "lyrise-audio-player.node",
   "devDependencies": {
     "@napi-rs/cli": "^3.5.1"
   },
   "napi": {
-    "binaryName": "dake-audio-capture",
+    "binaryName": "lyrise-audio-player",
     "triples": {}
   },
   "scripts": {

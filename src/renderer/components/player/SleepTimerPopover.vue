@@ -1,6 +1,6 @@
-/** * DakeMusic 播放控制 - 定时关闭弹层 * 文件：SleepTimerPopover.vue *
+/** * LyriseMusic 播放控制 - 定时关闭弹层 * 文件：SleepTimerPopover.vue *
 描述：定时停止播放（时长/曲目/立即停止），触发按钮带激活状态 * 作者：知之（DAKE知之） * 版权：© 2026
-DakeMusic. All rights reserved. */
+LyriseMusic. All rights reserved. */
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue';
 import moon from '@iconify/icons-tabler/moon';

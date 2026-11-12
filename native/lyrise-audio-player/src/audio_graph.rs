@@ -1169,10 +1169,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires DAKEMUSIC_TEST_DSP_PROVIDER to point to a built Provider library"]
+    #[ignore = "requires LYRISE_TEST_DSP_PROVIDER to point to a built Provider library"]
     fn real_provider_runs_on_independent_bus_at_high_engine_rate() {
-        let provider_path = std::env::var("DAKEMUSIC_TEST_DSP_PROVIDER")
-            .expect("DAKEMUSIC_TEST_DSP_PROVIDER must point to a Provider library");
+        let provider_path = std::env::var("LYRISE_TEST_DSP_PROVIDER")
+            .expect("LYRISE_TEST_DSP_PROVIDER must point to a Provider library");
         let settings = DspSettings {
             provider_path: Some(provider_path),
             provider_preset_json: Some(r#"{"presetId":"kugou-super-bass"}"#.to_string()),

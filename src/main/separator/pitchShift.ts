@@ -1,5 +1,5 @@
 /**
- * DakeMusic 人声/伴奏分离模块 - 音高移位
+ * LyriseMusic 人声/伴奏分离模块 - 音高移位
  * 文件：pitchShift.ts
  * 描述：保持时长的音高移位（变调/升降 Key），供分离输出按所选调生成。
  *       底层使用 soundtouchjs（SoundTouch 算法，按立体声帧 interleave 处理）：

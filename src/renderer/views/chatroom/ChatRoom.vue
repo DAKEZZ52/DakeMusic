@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 语聊房模块
+  LyriseMusic 语聊房模块
   作者：知之Dake
   文件：ChatRoom.vue
   描述：语聊房主界面 - 左侧成员栏 + 右侧聊天/歌词区 + 底部控制栏
@@ -29,18 +29,18 @@ import ChatRoomMemberList from './components/ChatRoomMemberList.vue';
 import ChatMessageList from './components/ChatMessageList.vue';
 import ChatInputBar from './components/ChatInputBar.vue'; // 左侧成员列表
 import { useSeatManager } from '@/seatManager/useSeatManager';
-// DakeMusic: 麦克风增益/开关麦统一走单例 composable（房间内与悬浮窗共用，避免多轨道冲突）
+// LyriseMusic: 麦克风增益/开关麦统一走单例 composable（房间内与悬浮窗共用，避免多轨道冲突）
 import { useMicGain } from '@/composables/useMicGain';
 import { logger } from '@/utils/logger';
-// DakeMusic: 默认房间封面
-import defaultCover from '/dakemusic-default-room-cover.png?url';
+// LyriseMusic: 默认房间封面
+import defaultCover from '/lyrise-default-room-cover.png?url';
 
 const router = useRouter();
 const store = useChatRoomStore();
 const playerStoreForChorus = usePlayerStore();
-// DakeMusic: 点歌台浮层开关
+// LyriseMusic: 点歌台浮层开关
 const showSongPanel = ref(false);
-// DakeMusic: 跳语聊房个人中心
+// LyriseMusic: 跳语聊房个人中心
 function goToProfileEdit() {
   showUserProfile.value = false;
   router.push('/main/chatroom/profile');
@@ -57,7 +57,7 @@ const {
   getMainSeat: () => mainSeat.value,
 });
 
-// DakeMusic: 设置 store（用于自定义背景）
+// LyriseMusic: 设置 store（用于自定义背景）
 
 const {
   badWords,
@@ -73,7 +73,7 @@ const {
 const { showUserProfile, viewingUser, loadingUser, openUserProfile, previewPhotoUrl, openPhoto } =
   useMemberProfile();
 
-// DakeMusic: 房主设置/取消管理员
+// LyriseMusic: 房主设置/取消管理员
 async function toggleAdmin(u: any) {
   if (!u?.identity) return;
   await setAdmin(u.identity, !isAdminOf(u.identity));
@@ -154,8 +154,8 @@ const {
 });
 /* ================= 歌词面板 END ================= */
 
-// ===== 房间封面：房主没上传时，显示 DakeMusic 默认封面 =====
-const DEFAULT_COVER_KEY = '__dakemusic_default__';
+// ===== 房间封面：房主没上传时，显示 LyriseMusic 默认封面 =====
+const DEFAULT_COVER_KEY = '__lyrise_default__';
 
 const DEFAULT_COVER = defaultCover;
 const roomCoverSrc = computed(() => {
@@ -214,7 +214,7 @@ async function runConfirm() {
   }
 }
 const isRoomOwner = computed(() => store.isOwner);
-// DakeMusic: 根管理进别人房间也有全部管理权限，但不显示房主标签
+// LyriseMusic: 根管理进别人房间也有全部管理权限，但不显示房主标签
 const isAdmin = computed(() => store.isOwner || store.isAdmin || store.isRootSuper);
 
 watch(
@@ -277,7 +277,7 @@ async function adminKickMember() {
     '确定踢出',
   );
 }
-// DakeMusic: 房主在右键菜单里随时开启/关闭管理员
+// LyriseMusic: 房主在右键菜单里随时开启/关闭管理员
 async function adminToggleAdmin() {
   const m = contextMenu.value.member;
   if (!m) return;
@@ -285,7 +285,7 @@ async function adminToggleAdmin() {
   closeContextMenu();
 }
 
-// DakeMusic: 根超管任免超管（仅环境变量里的根超管可见此项）
+// LyriseMusic: 根超管任免超管（仅环境变量里的根超管可见此项）
 async function adminToggleSuper() {
   const m = contextMenu.value.member;
   if (!m) return;
@@ -359,7 +359,7 @@ function onStorageChange(e: StorageEvent) {
 }
 
 async function toggleMic() {
-  // DakeMusic: 麦下（没上麦）不能开麦，只能发文字消息
+  // LyriseMusic: 麦下（没上麦）不能开麦，只能发文字消息
   if (!isOnSeat.value) {
     pushNotice('先申请上麦后才能说话');
     return;
@@ -514,7 +514,7 @@ function insertEmoji(emoji: string) {
 
 const fetchedAvatars = new Set<string>();
 function memberAvatar(identity?: string) {
-  // DakeMusic: 防止 identity 为 undefined 时报错
+  // LyriseMusic: 防止 identity 为 undefined 时报错
   if (!identity) return '';
   if (store.memberAvatars[identity]) return store.memberAvatars[identity];
   const m = store.members.find((x) => x.identity === identity);
@@ -574,7 +574,7 @@ function toggleChat() {
 }
 
 // ===== 音频设备：合并为单一胶囊（内联，不依赖子组件）=====
-// DakeMusic: 麦克风增益链/开关麦/输入设备统一走 useMicGain 单例（房间内与悬浮窗共用同一轨道）
+// LyriseMusic: 麦克风增益链/开关麦/输入设备统一走 useMicGain 单例（房间内与悬浮窗共用同一轨道）
 const {
   adsMicId,
   adsMicVol,
@@ -585,7 +585,7 @@ const {
   adsChangeMic: gainChangeMic,
 } = useMicGain();
 
-// DakeMusic: 座位状态（麦下禁麦）——与 SeatStage 共用同一份模块级状态
+// LyriseMusic: 座位状态（麦下禁麦）——与 SeatStage 共用同一份模块级状态
 const { isOnSeat, isAdminOf, setAdmin, isOnMain, mainSeat } = useSeatManager();
 // 离开座位时如果麦还开着，自动闭麦（麦下强制静音，只能发文字消息）
 watch(isOnSeat, (on) => {
@@ -655,7 +655,7 @@ async function adsLoad() {
   }
   try {
     const ds = await navigator.mediaDevices.enumerateDevices();
-    // DakeMusic: 列表只显示真实设备，不显示 Windows 的角色条目（Default - / Communications - 前缀）。
+    // LyriseMusic: 列表只显示真实设备，不显示 Windows 的角色条目（Default - / Communications - 前缀）。
     // 这些角色条目和真实设备是同一个硬件，留着反而让人困惑；选到哪个设备就用哪个设备。
     const isRoleStub = (label: string) =>
       /^(Default|Communications)\s*-/i.test((label || '').trim());
@@ -726,7 +726,7 @@ const adsSpeakerLabel = computed(() => {
   return adsShort(d?.label || '') || '扬声器';
 });
 
-// DakeMusic: 开关麦 / 增益链 / 输入设备统一由 useMicGain 单例负责（文件顶部已解构）
+// LyriseMusic: 开关麦 / 增益链 / 输入设备统一由 useMicGain 单例负责（文件顶部已解构）
 // 安全获取 LiveKit room（歌词广播等组件内逻辑使用）
 async function getLKRoom(): Promise<any> {
   try {
@@ -781,13 +781,13 @@ watch(adsMicVol, () => adsSave());
 onUnmounted(() => {
   window.removeEventListener('storage', onStorageChange);
   navigator.mediaDevices?.removeEventListener?.('devicechange', adsLoad);
-  // DakeMusic: 增益链由 useMicGain 单例管理，页面收起/切换不销毁（真正退房才在 store 清理）
+  // LyriseMusic: 增益链由 useMicGain 单例管理，页面收起/切换不销毁（真正退房才在 store 清理）
 });
 </script>
 
 <template>
   <div class="cr-root">
-    <!-- DakeMusic 语聊房模块 - 作者：知之Dake -->
+    <!-- LyriseMusic 语聊房模块 - 作者：知之Dake -->
     <ChatRoomBackground />
     <!-- 顶部栏 -->
     <ChatRoomTopbar
@@ -902,9 +902,9 @@ onUnmounted(() => {
       </Tooltip>
       <!-- 中央：成员圆形舞台 + 歌词 -->
       <section class="cr-stage">
-        <!-- DakeMusic: 座位舞台（独立模块 src/renderer/seatManager：6 小座位直接坐，大主座需向房主申请） -->
+        <!-- LyriseMusic: 座位舞台（独立模块 src/renderer/seatManager：6 小座位直接坐，大主座需向房主申请） -->
         <SeatStage @view-profile="openUserProfile" />
-        <!-- DakeMusic: 歌词大框（房主播什么，大家同步看） -->
+        <!-- LyriseMusic: 歌词大框（房主播什么，大家同步看） -->
         <div class="cr-lyric">
           <div class="cr-lyric-head">
             <div class="cr-lyric-title">
@@ -968,7 +968,7 @@ onUnmounted(() => {
           </div>
         </div>
       </section>
-      <!-- DakeMusic: 聊天栏收起/展开按钮 -->
+      <!-- LyriseMusic: 聊天栏收起/展开按钮 -->
       <Tooltip v-if="chatCollapsed" content="展开聊天">
         <template #trigger>
           <button class="cr-chat-unfold" aria-label="展开聊天" @click="toggleChat">
@@ -1012,7 +1012,7 @@ onUnmounted(() => {
           @open-profile="openUserProfile"
           @preview-photo="previewPhotoUrl = $event"
         />
-        <!-- DakeMusic: 输入框归位右侧公屏底部 -->
+        <!-- LyriseMusic: 输入框归位右侧公屏底部 -->
         <ChatInputBar
           ref="chatInputRef"
           v-model="messageInput"
@@ -1026,7 +1026,7 @@ onUnmounted(() => {
         />
       </aside>
     </div>
-    <!-- DakeMusic: 底部居中悬浮控制胶囊（居中区域对齐中央舞台列） -->
+    <!-- LyriseMusic: 底部居中悬浮控制胶囊（居中区域对齐中央舞台列） -->
     <div
       class="cr-bottom"
       :style="{
@@ -1426,7 +1426,7 @@ onUnmounted(() => {
         </div>
       </div>
     </Teleport>
-    <!-- DakeMusic: 违禁词管理弹窗 -->
+    <!-- LyriseMusic: 违禁词管理弹窗 -->
     <Teleport to="body">
       <div v-if="showBadWordsModal" class="cr-modal-mask" @click.self="showBadWordsModal = false">
         <div class="cr-modal" style="max-width: 420px">
@@ -1549,7 +1549,7 @@ onUnmounted(() => {
               <div class="cr-profile-id">
                 ID：{{ viewingUser.userId ? 999 + viewingUser.userId : '-' }}
               </div>
-              <!-- DakeMusic: 一行展示资料标签 -->
+              <!-- LyriseMusic: 一行展示资料标签 -->
               <div class="cr-profile-tags">
                 <span
                   v-if="viewingUser.age"
@@ -1627,7 +1627,7 @@ onUnmounted(() => {
                 </div>
               </div>
             </div>
-            <!-- DakeMusic: 个人主页按钮（看自己资料时显示，点了进编辑） -->
+            <!-- LyriseMusic: 个人主页按钮（看自己资料时显示，点了进编辑） -->
             <div
               v-if="viewingUser.identity === store.myIdentity"
               class="cr-profile-actions"
@@ -1691,7 +1691,7 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- DakeMusic: 资料卡图片墙 - 应用内放大预览 -->
+      <!-- LyriseMusic: 资料卡图片墙 - 应用内放大预览 -->
       <div v-if="previewPhotoUrl" class="cr-photo-viewer" @click="previewPhotoUrl = ''">
         <img :src="previewPhotoUrl" />
         <Tooltip content="关闭">
@@ -1707,7 +1707,7 @@ onUnmounted(() => {
         </Tooltip>
       </div>
     </Teleport>
-    <!-- DakeMusic: 点歌台浮层（右侧抽屉） -->
+    <!-- LyriseMusic: 点歌台浮层（右侧抽屉） -->
     <transition name="srp-slide">
       <div v-if="showSongPanel" class="cr-song-panel">
         <SongRequestPanel />

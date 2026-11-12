@@ -1,12 +1,12 @@
 {
-  "name": "dake-media-controls",
+  "name": "lyrise-sqlite-store",
   "version": "0.1.0",
-  "main": "dake-media-controls.node",
+  "main": "lyrise-sqlite-store.node",
   "devDependencies": {
     "@napi-rs/cli": "^3.5.1"
   },
   "napi": {
-    "binaryName": "dake-media-controls",
+    "binaryName": "lyrise-sqlite-store",
     "triples": {}
   },
   "scripts": {

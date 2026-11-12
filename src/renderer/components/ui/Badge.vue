@@ -1,6 +1,6 @@
-/** * DakeMusic 通用徽标（Badge） * 文件：Badge.vue *
+/** * LyriseMusic 通用徽标（Badge） * 文件：Badge.vue *
 描述：绝对定位的小圆点/数字徽标，用于播放条队列数、桌面歌词状态等角标 * 作者：知之（DAKE知之） *
-版权：© 2026 DakeMusic. All rights reserved. */
+版权：© 2026 LyriseMusic. All rights reserved. */
 <script setup lang="ts">
 interface Props {
   count?: number | string;

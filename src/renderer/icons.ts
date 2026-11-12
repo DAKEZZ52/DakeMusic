@@ -114,10 +114,10 @@ import send from '@iconify/icons-tabler/send';
 import doorExit from '@iconify/icons-tabler/door-exit';
 import broadcast from '@iconify/icons-tabler/broadcast';
 import musicShare from '@iconify/icons-tabler/music-share';
-// DakeMusic: 会员等级标识 —— 畅听会员(VIP)、豪华/概念会员(皇冠)
+// LyriseMusic: 会员等级标识 —— 畅听会员(VIP)、豪华/概念会员(皇冠)
 import vip from '@iconify/icons-tabler/vip';
 import crown from '@iconify/icons-tabler/crown';
-// DakeMusic: 顶部导航标签 —— 新碟上架(光盘)、新歌速递(闪电)
+// LyriseMusic: 顶部导航标签 —— 新碟上架(光盘)、新歌速递(闪电)
 import disc from '@iconify/icons-tabler/disc';
 import bolt from '@iconify/icons-tabler/bolt';
 
@@ -238,9 +238,9 @@ export const iconFolderOpen = folderOpen as IconifyIcon;
 export const iconShare = share as IconifyIcon;
 export const iconShoppingBag = shoppingBag as IconifyIcon;
 export const iconShirt = shirt as IconifyIcon;
-// DakeMusic: 会员等级标识
+// LyriseMusic: 会员等级标识
 export const iconVip = vip as IconifyIcon;
 export const iconCrown = crown as IconifyIcon;
-// DakeMusic: 顶部导航标签 —— 新碟上架(光盘)、新歌速递(闪电)
+// LyriseMusic: 顶部导航标签 —— 新碟上架(光盘)、新歌速递(闪电)
 export const iconDisc = disc as IconifyIcon;
 export const iconBolt = bolt as IconifyIcon;

@@ -41,7 +41,7 @@ let serverReady = false;
 let createRequestFn: ((config: any) => Promise<any>) | null = null;
 
 // server 内部使用的全局标识
-const SERVER_DEV = 'DakeMusic';
+const SERVER_DEV = 'LyriseMusic';
 let guid = '';
 let mid = '';
 let webglHash = '';

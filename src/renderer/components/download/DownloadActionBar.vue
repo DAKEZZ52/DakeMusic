@@ -1,7 +1,7 @@
 <!--
- * DakeMusic - 下载管理操作栏组件
+ * LyriseMusic - 下载管理操作栏组件
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：下载管理页顶部操作行（云盘页风格）：清除已完成。
  *      下载目录入口统一收在「下载设置」分区卡内，避免重复。
  *      样式与 DetailPageActionRow / LocalMusicActionBar 全站一致。

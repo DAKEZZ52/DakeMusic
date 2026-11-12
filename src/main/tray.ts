@@ -192,7 +192,7 @@ export const createDockMenu = () =>
 const rebuildTrayMenu = () => {
   if (appTray) {
     applyTrayImageIfNeeded();
-    appTray.setToolTip('DakeMusic');
+    appTray.setToolTip('LyriseMusic');
   }
 
   if (process.platform === 'darwin') {
@@ -214,7 +214,7 @@ export const initTray = (context: TrayContext) => {
   const trayImage = getTrayImage();
   appTray = new Tray(trayImage.image);
   appliedTrayImageKey = trayImage.key;
-  appTray.setToolTip('DakeMusic');
+  appTray.setToolTip('LyriseMusic');
 
   appTray.on('click', () => {
     void trayContext?.restoreWindow();

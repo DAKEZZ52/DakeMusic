@@ -1,12 +1,15 @@
 import { isBlockedObjectKey } from './objectSafety';
 import { sanitizePortableNetworkSettings } from './portableNetworkSettings';
 
-export const SETTINGS_BACKUP_FORMAT = 'dakemusic-settings-backup' as const;
+export const SETTINGS_BACKUP_FORMAT = 'lyrise-settings-backup' as const;
 export const SETTINGS_BACKUP_VERSION = 1 as const;
-export const SETTINGS_BACKUP_EXTENSION = 'dakemusic-backup';
-/** 旧版备份标识，仅用于导入历史文件 */
-export const LEGACY_SETTINGS_BACKUP_FORMAT = 'echomusic-settings-backup' as const;
-export const LEGACY_SETTINGS_BACKUP_EXTENSION = 'echomusic-backup';
+export const SETTINGS_BACKUP_EXTENSION = 'lyrise-backup';
+/** 历史版本用过的备份标识与扩展名，按从新到旧排列，仅用于导入旧文件 */
+export const LEGACY_SETTINGS_BACKUP_FORMATS = [
+  'dakemusic-settings-backup',
+  'echomusic-settings-backup',
+] as const;
+export const LEGACY_SETTINGS_BACKUP_EXTENSIONS = ['dakemusic-backup', 'echomusic-backup'] as const;
 
 export interface SettingsBackupScope {
   settings: boolean;

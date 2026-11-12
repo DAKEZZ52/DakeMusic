@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * DakeMusic 语聊房 - 聊天消息区
+ * LyriseMusic 语聊房 - 聊天消息区
  * 描述：公屏消息列表、进出房间提示、空态骨架屏与自动滚动到底。
  */
 import { nextTick, onMounted, ref, watch } from 'vue';

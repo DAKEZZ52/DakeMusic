@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载状态管理模块
+ * LyriseMusic 下载状态管理模块
  * 作者：知之Dake
  * 文件：download.ts
  * 描述：渲染层下载 store——复用播放地址解析（resolveAudioUrl）得到可下载地址，

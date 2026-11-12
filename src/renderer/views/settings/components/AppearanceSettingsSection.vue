@@ -155,7 +155,7 @@ const handleCustomBgUpload = (event: Event) => {
   input.value = '';
 };
 
-// DakeMusic 语聊房模块 - 作者：知之Dake
+// LyriseMusic 语聊房模块 - 作者：知之Dake
 // 描述：语聊房背景图上传与设置
 const chatroomBgInputRef = ref<HTMLInputElement | null>(null);
 const handleChatroomBgUpload = (event: Event) => {
@@ -638,7 +638,7 @@ const handleChatroomBgUpload = (event: Event) => {
       </div>
     </template>
 
-    <!-- DakeMusic 语聊房模块 - 作者：知之Dake -->
+    <!-- LyriseMusic 语聊房模块 - 作者：知之Dake -->
     <!-- 描述：语聊房自定义背景图设置项 -->
     <div class="settings-divider"></div>
     <div class="settings-item items-start">

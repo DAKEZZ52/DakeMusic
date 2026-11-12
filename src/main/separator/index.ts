@@ -1,5 +1,5 @@
 /**
- * DakeMusic 人声/伴奏分离 IPC 模块
+ * LyriseMusic 人声/伴奏分离 IPC 模块
  * 文件：index.ts
  * 描述：注册分离相关 IPC（模型列表、开始分离、保存结果），编排模型下载/加载、推理、WAV 保存。
  * 版权：Copyright © 2026 Dake（知之Dake）. All Rights Reserved.

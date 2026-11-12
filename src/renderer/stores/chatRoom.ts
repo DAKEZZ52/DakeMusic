@@ -1,5 +1,5 @@
 /**
- * DakeMusic 语聊房模块
+ * LyriseMusic 语聊房模块
  * 作者：知之Dake
  * 文件：chatRoom.ts (store)
  * 描述：语聊房状态管理 - 房间列表/成员/消息/LiveKit 连接
@@ -8,7 +8,7 @@ import { defineStore } from 'pinia';
 import { ref, computed, watch } from 'vue';
 import { getLiveKitClient, type RoomMember, type ChatMessage } from '@/utils/livekitClient';
 import { logger } from '@/utils/logger';
-// DakeMusic: 麦克风增益链单例，房间内与悬浮窗共用，toggleMute 统一走它
+// LyriseMusic: 麦克风增益链单例，房间内与悬浮窗共用，toggleMute 统一走它
 import { useMicGain } from '@/composables/useMicGain';
 import { roomApi } from '@/utils/roomApi';
 import { usePlayerStore } from './player';
@@ -40,9 +40,9 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const currentRoomDescription = ref('');
   const currentRoomCoverImage = ref('');
   const currentRoomOwnerName = ref('');
-  // DakeMusic: 房间座位模式（normal=9宫格 / duet=对唱2麦位），由房主切换，服务器广播
+  // LyriseMusic: 房间座位模式（normal=9宫格 / duet=对唱2麦位），由房主切换，服务器广播
   const currentRoomSeatMode = ref<'normal' | 'duet'>('normal');
-  // DakeMusic: 房内每个人的麦位框/声波皮肤 URL（identity -> {frameUrl, auralUrl}），通过 LiveKit 数据通道同步
+  // LyriseMusic: 房内每个人的麦位框/声波皮肤 URL（identity -> {frameUrl, auralUrl}），通过 LiveKit 数据通道同步
   const userStyles = ref<Record<string, { frameUrl: string; auralUrl: string }>>({});
   const members = ref<RoomMember[]>([]);
   const memberAvatars = ref<Record<string, string>>({});
@@ -54,13 +54,13 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const myName = ref('');
   const myAvatar = ref(localStorage.getItem('chatroom_avatarImage') || '');
   const isOwner = ref(false);
-  // DakeMusic: 真房主的 LiveKit identity（后端 join 返回），用于控制指令来源校验
+  // LyriseMusic: 真房主的 LiveKit identity（后端 join 返回），用于控制指令来源校验
   const ownerIdentity = ref('');
-  // DakeMusic: 房间真房主（后端认定，不被根超管进房覆盖），专用于歌词/播放源判断
+  // LyriseMusic: 房间真房主（后端认定，不被根超管进房覆盖），专用于歌词/播放源判断
   const isRoomHost = ref(false);
   /** 全局超级管理员（Dake），进别人房间不自动上麦、不显示房主标签 */
   const isSuperAdmin = ref(false);
-  /** DakeMusic: 根超管（环境变量写死），可任免其他超管，且自己不能被取消 */
+  /** LyriseMusic: 根超管（环境变量写死），可任免其他超管，且自己不能被取消 */
   const isRootSuper = ref(false);
   const error = ref('');
   const bannedUsers = ref<string[]>([]);
@@ -68,7 +68,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
   const loginName = ref(localStorage.getItem('chat_login_name') || '');
   const isAdmin = ref(false);
   const myBio = ref('');
-  // DakeMusic: 房间点歌台队列与当前播放
+  // LyriseMusic: 房间点歌台队列与当前播放
   const musicQueue = ref<any[]>([]);
   const currentTrack = ref<any>(null);
   // 队列版本号：请求/广播/主动刷新都会递增，用于丢弃迟到的旧队列响应，避免刚点的歌被覆盖
@@ -104,8 +104,8 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       }
     },
     onMessage: (msg) => {
-      // DakeMusic: 仅接受合法聊天/系统消息，座位等控制数据（kind=dakemusic-seat）绝不串到公屏
-      if (!msg || msg.kind === 'dakemusic-seat') return;
+      // LyriseMusic: 仅接受合法聊天/系统消息，座位等控制数据（kind=lyrise-seat）绝不串到公屏
+      if (!msg || msg.kind === 'lyrise-seat') return;
       if (msg.type !== 'text' && msg.type !== 'system' && msg.type !== 'image') return;
       if (msg.senderIdentity === undefined) return;
       messages.value.push(msg);
@@ -138,7 +138,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
         if (muted) m.isSpeaking = false;
       }
     },
-    // DakeMusic: 点歌台广播（队列更新 / 切歌）
+    // LyriseMusic: 点歌台广播（队列更新 / 切歌）
     onQueueEvent: (payload) => {
       if (payload.type === 'music_queue_updated') {
         queueRevision += 1;
@@ -147,19 +147,19 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
         queueRevision += 1;
         currentTrack.value = payload.track || null;
         musicQueue.value = payload.queue || [];
-        // DakeMusic: 切歌/自动开播后真实播放——把缓存的真 song 放进队列播放，避免旧歌串歌
+        // LyriseMusic: 切歌/自动开播后真实播放——把缓存的真 song 放进队列播放，避免旧歌串歌
         playRoomTrack(payload.track);
       }
     },
   });
 
-  // DakeMusic: 麦克风增益链单例（房间内与悬浮窗共用同一轨道）
+  // LyriseMusic: 麦克风增益链单例（房间内与悬浮窗共用同一轨道）
   const micGain = useMicGain();
-  // DakeMusic: 点歌台切歌后触发真实播放
+  // LyriseMusic: 点歌台切歌后触发真实播放
   const playerStore = usePlayerStore();
   const playlistStore = usePlaylistStore();
   let lastPlayedTrackId = '';
-  // DakeMusic: 点歌缓存 songId -> 完整 song 对象（切歌时用真 song 播放）
+  // LyriseMusic: 点歌缓存 songId -> 完整 song 对象（切歌时用真 song 播放）
   const songCache = new Map<string, any>();
   // composable(真相) → store：同步 isMuted 与成员列表自己那条
   watch(micGain.adsMuted, (m) => {
@@ -202,7 +202,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     return result;
   }
 
-  // DakeMusic: peiwan 陪玩平台账号密码登录
+  // LyriseMusic: peiwan 陪玩平台账号密码登录
   async function loginPeiwan(account: string, password: string) {
     const result = await roomApi.peiwanLogin(account, password);
     localStorage.setItem('chat_session', result.token);
@@ -295,12 +295,12 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     currentRoomCoverImage.value = result.coverImage || '';
     // 优先显示房主昵称，没有再退回账号
     currentRoomOwnerName.value = result.ownerNickname || result.ownerName || '';
-    // DakeMusic: 房间座位模式（对唱/普通）
+    // LyriseMusic: 房间座位模式（对唱/普通）
     currentRoomSeatMode.value = result.seatMode === 'duet' ? 'duet' : 'normal';
     myIdentity.value = result.identity;
     myName.value = result.myNickname || loginName.value || '用户';
     isSuperAdmin.value = !!result.isSuperAdmin;
-    // DakeMusic: 真房主 = 当前 identity 与后端返回的 ownerIdentity 一致。
+    // LyriseMusic: 真房主 = 当前 identity 与后端返回的 ownerIdentity 一致。
     // 平台超管/根超管进别人房间时 result.isOwner 也为 true，不能据此判断真房主，
     // 否则会误显示房主标签、自动坐主座、抢占歌词播放源。
     const resolvedOwnerIdentity =
@@ -328,7 +328,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     members.value.forEach((m) => {
       if (m.isMuted) m.isSpeaking = false;
     });
-    // DakeMusic: 拉取点歌台队列与最近聊天记录，保证一进房就和其他人看到同一份状态
+    // LyriseMusic: 拉取点歌台队列与最近聊天记录，保证一进房就和其他人看到同一份状态
     fetchQueue();
     fetchMessages();
   }
@@ -342,7 +342,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       }
     }
     await client.leaveRoom();
-    // DakeMusic: 真正退房才销毁增益链（收起悬浮窗不销毁）
+    // LyriseMusic: 真正退房才销毁增益链（收起悬浮窗不销毁）
     micGain.cleanupMicGain();
     resetState();
     isConnected.value = false;
@@ -369,12 +369,12 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     bannedUsers.value = [];
     musicQueue.value = [];
     currentTrack.value = null;
-    // DakeMusic: 重进房间要能重新接上“正在播放”，清掉上次的去重标记
+    // LyriseMusic: 重进房间要能重新接上“正在播放”，清掉上次的去重标记
     lastPlayedTrackId = '';
   }
 
   async function toggleMute() {
-    // DakeMusic: 统一走增益链单例；adsMuted 变化后由 watch 同步 isMuted 与成员列表
+    // LyriseMusic: 统一走增益链单例；adsMuted 变化后由 watch 同步 isMuted 与成员列表
     await micGain.adsToggleMic();
   }
 
@@ -385,7 +385,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     if (!content.trim()) return;
     try {
       await client.sendMessage(content.trim(), type);
-      // DakeMusic: 文字消息额外写入服务端历史，供后进房的人看到；图片体积大，不落库。
+      // LyriseMusic: 文字消息额外写入服务端历史，供后进房的人看到；图片体积大，不落库。
       if (type === 'text' && currentRoomId.value) {
         void roomApi.saveMessage(currentRoomId.value, content.trim()).catch((e) => {
           logger.debug('ChatRoom', '聊天消息持久化失败', e);
@@ -396,7 +396,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     }
   }
 
-  /** DakeMusic: 进房时补齐最近聊天记录（文字/系统消息），让新人一进来就能看到上下文 */
+  /** LyriseMusic: 进房时补齐最近聊天记录（文字/系统消息），让新人一进来就能看到上下文 */
   async function fetchMessages() {
     const roomId = currentRoomId.value;
     if (!roomId) return;
@@ -435,7 +435,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     }
   }
 
-  // ===== DakeMusic: 房间点歌台 =====
+  // ===== LyriseMusic: 房间点歌台 =====
   async function fetchQueue() {
     const roomId = currentRoomId.value;
     if (!roomId) return;
@@ -446,7 +446,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       if (revision !== queueRevision || currentRoomId.value !== roomId) return;
       musicQueue.value = Array.isArray(r?.queue) ? r.queue : [];
       currentTrack.value = r?.current ?? null;
-      // DakeMusic: 进房/刷新时如果房间已有正在播放的歌，所有客户端都要接上并对齐进度，
+      // LyriseMusic: 进房/刷新时如果房间已有正在播放的歌，所有客户端都要接上并对齐进度，
       // 否则中途进房的人听不到歌，歌词也对不上。
       if (r?.current) playRoomTrack(r.current);
     } catch (e) {
@@ -471,25 +471,25 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     if (Array.isArray(r?.queue)) {
       musicQueue.value = r.queue;
     } else if (r?.item) {
-      // DakeMusic: 兼容旧服务端只返回 item 的情况，先乐观追加，避免界面看起来“没反应”
+      // LyriseMusic: 兼容旧服务端只返回 item 的情况，先乐观追加，避免界面看起来“没反应”
       musicQueue.value = [...musicQueue.value, r.item];
     } else {
       // 响应里没有任何队列信息时，再回源拉一次最新队列
       void fetchQueue();
     }
-    // DakeMusic: 房间空闲时服务端会把新点的第一首直接开播，这里同步当前曲目并真正播放；
+    // LyriseMusic: 房间空闲时服务端会把新点的第一首直接开播，这里同步当前曲目并真正播放；
     // 旧服务端没有 track 字段时，由 music_track_changed 广播兜底。
     if (r?.current !== undefined) currentTrack.value = r.current ?? null;
     if (r?.track) playRoomTrack(r.track);
     return r;
   }
-  // DakeMusic: 缓存完整 song 对象（切歌时用来真实播放）
+  // LyriseMusic: 缓存完整 song 对象（切歌时用来真实播放）
   function cacheSong(songId: string | number, songObj: any) {
     songCache.set(String(songId), songObj);
   }
 
   /**
-   * DakeMusic: 真正把房间当前曲目交给本地播放器。
+   * LyriseMusic: 真正把房间当前曲目交给本地播放器。
    * 优先用广播/接口携带的完整 songData（别人点的歌也能播），否则用点歌时缓存的 Song。
    * 同一首歌只触发一次，避免“接口响应 + 广播”重复播放。
    */
@@ -497,7 +497,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     if (!track || !track.songId) return;
     const trackKey = String(track.id || track.songId);
     if (trackKey === lastPlayedTrackId) return;
-    // DakeMusic: 优先用广播携带的完整 songData（别人点的歌也能播），否则用本地缓存
+    // LyriseMusic: 优先用广播携带的完整 songData（别人点的歌也能播），否则用本地缓存
     const cachedSong = songCache.get(String(track.songId));
     const songToPlay = track.songData || cachedSong;
     if (!songToPlay) {
@@ -505,7 +505,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
       return;
     }
     lastPlayedTrackId = trackKey;
-    // DakeMusic: 中途进房/重连时按服务端进度 seek，保证和房里其他人基本对齐
+    // LyriseMusic: 中途进房/重连时按服务端进度 seek，保证和房里其他人基本对齐
     const position = Math.max(0, Number(track.position) || 0);
     const duration = Math.max(0, Number(songToPlay.duration) || 0);
     const seekTarget =
@@ -514,7 +514,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
           ? Math.min(position, Math.max(0, duration - 2))
           : position
         : 0;
-    // DakeMusic: 用 replaceQueueAndPlay 让播放队列只有这首歌，避免旧歌串歌
+    // LyriseMusic: 用 replaceQueueAndPlay 让播放队列只有这首歌，避免旧歌串歌
     replaceQueueAndPlay(playlistStore, playerStore, [songToPlay], 0, songToPlay)
       .then((ok) => {
         if (!ok || seekTarget <= 1.5) return;
@@ -533,7 +533,7 @@ export const useChatRoomStore = defineStore('chatRoom', () => {
     queueRevision += 1;
     if (r?.track !== undefined) currentTrack.value = r.track || null;
     if (Array.isArray(r?.queue)) musicQueue.value = r.queue;
-    // DakeMusic: 本机是切歌发起方时不等广播，直接开始播放（广播到达后会被 lastPlayedTrackId 去重）
+    // LyriseMusic: 本机是切歌发起方时不等广播，直接开始播放（广播到达后会被 lastPlayedTrackId 去重）
     if (r?.track) playRoomTrack(r.track);
     return r;
   }

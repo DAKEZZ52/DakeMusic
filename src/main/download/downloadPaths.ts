@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载路径模块
+ * LyriseMusic 下载路径模块
  * 作者：知之Dake
  * 文件：downloadPaths.ts
  * 描述：保存文件名的安全化与生成、扩展名推断（显式/URL/Content-Type/音质）、重名避让、临时文件路径

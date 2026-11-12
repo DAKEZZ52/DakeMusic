@@ -1,5 +1,5 @@
 /**
- * DakeMusic 元数据写入模块
+ * LyriseMusic 元数据写入模块
  * 作者：知之Dake
  * 文件：MetadataWriter.ts
  * 描述：在歌曲下载完成后，向音频文件内嵌写入元数据——标题 / 歌手 / 专辑 / 封面 / 歌词。

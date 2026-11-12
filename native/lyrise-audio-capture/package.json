@@ -1,12 +1,12 @@
 {
-  "name": "dake-sqlite-store",
+  "name": "lyrise-audio-capture",
   "version": "0.1.0",
-  "main": "dake-sqlite-store.node",
+  "main": "lyrise-audio-capture.node",
   "devDependencies": {
     "@napi-rs/cli": "^3.5.1"
   },
   "napi": {
-    "binaryName": "dake-sqlite-store",
+    "binaryName": "lyrise-audio-capture",
     "triples": {}
   },
   "scripts": {

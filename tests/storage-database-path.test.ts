@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import {
   DATABASE_FILENAME,
-  LEGACY_DATABASE_FILENAME,
+  LEGACY_DATABASE_FILENAMES,
   resolveDatabasePath,
 } from '../src/main/storage/databasePath.ts';
 
@@ -23,7 +23,7 @@ test('fresh install keeps the new database filename', async (t) => {
 
 test('legacy database is copied to the new name and the old file is removed', async (t) => {
   const directory = await createDir(t);
-  const legacy = join(directory, LEGACY_DATABASE_FILENAME);
+  const legacy = join(directory, LEGACY_DATABASE_FILENAMES[0]);
   await writeFile(legacy, 'legacy-db');
 
   const resolved = resolveDatabasePath(directory);
@@ -35,7 +35,7 @@ test('legacy database is copied to the new name and the old file is removed', as
 
 test('WAL and SHM travel with the database and are cleaned up', async (t) => {
   const directory = await createDir(t);
-  const legacy = join(directory, LEGACY_DATABASE_FILENAME);
+  const legacy = join(directory, LEGACY_DATABASE_FILENAMES[0]);
   await writeFile(legacy, 'db');
   await writeFile(`${legacy}-wal`, 'wal-content');
   await writeFile(`${legacy}-shm`, 'shm-content');
@@ -51,7 +51,7 @@ test('WAL and SHM travel with the database and are cleaned up', async (t) => {
 test('existing new database is never overwritten by the legacy one', async (t) => {
   const directory = await createDir(t);
   await writeFile(join(directory, DATABASE_FILENAME), 'new-db');
-  await writeFile(join(directory, LEGACY_DATABASE_FILENAME), 'legacy-db');
+  await writeFile(join(directory, LEGACY_DATABASE_FILENAMES[0]), 'legacy-db');
 
   const resolved = resolveDatabasePath(directory);
 

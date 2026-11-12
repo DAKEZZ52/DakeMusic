@@ -1,4 +1,4 @@
-name: Build DakeMusic Desktop
+name: Build LyriseMusic Desktop
 
 on:
   push:
@@ -59,31 +59,31 @@ jobs:
           - os: macos-14
             rust_target: aarch64-apple-darwin
             electron_builder_args: '--mac --arm64 --config.mac.identity=-'
-            artifact_name: DakeMusic-macOS-arm64
+            artifact_name: LyriseMusic-macOS-arm64
             artifact_glob: |
-              release/DakeMusic-*.zip
-              release/DakeMusic-*.dmg
+              release/LyriseMusic-*.zip
+              release/LyriseMusic-*.dmg
               release/latest-mac.yml
           - os: macos-14
             rust_target: x86_64-apple-darwin
             electron_builder_args: '--mac --x64 --config.mac.identity=-'
-            artifact_name: DakeMusic-macOS-x64
+            artifact_name: LyriseMusic-macOS-x64
             artifact_glob: |
-              release/DakeMusic-*.zip
-              release/DakeMusic-*.dmg
+              release/LyriseMusic-*.zip
+              release/LyriseMusic-*.dmg
           - os: windows-latest
             rust_target: ''
             electron_builder_args: '--win --x64'
-            artifact_name: DakeMusic-Windows-x64
+            artifact_name: LyriseMusic-Windows-x64
             artifact_glob: |
-              release/DakeMusic-*.exe
+              release/LyriseMusic-*.exe
               release/latest.yml
           - os: windows-11-arm
             rust_target: ''
             electron_builder_args: '--win --arm64'
-            artifact_name: DakeMusic-Windows-arm64
+            artifact_name: LyriseMusic-Windows-arm64
             artifact_glob: |
-              release/DakeMusic-*.exe
+              release/LyriseMusic-*.exe
 
     steps:
       - name: Checkout code
@@ -113,11 +113,11 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: |
-            native/dake-audio-capture
-            native/dake-media-controls
-            native/dake-platform-adaptor
-            native/dake-audio-player
-            native/dake-sqlite-store
+            native/lyrise-audio-capture
+            native/lyrise-media-controls
+            native/lyrise-platform-adaptor
+            native/lyrise-audio-player
+            native/lyrise-sqlite-store
 
       - name: Add Rust cross-compile target
         if: matrix.rust_target != ''
@@ -137,13 +137,13 @@ jobs:
             fi
           }
           pids=()
-          build_addon dake-audio-capture & pids+=("$!")
-          build_addon dake-media-controls & pids+=("$!")
+          build_addon lyrise-audio-capture & pids+=("$!")
+          build_addon lyrise-media-controls & pids+=("$!")
           if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
-            build_addon dake-platform-adaptor & pids+=("$!")
+            build_addon lyrise-platform-adaptor & pids+=("$!")
           fi
-          build_addon dake-audio-player & pids+=("$!")
-          build_addon dake-sqlite-store & pids+=("$!")
+          build_addon lyrise-audio-player & pids+=("$!")
+          build_addon lyrise-sqlite-store & pids+=("$!")
 
           status=0
           for pid in "${pids[@]}"; do
@@ -156,14 +156,14 @@ jobs:
         shell: bash
         run: |
           set -e
-          addon="native/dake-audio-player/dake-audio-player.node"
+          addon="native/lyrise-audio-player/lyrise-audio-player.node"
           if [ ! -f "$addon" ]; then
             echo "ERROR: ffmpeg player addon not found: $addon"
             exit 1
           fi
 
-          otool -L "$addon" | tee /tmp/dake-audio-player-otool.txt
-          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv).*\.(dylib|so)' /tmp/dake-audio-player-otool.txt; then
+          otool -L "$addon" | tee /tmp/lyrise-audio-player-otool.txt
+          if grep -E 'lib(avcodec|avformat|avutil|swresample|mpv).*\.(dylib|so)' /tmp/lyrise-audio-player-otool.txt; then
             echo "ERROR: ffmpeg player addon unexpectedly links to system FFmpeg/mpv libraries"
             exit 1
           fi
@@ -217,9 +217,9 @@ jobs:
         shell: bash
         run: |
           set -e
-          addons=(dake-audio-capture dake-media-controls dake-audio-player dake-sqlite-store)
+          addons=(lyrise-audio-capture lyrise-media-controls lyrise-audio-player lyrise-sqlite-store)
           if [ "${{ runner.os }}" = "Windows" ] || [ "${{ runner.os }}" = "macOS" ]; then
-            addons+=(dake-platform-adaptor)
+            addons+=(lyrise-platform-adaptor)
           fi
           for addon in "${addons[@]}"; do
             matches=$(find release \( \
@@ -248,8 +248,8 @@ jobs:
           plist="$app_path/Contents/Info.plist"
           /usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$plist" >/dev/null
           /usr/libexec/PlistBuddy -c 'Print :NSAudioCaptureUsageDescription' "$plist" >/dev/null
-          codesign -d --entitlements :- "$app_path" > /tmp/dakemusic-entitlements.plist
-          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' /tmp/dakemusic-entitlements.plist >/dev/null
+          codesign -d --entitlements :- "$app_path" > /tmp/lyrise-entitlements.plist
+          /usr/libexec/PlistBuddy -c 'Print :com.apple.security.device.audio-input' /tmp/lyrise-entitlements.plist >/dev/null
           codesign --verify --deep --strict --verbose=2 "$app_path"
 
       - name: Verify bundled Windows executable
@@ -259,9 +259,9 @@ jobs:
           set -e
 
           if [ "${{ runner.arch }}" = "ARM64" ]; then
-            app_exe="release/win-arm64-unpacked/DakeMusic.exe"
+            app_exe="release/win-arm64-unpacked/LyriseMusic.exe"
           else
-            app_exe="release/win-unpacked/DakeMusic.exe"
+            app_exe="release/win-unpacked/LyriseMusic.exe"
           fi
 
           if [ ! -f "$app_exe" ]; then
@@ -493,7 +493,7 @@ jobs:
 
           RELEASE_URL="https://github.com/${REPO}/releases/tag/${VERSION}"
           printf -v MESSAGE '%s\n\n%s\n%s\n\n%s' \
-            "🎉 <b>DakeMusic ${VERSION} 已发布</b>" \
+            "🎉 <b>LyriseMusic ${VERSION} 已发布</b>" \
             "📋 <b>更新摘要</b>" \
             "${CHANGELOG_SUMMARY}" \
             "⬇️ <a href=\"${RELEASE_URL}\">下载与完整更新</a>"
@@ -583,7 +583,7 @@ jobs:
           REPO="${GITHUB_REPOSITORY}"
 
           RELEASE_URL="https://github.com/${REPO}/releases/tag/${VERSION}"
-          MESSAGE=$(printf '🎉 DakeMusic %s 已发布\n\n📋 更新摘要\n%s\n\n⬇️ 下载与完整更新\n%s' \
+          MESSAGE=$(printf '🎉 LyriseMusic %s 已发布\n\n📋 更新摘要\n%s\n\n⬇️ 下载与完整更新\n%s' \
             "$VERSION" "$CHANGELOG_SUMMARY" "$RELEASE_URL")
 
           HEADERS=(-H "Content-Type: application/json")

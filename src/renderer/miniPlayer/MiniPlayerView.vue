@@ -117,7 +117,7 @@ const currentQueueTrackId = computed(
 );
 
 const lyricTitle = computed(() => playback.value?.title || '未在播放');
-const lyricArtist = computed(() => playback.value?.artist || 'DakeMusic');
+const lyricArtist = computed(() => playback.value?.artist || 'LyriseMusic');
 const lyricLines = computed(() => lyric.value?.lines ?? []);
 const liveLyricIndex = ref(-1);
 const liveLyricTimelineMs = ref(0);
@@ -979,7 +979,7 @@ onUnmounted(() => {
         <div class="mini-center">
           <div class="mini-info">
             <div class="mini-title">{{ playback?.title || '未在播放' }}</div>
-            <div class="mini-artist">{{ playback?.artist || 'DakeMusic' }}</div>
+            <div class="mini-artist">{{ playback?.artist || 'LyriseMusic' }}</div>
           </div>
           <div class="mini-hover-controls">
             <Tooltip content="上一首">

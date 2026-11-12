@@ -1,5 +1,5 @@
 /**
- * DakeMusic 下载歌词收集模块
+ * LyriseMusic 下载歌词收集模块
  * 作者：知之Dake
  * 文件：downloadLyrics.ts
  * 描述：为下载任务收集 LRC 歌词文本，直接调用歌词搜索 / 详情 API，不经过歌词 store，

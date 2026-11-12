@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { test } from 'node:test';
 
 const require = createRequire(import.meta.url);
-const addon = require('../native/dake-sqlite-store/dake-sqlite-store.node');
+const addon = require('../native/lyrise-sqlite-store/lyrise-sqlite-store.node');
 
 test('native online backup captures data committed to an active WAL database', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'echo-native-backup-'));

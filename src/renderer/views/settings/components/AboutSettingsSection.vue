@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// DakeMusic 关于页模块
+// LyriseMusic 关于页模块
 // 作者：知之Dake
 // 文件：AboutSettingsSection.vue
 // 描述：关于页 - 版本信息/更新检查/免责声明/作者信息
@@ -19,9 +19,9 @@ const settingStore = useSettingStore();
 const versionLabel = computed(() => settingStore.appVersion || '未知');
 const releaseChannelLabel = computed(() => (settingStore.isPrerelease ? 'Prerelease' : 'Release'));
 
-// DakeMusic: 打开 QQ 临时聊天
+// LyriseMusic: 打开 QQ 临时聊天
 function openQQChat() {
-  window.open('https://wpa.qq.com/msgrd?v=3&uin=983064062&site=DakeMusic&menu=yes', '_blank');
+  window.open('https://wpa.qq.com/msgrd?v=3&uin=983064062&site=LyriseMusic&menu=yes', '_blank');
 }
 
 defineProps<{
@@ -110,7 +110,7 @@ defineProps<{
       </Button>
     </div>
     <div class="settings-divider"></div>
-    <!-- DakeMusic: 作者信息 -->
+    <!-- LyriseMusic: 作者信息 -->
     <div class="settings-item">
       <div class="space-y-1">
         <h3 class="font-semibold">作者信息</h3>
@@ -126,7 +126,7 @@ defineProps<{
       </Button>
     </div>
     <div class="settings-divider"></div>
-    <!-- DakeMusic: 开源致谢——下载任务管理模块参考洛雪音乐（Apache-2.0） -->
+    <!-- LyriseMusic: 开源致谢——下载任务管理模块参考洛雪音乐（Apache-2.0） -->
     <div class="settings-item">
       <div class="space-y-1">
         <h3 class="font-semibold">开源致谢</h3>

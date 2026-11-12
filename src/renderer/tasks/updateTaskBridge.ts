@@ -94,7 +94,7 @@ export const setupUpdateTaskBridge = (): (() => void) => {
       }
 
       task.set({
-        name: '更新 DakeMusic',
+        name: '更新 LyriseMusic',
         icon: iconCloudDownload,
         status: taskStatus,
         progress,

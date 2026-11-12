@@ -286,7 +286,7 @@ unsafe fn build_and_start_stream(
     let config = make_stream_configuration()?;
     let filter = make_content_filter(display)?;
     let output = make_output(callback_state)?;
-    let queue = DispatchQueue::new("com.dakemusic.spectrum.sck-audio", None);
+    let queue = DispatchQueue::new("com.lyrise.spectrum.sck-audio", None);
     let stream = make_stream(&filter, &config, &output)?;
 
     let mut add_error: *mut AnyObject = ptr::null_mut();

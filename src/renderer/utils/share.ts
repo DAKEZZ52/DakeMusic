@@ -9,7 +9,7 @@ import {
   type ShareTarget,
 } from '../../shared/share';
 
-export const SHARE_COPIED_EVENT = 'dakemusic:share-copied';
+export const SHARE_COPIED_EVENT = 'lyrise:share-copied';
 export const SHARE_RESOLVE_ROUTE_NAME = 'share-resolve';
 export const SHARE_DETAIL_QUERY_PREFIX = 'q.';
 
@@ -30,7 +30,7 @@ const readNestedText = (record: Record<string, unknown> | undefined, key: string
 export const getCurrentSharerName = () => {
   const userStore = useUserStore();
   const info = userStore.info;
-  if (!info) return 'DakeMusic';
+  if (!info) return 'LyriseMusic';
 
   const detail =
     info.detail && typeof info.detail === 'object'
@@ -49,7 +49,7 @@ export const getCurrentSharerName = () => {
     readNestedText(detail, 'username') ||
     readNestedText(extendsDetail, 'nickname') ||
     readNestedText(extendsDetail, 'username') ||
-    'DakeMusic'
+    'LyriseMusic'
   );
 };
 

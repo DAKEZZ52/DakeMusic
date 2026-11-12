@@ -2,7 +2,7 @@ import { app, Menu, type MenuItemConstructorOptions, type WebContents } from 'el
 import { getDevToolsEnabledSetting } from './storage/settings';
 
 const isMac = process.platform === 'darwin';
-const appDisplayName = 'DakeMusic';
+const appDisplayName = 'LyriseMusic';
 
 interface ApplicationMenuOptions {
   openSettings?: () => void | Promise<void>;

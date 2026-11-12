@@ -1,5 +1,5 @@
 /*
- * DakeMusic 座位管理模块
+ * LyriseMusic 座位管理模块
  * 作者：知之Dake
  * 文件：useSeatManager.ts
  * 描述：座位/麦位状态与动作的 composable 单例
@@ -73,7 +73,7 @@ export function useSeatManager() {
     return !!identity && adminIdentities.value.includes(identity);
   }
 
-  // ===== DakeMusic: 座位协议来源校验（LiveKit 已签名 participant.identity） =====
+  // ===== LyriseMusic: 座位协议来源校验（LiveKit 已签名 participant.identity） =====
   function senderMember(identity: string) {
     return store.members.find((m) => m.identity === identity) || null;
   }
@@ -129,7 +129,7 @@ export function useSeatManager() {
       seat.occupant.isAdmin = adminIdentities.value.includes(incoming.identity);
       return;
     }
-    // DakeMusic: 主座优先归真房主。房主断线重连/后进房时，不能被别人的旧时间戳挡在门外。
+    // LyriseMusic: 主座优先归真房主。房主断线重连/后进房时，不能被别人的旧时间戳挡在门外。
     if (seat.isMain && seat.occupant) {
       const incomingIsOwner = incoming.identity === store.ownerIdentity;
       const currentIsOwner = seat.occupant.identity === store.ownerIdentity;
@@ -147,7 +147,7 @@ export function useSeatManager() {
       if (localTs <= incomingTs) return; // 本地更早，保留
     }
     seat.occupant = incoming;
-    // DakeMusic: 管理员标识以本地 adminIdentities 为准，不信任广播里的 isAdmin，避免误显
+    // LyriseMusic: 管理员标识以本地 adminIdentities 为准，不信任广播里的 isAdmin，避免误显
     seat.occupant.isAdmin = adminIdentities.value.includes(incoming.identity);
   }
 

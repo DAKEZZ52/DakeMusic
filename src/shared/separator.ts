@@ -1,5 +1,5 @@
 /**
- * DakeMusic 人声/伴奏分离模块（共享类型）
+ * LyriseMusic 人声/伴奏分离模块（共享类型）
  * 文件：separator.ts
  * 描述：基于 MDX-Net（参考 UVR5）的人声/伴奏分离，模型首次使用时下载，输出 WAV。
  * 版权：Copyright © 2026 Dake（知之Dake）. All Rights Reserved.

@@ -18,8 +18,11 @@ const MAX_LOG_SIZE = 5 * 1024 * 1024;
 /** 日志保留天数 */
 const LOG_RETENTION_DAYS = 7;
 
-const DIAGNOSTICS_ENV = 'DAKEMUSIC_DIAGNOSTICS';
-const DIAGNOSTICS_DURATION_ENV = 'DAKEMUSIC_DIAGNOSTICS_MINUTES';
+const CURRENT_LOG_PREFIX = 'lyrise-music';
+/** 历史品牌用过的日志文件前缀，仅用于清理与兼容读取 */
+const LEGACY_LOG_PREFIXES = ['dakemusic-music', 'dake-music', 'echo-music'] as const;
+const DIAGNOSTICS_ENV = 'LYRISE_DIAGNOSTICS';
+const DIAGNOSTICS_DURATION_ENV = 'LYRISE_DIAGNOSTICS_MINUTES';
 /** EchoMusic 时期的环境变量名，仍可作为兜底 */
 const LEGACY_DIAGNOSTICS_ENV = 'ECHOMUSIC_DIAGNOSTICS';
 const LEGACY_DIAGNOSTICS_DURATION_ENV = 'ECHOMUSIC_DIAGNOSTICS_MINUTES';
@@ -82,14 +85,14 @@ function ensureLogDir() {
 }
 
 /**
- * 获取按日期命名的日志文件名，如 dake-music-2026-04-17.log
+ * 获取按日期命名的日志文件名，如 lyrise-music-2026-04-17.log
  */
 function getDailyLogFileName() {
   const date = new Date();
   const y = date.getFullYear();
   const m = (date.getMonth() + 1).toString().padStart(2, '0');
   const d = date.getDate().toString().padStart(2, '0');
-  return `dake-music-${y}-${m}-${d}.log`;
+  return `${CURRENT_LOG_PREFIX}-${y}-${m}-${d}.log`;
 }
 
 /**
@@ -227,11 +230,13 @@ function cleanOldLogs() {
     const retentionMs = LOG_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
     for (const file of files) {
-      if (!file.startsWith('dake-music') && !file.startsWith('echo-music')) continue;
+      const isCurrentBrand = file.startsWith(CURRENT_LOG_PREFIX);
+      const isLegacyBrand = LEGACY_LOG_PREFIXES.some((prefix) => file.startsWith(prefix));
+      if (!isCurrentBrand && !isLegacyBrand) continue;
       const filePath = join(logDir, file);
       try {
         // 旧品牌命名的日志在升级后立即清理，不再等保留期
-        if (file.startsWith('echo-music')) {
+        if (isLegacyBrand) {
           fs.unlinkSync(filePath);
           log.info(`[LogCleaner] 已删除旧品牌日志: ${file}`);
           continue;

@@ -1,5 +1,5 @@
 /*!
- * DakeMusic 语聊房模块
+ * LyriseMusic 语聊房模块
  * 作者：知之Dake
  * 文件：seatFrames.ts
  * 描述：麦位框皮肤配置 - 挂在麦位头像周围的静态/动态边框装饰（非说话声波）
@@ -2345,7 +2345,7 @@ export const SEAT_FRAMES: SeatFrame[] = [
 
 export function getMySeatFrameId(): string {
   try {
-    return localStorage.getItem('dakemusic_seatframe_id') || 'none';
+    return localStorage.getItem('lyrise_seatframe_id') || 'none';
   } catch {
     return 'none';
   }
@@ -2353,7 +2353,7 @@ export function getMySeatFrameId(): string {
 
 export function setMySeatFrameId(id: string) {
   try {
-    localStorage.setItem('dakemusic_seatframe_id', id);
+    localStorage.setItem('lyrise_seatframe_id', id);
   } catch (e) {
     logger.debug('SeatFrames', '保存座位框皮肤失败', e);
   }

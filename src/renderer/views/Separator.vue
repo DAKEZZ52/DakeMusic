@@ -1,8 +1,8 @@
 <!--
- * DakeMusic 人声/伴奏分离页面（页面壳，云盘页风格）
+ * LyriseMusic 人声/伴奏分离页面（页面壳，云盘页风格）
  * 文件：Separator.vue
  * 作者：知之（DAKE知之）
- * 版权：© 2026 DakeMusic. All rights reserved.
+ * 版权：© 2026 LyriseMusic. All rights reserved.
  * 描述：收缩头部（SliverHeader）+ 顶部操作行（SeparatorActionBar）+
  *       左侧统计面板（SeparatorStatsPanel）+ 右栏分区卡
  *       （音频来源 / 分离模型 / 状态 / 调性）。集中管理业务状态

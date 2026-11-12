@@ -1,5 +1,5 @@
 /**
- * DakeMusic 管理后台 API
+ * LyriseMusic 管理后台 API
  * 挂载在 /admin 路由下
  */
 import express from 'express';
@@ -199,7 +199,7 @@ router.post("/notice", requireAdmin, (req, res) => {
 
 // ============ 下载统计（读 nginx 访问日志） ============
 const NGINX_LOG_DIR = '/var/log/nginx';
-const INSTALLER_RE = /^\/dl\/DakeMusic-(\d+\.\d+\.\d+(?:-beta)?)\.exe$/;
+const INSTALLER_RE = /^\/dl\/LyriseMusic-(\d+\.\d+\.\d+(?:-beta)?)\.exe$/;
 const MB = 1024 * 1024;
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 

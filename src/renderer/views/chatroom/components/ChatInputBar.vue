@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * DakeMusic 语聊房 - 输入栏
+ * LyriseMusic 语聊房 - 输入栏
  * 描述：文字输入、清屏、发送图片、表情面板。
  */
 import { ref } from 'vue';

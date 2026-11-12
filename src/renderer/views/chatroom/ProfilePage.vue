@@ -1,5 +1,5 @@
 <!--
-  DakeMusic 语聊房模块
+  LyriseMusic 语聊房模块
   作者：知之Dake
   文件：ProfilePage.vue
   描述：个人中心页 - 头像/昵称/个人资料编辑
@@ -27,9 +27,9 @@ interface UserProfile {
   zodiac: string;
   photos: string[];
   bio: string;
-  city?: string; // DakeMusic: 城市
-  gender?: string; // DakeMusic: 性别 male/female/secret
-  ip?: string; // DakeMusic: IP 地址（脱敏）
+  city?: string; // LyriseMusic: 城市
+  gender?: string; // LyriseMusic: 性别 male/female/secret
+  ip?: string; // LyriseMusic: IP 地址（脱敏）
 }
 
 const profile = ref<UserProfile | null>(null);
@@ -43,7 +43,7 @@ const editPhotos = ref<string[]>([]);
 const editAvatar = ref('');
 const editName = ref('');
 
-// DakeMusic: 麦位说话声波皮肤
+// LyriseMusic: 麦位说话声波皮肤
 const showAuralPicker = ref(false);
 const myAuralId = ref(getMyAuralId());
 const tempAuralId = ref(getMyAuralId());
@@ -54,11 +54,11 @@ function confirmAural() {
   myAuralId.value = tempAuralId.value;
   setMyAuralId(tempAuralId.value);
   showAuralPicker.value = false;
-  // DakeMusic: 通知房间内即时刷新声波皮肤
-  window.dispatchEvent(new CustomEvent('dakemusic-aural-changed', { detail: tempAuralId.value }));
+  // LyriseMusic: 通知房间内即时刷新声波皮肤
+  window.dispatchEvent(new CustomEvent('lyrise-aural-changed', { detail: tempAuralId.value }));
 }
 
-// DakeMusic: 麦位框皮肤
+// LyriseMusic: 麦位框皮肤
 const showFramePicker = ref(false);
 const myFrameId = ref(getMySeatFrameId());
 const tempFrameId = ref(getMySeatFrameId());
@@ -69,14 +69,14 @@ function confirmFrame() {
   myFrameId.value = tempFrameId.value;
   setMySeatFrameId(tempFrameId.value);
   showFramePicker.value = false;
-  window.dispatchEvent(new CustomEvent('dakemusic-frame-changed', { detail: tempFrameId.value }));
+  window.dispatchEvent(new CustomEvent('lyrise-frame-changed', { detail: tempFrameId.value }));
 }
-// DakeMusic: 新增资料编辑
+// LyriseMusic: 新增资料编辑
 const editAge = ref(0);
 const editCity = ref('');
 const editGender = ref('secret');
 
-// DakeMusic: 自动检测背景亮度，动态调整文字颜色
+// LyriseMusic: 自动检测背景亮度，动态调整文字颜色
 const isDarkBg = ref(true); // 默认深色背景
 
 async function detectBackgroundBrightness() {
@@ -122,7 +122,7 @@ watch(
   },
   { immediate: true },
 );
-// DakeMusic: 省市级联数据
+// LyriseMusic: 省市级联数据
 const provinceData: Record<string, string[]> = {
   北京: [
     '东城区',
@@ -392,7 +392,7 @@ function startEdit() {
   editAvatar.value = profile.value.avatar;
   // 编辑的是昵称（显示名），不是登录账号
   editName.value = profile.value.nickname || profile.value.name;
-  // DakeMusic: 新增资料编辑
+  // LyriseMusic: 新增资料编辑
   editAge.value = profile.value.age || 0;
   editCity.value = profile.value.city || '';
   editGender.value = profile.value.gender || 'secret';
@@ -411,7 +411,7 @@ async function saveProfile() {
       avatar: editAvatar.value,
       photos: editPhotos.value,
       bio: editBio.value,
-      // DakeMusic: 新增字段
+      // LyriseMusic: 新增字段
       age: editAge.value,
       city: editCity.value,
       gender: editGender.value,
@@ -430,7 +430,7 @@ async function saveProfile() {
     if (chatStore.isConnected && editAvatar.value) {
       chatStore.updateMyAvatar(editAvatar.value).catch(() => {});
     }
-    // DakeMusic: 同步新的签名/昵称到自己坐的麦位上，全员可见
+    // LyriseMusic: 同步新的签名/昵称到自己坐的麦位上，全员可见
     (chatStore as any).myBio = editBio.value || '';
     if (chatStore.isConnected) {
       import('@/seatManager/useSeatManager').then((m) => {
@@ -494,7 +494,7 @@ function removeAvatar() {
 
 <template>
   <div class="relative h-full overflow-y-auto p-6">
-    <!-- DakeMusic: 自定义背景层（与房间列表页同步） -->
+    <!-- LyriseMusic: 自定义背景层（与房间列表页同步） -->
     <div
       v-if="settingStore.chatroomBackgroundImage"
       class="profile-custom-bg"
@@ -556,7 +556,7 @@ function removeAvatar() {
             </div>
             <div class="flex-1">
               <h2 class="text-xl font-bold mb-1">{{ profile.nickname || profile.name }}</h2>
-              <!-- DakeMusic: 一行展示资料标签，类似社交App -->
+              <!-- LyriseMusic: 一行展示资料标签，类似社交App -->
               <div class="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5">
                 <span class="text-xs opacity-50">ID: {{ 999 + (profile?.userId || 0) }}</span>
                 <span
@@ -608,7 +608,7 @@ function removeAvatar() {
             </div>
           </div>
 
-          <!-- DakeMusic: 麦位声波选择弹窗 -->
+          <!-- LyriseMusic: 麦位声波选择弹窗 -->
           <div
             v-if="showAuralPicker"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
@@ -671,7 +671,7 @@ function removeAvatar() {
             </div>
           </div>
 
-          <!-- DakeMusic: 麦位框选择弹窗 -->
+          <!-- LyriseMusic: 麦位框选择弹窗 -->
           <div
             v-if="showFramePicker"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
@@ -839,7 +839,7 @@ function removeAvatar() {
             />
           </div>
 
-          <!-- DakeMusic: 年龄 + 性别（合一行） -->
+          <!-- LyriseMusic: 年龄 + 性别（合一行） -->
           <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
               <label class="block text-sm font-bold mb-2 opacity-70">年龄</label>
@@ -905,7 +905,7 @@ function removeAvatar() {
             </div>
           </div>
 
-          <!-- DakeMusic: 城市（省市级联选择） -->
+          <!-- LyriseMusic: 城市（省市级联选择） -->
           <div>
             <label class="block text-sm font-bold mb-2 opacity-70">城市</label>
             <button
@@ -1008,7 +1008,7 @@ function removeAvatar() {
     </div>
   </div>
 
-  <!-- DakeMusic: 省市级联选择弹窗 -->
+  <!-- LyriseMusic: 省市级联选择弹窗 -->
   <Teleport to="body">
     <div
       v-if="showCityPicker"
@@ -1128,7 +1128,7 @@ function removeAvatar() {
 </template>
 
 <style scoped>
-/* DakeMusic: 自定义背景层（与房间列表页同步） */
+/* LyriseMusic: 自定义背景层（与房间列表页同步） */
 .profile-custom-bg {
   position: fixed;
   top: 0;

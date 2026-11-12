@@ -151,7 +151,7 @@ export const createDesktopLyricWindow = () => {
   const limits = getDesktopLyricWindowLimits();
 
   const win = new BrowserWindow({
-    title: 'DakeMusic Desktop Lyric',
+    title: 'LyriseMusic Desktop Lyric',
     ...(!app.isPackaged ? { icon: join(process.cwd(), 'build/icons/icon.png') } : {}),
     width: bounds.width,
     height: bounds.height,
