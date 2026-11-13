@@ -4668,7 +4668,63 @@
   /* -------------------------------------------------------
      启动
      ------------------------------------------------------- */
-  function init() {
+
+  /**
+   * 读取服务端维护开关。关闭时渲染锁定页并返回 false，调用方直接终止初始化。
+   * 读取失败一律当作开放，避免开关服务异常导致整个语聊房打不开。
+   */
+  async function ensureWebroomOpen() {
+    try {
+      const resp = await fetch(`${API_BASE}/api/feature-flags`, { cache: 'no-store' });
+      if (!resp.ok) return true;
+      const data = await resp.json();
+      const webroom = data?.webroom;
+      if (!webroom || webroom.mode === 'open') return true;
+      showLockScreen(webroom.message);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  function showLockScreen(message) {
+    const wrap = document.createElement('div');
+    wrap.id = 'webroom-lock';
+    wrap.style.cssText =
+      'position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;' +
+      'justify-content:center;gap:16px;padding:32px;text-align:center;color:#1c1c1e;' +
+      'background:radial-gradient(1200px 600px at 50% 15%, #f7f9fc 0%, #e9edf5 100%);';
+    wrap.innerHTML =
+      '<div style="width:84px;height:84px;border-radius:24px;background:#fff;display:flex;' +
+      'align-items:center;justify-content:center;font-size:38px;box-shadow:0 12px 32px rgba(16,24,40,.12)">🔒</div>' +
+      '<h1 style="margin:0;font-size:22px;font-weight:700">语聊房暂时关闭</h1>' +
+      `<p style="margin:0;max-width:420px;line-height:1.65;font-size:15px;color:#6e6e73">${escapeHtml(
+        message || '维护中，请稍后再来'
+      )}</p>` +
+      '<button id="webroom-lock-retry" style="margin-top:6px;border:0;border-radius:12px;padding:11px 22px;' +
+      'background:#1c1c1e;color:#fff;font-size:14px;cursor:pointer">重新检查</button>' +
+      '<p style="margin:0;font-size:12px;color:#9a9aa0">恢复后会自动刷新</p>';
+    document.body.appendChild(wrap);
+    wrap.querySelector('#webroom-lock-retry').addEventListener('click', () => location.reload());
+    document.title = '语聊房维护中 · Lyrise 音乐';
+
+    const timer = setInterval(async () => {
+      try {
+        const resp = await fetch(`${API_BASE}/api/feature-flags`, { cache: 'no-store' });
+        const data = await resp.json();
+        if (data?.webroom?.mode === 'open') {
+          clearInterval(timer);
+          location.reload();
+        }
+      } catch {
+        /* 忽略网络抖动 */
+      }
+    }, 20000);
+  }
+
+  async function init() {
+    if (!(await ensureWebroomOpen())) return;
+
     state.pendingRoomId = normalizeRoomId(params.get('room') || '');
     state.autoJoinAttempted = false;
 
