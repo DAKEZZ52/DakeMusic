@@ -22,6 +22,14 @@ import type {
   SeparatorResult,
 } from '../shared/separator';
 import type { LocalMusicAddFilesResult, LocalMusicLibrary } from '../shared/localMusic';
+import type {
+  ScoreDoc,
+  ScoreEngineStatus,
+  ScoreOptions,
+  ScorePcmInput,
+  ScoreProgress,
+  ScoreResult,
+} from '../shared/scoreflow';
 import type { ShortcutRegistrationRequest, ShortcutRegistrationResult } from '../shared/shortcuts';
 import type {
   DesktopLyricCommand,
@@ -243,6 +251,13 @@ export interface IElectronAPI {
     pickModelDir: () => Promise<string | null>;
     revealDir: (dir: string) => Promise<boolean>;
     onProgress: (func: (progress: SeparatorProgress) => void) => () => void;
+  };
+  scoreflow: {
+    engineStatus: () => Promise<ScoreEngineStatus>;
+    transcribe: (input: ScorePcmInput, options?: ScoreOptions) => Promise<ScoreResult>;
+    cancel: () => Promise<boolean>;
+    exportJson: (doc: ScoreDoc, suggestedName?: string) => Promise<string | null>;
+    onProgress: (func: (progress: ScoreProgress) => void) => () => void;
   };
   localMusic: {
     listLibraries: () => Promise<LocalMusicLibrary[]>;

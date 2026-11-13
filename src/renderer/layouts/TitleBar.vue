@@ -37,6 +37,7 @@ import {
   iconSearch,
   iconMicrophone,
   iconClipboardList,
+  iconMusic,
   iconMessageCircle,
   iconScissors,
 } from '@/icons';
@@ -147,6 +148,16 @@ const registerBuiltinActions = () => {
     order: 10,
     onClick: async () => {
       await router.push({ name: 'recognize' });
+    },
+  });
+  builtinApi.register({
+    id: 'score',
+    title: '扒谱',
+    icon: iconMusic,
+    defaultPlacement: 'more',
+    order: 15,
+    onClick: async () => {
+      await router.push({ name: 'score' });
     },
   });
   builtinApi.register({
