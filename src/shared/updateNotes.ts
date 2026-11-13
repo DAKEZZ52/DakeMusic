@@ -38,7 +38,7 @@ export async function resolveUpdateNotes(
     if (!knownRelease) {
       try {
         const release = (await requestJson(
-          `https://api.github.com/repos/DAKEZZ52/DakeMusic/releases/tags/${encodeURIComponent(tag)}`,
+          `https://api.github.com/repos/DAKEZZ52/LyriseMusic/releases/tags/${encodeURIComponent(tag)}`,
         )) as { body?: unknown };
         const notes = cleanNotes(release?.body);
         if (notes) return notes;
@@ -48,7 +48,7 @@ export async function resolveUpdateNotes(
     }
     try {
       const markdown = await requestText(
-        `https://raw.githubusercontent.com/DAKEZZ52/DakeMusic/${encodeURIComponent(tag)}/CHANGELOG.md`,
+        `https://raw.githubusercontent.com/DAKEZZ52/LyriseMusic/${encodeURIComponent(tag)}/CHANGELOG.md`,
       );
       const notes = extractVersionNotes(markdown, normalized);
       if (notes) return notes;

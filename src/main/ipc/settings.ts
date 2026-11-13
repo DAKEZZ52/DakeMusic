@@ -677,7 +677,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     autoUpdater.setFeedURL({
       provider: 'github',
       owner: 'DAKEZZ52',
-      repo: 'DakeMusic',
+      repo: 'LyriseMusic',
     });
     autoUpdater.allowPrerelease = prerelease;
     // GitHub provider 走 API 不读 channel，这里仅为在切换通道时保持状态一致
@@ -697,15 +697,15 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     prerelease: boolean;
     acceleratorUrl: string;
   }) => {
-    let githubFeedUrl = 'https://github.com/DAKEZZ52/DakeMusic/releases/latest/download';
+    let githubFeedUrl = 'https://github.com/DAKEZZ52/LyriseMusic/releases/latest/download';
     if (context.prerelease) {
       log.info('[Updater] Fetching latest prerelease tag via GitHub API...');
       const releases = await requestJson<GithubRelease[]>(
-        'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases?per_page=1&page=1',
+        'https://api.github.com/repos/DAKEZZ52/LyriseMusic/releases?per_page=1&page=1',
       );
       const tag = String(releases[0]?.tag_name ?? '').trim();
       if (!tag) throw new Error('未找到可用的 GitHub 预发布版本');
-      githubFeedUrl = `https://github.com/DAKEZZ52/DakeMusic/releases/download/${tag}`;
+      githubFeedUrl = `https://github.com/DAKEZZ52/LyriseMusic/releases/download/${tag}`;
     }
     const feedUrl = applyGithubAcceleratorUrl(githubFeedUrl, context.acceleratorUrl);
     if (feedUrl === githubFeedUrl) throw new Error('GitHub 加速地址无效');
@@ -915,7 +915,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
       currentVersion,
       latestVersion: info.version,
       releaseName: info.releaseName || `v${info.version}`,
-      releaseUrl: `https://github.com/DAKEZZ52/DakeMusic/releases/tag/v${info.version}`,
+      releaseUrl: `https://github.com/DAKEZZ52/LyriseMusic/releases/tag/v${info.version}`,
       body,
       silent,
     };
@@ -930,7 +930,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
       currentVersion,
       latestVersion: info.version,
       releaseName: info.releaseName || `v${info.version}`,
-      releaseUrl: `https://github.com/DAKEZZ52/DakeMusic/releases/tag/v${info.version}`,
+      releaseUrl: `https://github.com/DAKEZZ52/LyriseMusic/releases/tag/v${info.version}`,
       body: readCurrentVersionChangelog(),
       silent,
     };
@@ -994,8 +994,8 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
   }): Promise<void> => {
     const { version: currentVersion } = getAppInfo();
     const releasesUrl = payload.prerelease
-      ? 'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases?per_page=20&page=1'
-      : 'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases/latest';
+      ? 'https://api.github.com/repos/DAKEZZ52/LyriseMusic/releases?per_page=20&page=1'
+      : 'https://api.github.com/repos/DAKEZZ52/LyriseMusic/releases/latest';
 
     const response = payload.prerelease
       ? await requestJson<GithubRelease[]>(releasesUrl)
@@ -1021,7 +1021,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
     const releaseUrl =
       typeof release.html_url === 'string'
         ? release.html_url
-        : `https://github.com/DAKEZZ52/DakeMusic/releases/tag/${release.tag_name}`;
+        : `https://github.com/DAKEZZ52/LyriseMusic/releases/tag/${release.tag_name}`;
 
     if (!isNewerRelease(latestVersion, currentVersion)) {
       const result: UpdateCheckResult = {
@@ -1316,7 +1316,7 @@ export const registerSettingsHandlers = ({ getMainWindow, playerRef }: IpcContex
             currentVersion: getAppInfo().version,
             message: formatUpdateCheckError(error),
             manualDownload: manualMacUpdate,
-            releaseUrl: 'https://github.com/DAKEZZ52/DakeMusic/releases',
+            releaseUrl: 'https://github.com/DAKEZZ52/LyriseMusic/releases',
             silent,
           };
           sendToRenderer('update-check-result', lastCheckResult);

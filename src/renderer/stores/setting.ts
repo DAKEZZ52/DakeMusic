@@ -468,7 +468,7 @@ export const useSettingStore = defineStore('setting', {
     },
     openRepo() {
       if (window.electron?.ipcRenderer) {
-        window.electron.ipcRenderer.send('open-external', 'https://github.com/DAKEZZ52/DakeMusic');
+        window.electron.ipcRenderer.send('open-external', 'https://github.com/DAKEZZ52/LyriseMusic');
       }
     },
     openDisclaimer() {

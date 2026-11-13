@@ -154,7 +154,7 @@ export const useUpdateStore = defineStore('update', {
         status: this.checkResult?.latestVersion ? 'available' : 'error',
         currentVersion: this.checkResult?.currentVersion || useSettingStore().appVersion || '未知',
         releaseUrl:
-          this.checkResult?.releaseUrl || 'https://github.com/DAKEZZ52/DakeMusic/releases',
+          this.checkResult?.releaseUrl || 'https://github.com/DAKEZZ52/LyriseMusic/releases',
         manualDownload: true,
         downloadLabel: '手动下载最新版本',
         message: UPDATE_SIGNATURE_ERROR,

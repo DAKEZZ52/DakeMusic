@@ -25,12 +25,12 @@ const compile = (path, imports, processValue = process) => {
 };
 const asset = (arch) => ({
   name: `LyriseMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
-  browser_download_url: `https://github.com/DAKEZZ52/DakeMusic/releases/download/v2.3.1-beta.27/LyriseMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
+  browser_download_url: `https://github.com/DAKEZZ52/LyriseMusic/releases/download/v2.3.1-beta.27/LyriseMusic-2.3.1-beta.27-macOS-${arch}.dmg`,
 });
 const release = {
   tag_name: 'v2.3.1-beta.27',
   prerelease: true,
-  html_url: 'https://github.com/DAKEZZ52/DakeMusic/releases/tag/v2.3.1-beta.27',
+  html_url: 'https://github.com/DAKEZZ52/LyriseMusic/releases/tag/v2.3.1-beta.27',
   body: '更新日志',
   assets: [asset('x64'), asset('arm64')],
 };

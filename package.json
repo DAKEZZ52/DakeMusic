@@ -98,7 +98,7 @@
       {
         "provider": "github",
         "owner": "DAKEZZ52",
-        "repo": "DakeMusic"
+        "repo": "LyriseMusic"
       }
     ],
     "compression": "maximum",
@@ -368,11 +368,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/DAKEZZ52/DakeMusic.git"
+    "url": "git+https://github.com/DAKEZZ52/LyriseMusic.git"
   },
   "keywords": [],
   "bugs": {
-    "url": "https://github.com/DAKEZZ52/DakeMusic/issues"
+    "url": "https://github.com/DAKEZZ52/LyriseMusic/issues"
   },
-  "homepage": "https://github.com/DAKEZZ52/DakeMusic#readme"
+  "homepage": "https://github.com/DAKEZZ52/LyriseMusic#readme"
 }

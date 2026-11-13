@@ -35,7 +35,7 @@ test('a generic update feed without notes fetches the exact release', async () =
   );
   assert.equal(result, '### 新增\n- new feature');
   assert.deepEqual(urls, [
-    'https://api.github.com/repos/DAKEZZ52/DakeMusic/releases/tags/v3.0.0-beta.1',
+    'https://api.github.com/repos/DAKEZZ52/LyriseMusic/releases/tags/v3.0.0-beta.1',
   ]);
 });
 
