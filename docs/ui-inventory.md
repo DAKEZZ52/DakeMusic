@@ -82,6 +82,7 @@
 | `Profile.vue` | 1,259 | 个人中心 |
 | `Explore.vue` | 1,203 | 探索发现 |
 | `Recognize.vue` | 1,143 | 听歌识曲 |
+| `Score.vue` | 1,100+ | 扒谱（音频转简谱，本地 ScoreFlow 引擎） |
 | `PersonalFm.vue` | 1,119 | 私人 FM |
 | `Home.vue` | **1,007** | **首页**（英雄卡、风格推荐、歌单网格） |
 | `Favorites.vue` | 869 | 我最爱 |

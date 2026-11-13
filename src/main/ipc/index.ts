@@ -19,6 +19,7 @@ import { registerSettingsBackupHandlers } from './settingsBackup';
 import { registerRecognizeHandlers } from './recognize';
 import { registerDownloadHandlers } from '../download';
 import { registerSeparatorHandlers } from '../separator';
+import { registerScoreflowHandlers } from '../scoreflow';
 import { registerLocalMusicHandlers } from './localMusic';
 import { registerChorusHandlers } from './chorus';
 import type { IpcContext } from './types';
@@ -47,6 +48,7 @@ export const registerIpcHandlers = (context: IpcContext) => {
   registerRecognizeHandlers();
   registerDownloadHandlers(context);
   registerSeparatorHandlers(context);
+  registerScoreflowHandlers(context);
   registerLocalMusicHandlers();
   registerChorusHandlers();
   registered = true;

@@ -44,6 +44,15 @@ import type {
   LocalMusicAddFilesResult,
   LocalMusicLibrary,
 } from '../shared/localMusic';
+import {
+  SCOREFLOW_IPC_CHANNELS,
+  type ScoreDoc,
+  type ScoreEngineStatus,
+  type ScoreOptions,
+  type ScorePcmInput,
+  type ScoreProgress,
+  type ScoreResult,
+} from '../shared/scoreflow';
 import type {
   AudioEffectPlaybackOptions,
   DownloadCommunityAudioEffectRequest,
@@ -453,6 +462,36 @@ contextBridge.exposeInMainWorld('electron', {
         func(progress);
       ipcRenderer.on(SEPARATOR_IPC_CHANNELS.progress, listener);
       return () => ipcRenderer.removeListener(SEPARATOR_IPC_CHANNELS.progress, listener);
+    },
+  },
+
+  // 扒谱：本地 Python 引擎把音频转成简谱，进度经 progress 事件推送。
+  // 注意 transcribe 刻意不走 invokeWithPlainPayload：PCM 是 Float32Array，
+  // 套进对象里会被 JSON 化（一首歌上百万个采样点），要直接交给结构化克隆。
+  scoreflow: {
+    engineStatus: () =>
+      invokeWithPlainPayload<ScoreEngineStatus>(SCOREFLOW_IPC_CHANNELS.engineStatus),
+    transcribe: (input: ScorePcmInput, options?: ScoreOptions) =>
+      ipcRenderer.invoke(SCOREFLOW_IPC_CHANNELS.transcribe, {
+        input: {
+          channels: input.channels,
+          sampleRate: input.sampleRate,
+          data: input.data,
+          baseName: input.baseName,
+        },
+        options: options ? toPlainIpcPayload(options) : undefined,
+      }) as Promise<ScoreResult>,
+    cancel: () => invokeWithPlainPayload<boolean>(SCOREFLOW_IPC_CHANNELS.cancel),
+    exportJson: (doc: ScoreDoc, suggestedName?: string) =>
+      invokeWithPlainPayload<string | null>(SCOREFLOW_IPC_CHANNELS.exportJson, {
+        doc,
+        suggestedName,
+      }),
+    onProgress: (func: (progress: ScoreProgress) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, progress: ScoreProgress) =>
+        func(progress);
+      ipcRenderer.on(SCOREFLOW_IPC_CHANNELS.progress, listener);
+      return () => ipcRenderer.removeListener(SCOREFLOW_IPC_CHANNELS.progress, listener);
     },
   },
   diagnostics: {
