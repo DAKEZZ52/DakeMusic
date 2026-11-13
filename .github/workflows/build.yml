@@ -79,15 +79,6 @@ jobs:
               release/LyriseMusic-*.exe
               release/LyriseMusic-*.exe.blockmap
               release/latest.yml
-          - os: windows-11-arm
-            rust_target: ''
-            # arm64 包单独命名：x64 与 arm64 同名会让 download-artifact 的
-            # merge-multiple 互相覆盖，导致 latest.yml 与实际 exe 不匹配
-            electron_builder_args: '--win --arm64 --config.nsis.artifactName=${productName}-${version}-arm64.${ext}'
-            artifact_name: LyriseMusic-Windows-arm64
-            artifact_glob: |
-              release/LyriseMusic-*-arm64.exe
-              release/LyriseMusic-*-arm64.exe.blockmap
 
     steps:
       - name: Checkout code
