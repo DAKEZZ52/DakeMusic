@@ -4670,21 +4670,56 @@
      ------------------------------------------------------- */
 
   /**
-   * 读取服务端维护开关。关闭时渲染锁定页并返回 false，调用方直接终止初始化。
-   * 读取失败一律当作开放，避免开关服务异常导致整个语聊房打不开。
+   * 读取服务端维护开关。读取失败一律当作开放，避免开关服务异常导致语聊房打不开。
    */
-  async function ensureWebroomOpen() {
+  async function fetchWebroomFlag() {
     try {
       const resp = await fetch(`${API_BASE}/api/feature-flags`, { cache: 'no-store' });
-      if (!resp.ok) return true;
+      if (!resp.ok) return { mode: 'open' };
       const data = await resp.json();
-      const webroom = data?.webroom;
-      if (!webroom || webroom.mode === 'open') return true;
-      showLockScreen(webroom.message);
-      return false;
+      return data?.webroom || { mode: 'open' };
     } catch {
-      return true;
+      return { mode: 'open' };
     }
+  }
+
+  /** draining：还能玩，但顶部挂倒计时横幅；到期转 maintenance 时切成锁定页 */
+  function showClosingBanner(flag) {
+    const bar = document.createElement('div');
+    bar.id = 'webroom-closing';
+    bar.style.cssText =
+      'position:fixed;left:0;right:0;top:0;z-index:9999;padding:10px 16px;text-align:center;' +
+      'font-size:13px;background:#fff4e5;color:#8a5300;border-bottom:1px solid #ffd8a8;';
+    document.body.appendChild(bar);
+
+    const endsAt = Number(flag.drainEndsAt) || 0;
+    const baseText = flag.message || '语聊房即将关闭';
+    const render = () => {
+      if (!endsAt) {
+        bar.textContent = baseText;
+        return;
+      }
+      const left = Math.max(0, endsAt - Date.now());
+      bar.textContent = `${baseText}（还剩 ${Math.ceil(left / 60000)} 分钟）`;
+    };
+    render();
+    const ticker = setInterval(render, 10000);
+
+    const watcher = setInterval(async () => {
+      const next = await fetchWebroomFlag();
+      if (next.mode === 'open') {
+        clearInterval(ticker);
+        clearInterval(watcher);
+        bar.remove();
+        return;
+      }
+      if (next.mode !== 'draining') {
+        clearInterval(ticker);
+        clearInterval(watcher);
+        bar.remove();
+        showLockScreen(next.message);
+      }
+    }, 15000);
   }
 
   function showLockScreen(message) {
@@ -4723,7 +4758,14 @@
   }
 
   async function init() {
-    if (!(await ensureWebroomOpen())) return;
+    // 先问服务端：maintenance 直接锁死；draining 允许进入但挂倒计时横幅
+    const flag = await fetchWebroomFlag();
+    if (flag.mode === 'draining') {
+      showClosingBanner(flag);
+    } else if (flag.mode !== 'open') {
+      showLockScreen(flag.message);
+      return;
+    }
 
     state.pendingRoomId = normalizeRoomId(params.get('room') || '');
     state.autoJoinAttempted = false;
