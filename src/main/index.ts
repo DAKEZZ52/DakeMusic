@@ -67,4 +67,7 @@ if (app.isPackaged) {
   }, 15_000).unref?.();
 }
 
+// 远程功能开关：启动时拉一次，之后每 10 分钟刷新（离线时沿用上次状态，默认全开）。
+void import('./remoteFlags').then((module) => module.startRemoteFlags()).catch(() => {});
+
 void import('./app');

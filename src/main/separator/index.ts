@@ -8,6 +8,7 @@ import { app, dialog, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ipcRegistry } from '../ipc/registry';
+import { assertFeatureEnabled } from '../remoteFlags';
 import type { IpcContext } from '../ipc/types';
 import {
   MODEL_LIST,
@@ -54,18 +55,21 @@ function safeFileName(name: string): string {
 /** 注册分离模块全部 IPC 处理器。 */
 export const registerSeparatorHandlers = (context: IpcContext): void => {
   // 模型列表
-  ipcRegistry.registerHandler(SEPARATOR_IPC_CHANNELS.listModels, (): SeparatorModelInfo[] =>
-    MODEL_LIST.map((spec) => ({
+  ipcRegistry.registerHandler(SEPARATOR_IPC_CHANNELS.listModels, (): SeparatorModelInfo[] => {
+    // 服务端关闭该功能时，列表查询直接报错，渲染层据此显示禁用提示
+    assertFeatureEnabled('separator');
+    return MODEL_LIST.map((spec) => ({
       id: spec.id,
       name: spec.name,
       downloaded: isModelDownloaded(spec),
-    })),
-  );
+    }));
+  });
 
   // 独立下载模型（与「开始分离」解耦：模型下载在分离模型区单独触发）
   ipcRegistry.registerHandler(
     SEPARATOR_IPC_CHANNELS.downloadModel,
     async (event, payload: { modelId: string }): Promise<boolean> => {
+      assertFeatureEnabled('separator');
       const spec = MODEL_LIST.find((s) => s.id === payload?.modelId);
       if (!spec) throw new Error('未找到所选模型');
       if (isModelDownloaded(spec)) return true;
@@ -87,6 +91,7 @@ export const registerSeparatorHandlers = (context: IpcContext): void => {
   ipcRegistry.registerHandler(
     SEPARATOR_IPC_CHANNELS.start,
     async (event, payload: { modelId: string; input: SeparatorPcmInput }) => {
+      assertFeatureEnabled('separator');
       const spec = MODEL_LIST.find((s) => s.id === payload.modelId);
       if (!spec) throw new Error('未找到所选模型');
       if (!isModelDownloaded(spec)) {

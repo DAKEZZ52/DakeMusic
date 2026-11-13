@@ -9,6 +9,7 @@ import { dialog, shell } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { ipcRegistry } from '../ipc/registry';
+import { assertFeatureEnabled } from '../remoteFlags';
 import type { IpcContext } from '../ipc/types';
 import { cancelTranscribe, probeEngine, transcribe } from './engine';
 import {
@@ -42,12 +43,17 @@ function normalizeInput(input: ScorePcmInput | undefined): ScorePcmInput {
 /** 注册扒谱模块全部 IPC 处理器。 */
 export const registerScoreflowHandlers = (context: IpcContext): void => {
   /** 引擎是否可用（页面进入时先探一次，不可用就提示去哪配）。 */
-  ipcRegistry.registerHandler(SCOREFLOW_IPC_CHANNELS.engineStatus, () => probeEngine());
+  ipcRegistry.registerHandler(SCOREFLOW_IPC_CHANNELS.engineStatus, () => {
+    // 服务端关闭扒谱时直接报错，页面据此显示禁用提示
+    assertFeatureEnabled('scoreflow');
+    return probeEngine();
+  });
 
   /** 开始扒谱：结果一次性返回，进度走 progress 事件。 */
   ipcRegistry.registerHandler(
     SCOREFLOW_IPC_CHANNELS.transcribe,
     async (event, payload: { input: ScorePcmInput; options?: ScoreOptions }) => {
+      assertFeatureEnabled('scoreflow');
       const input = normalizeInput(payload?.input);
       const options = payload?.options ?? {};
 
