@@ -1,23 +1,7 @@
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <!-- 镂空遮罩 -->
-    <mask id="tray-icon-mask">
-      <!-- 主体背景：圆角方框 -->
-      <rect width="1024" height="1024" rx="180" fill="white"/>
-
-      <!-- 瘦长版 Echo 文字：高度极大，宽度受限 -->
-      <!-- 使用 textLength 强制压缩宽度 -->
-      <text x="512" y="700"
-            font-family="system-ui, -apple-system, sans-serif"
-            font-size="650"
-            font-weight="950"
-            fill="black"
-            text-anchor="middle"
-            textLength="850"
-            lengthAdjust="spacingAndGlyphs">Echo</text>
-    </mask>
-  </defs>
-
-  <!-- 最终生成的图形 -->
-  <rect width="1024" height="1024" rx="180" fill="black" mask="url(#tray-icon-mask)"/>
+<svg width="88" height="88" viewBox="0 0 88 88" xmlns="http://www.w3.org/2000/svg">
+  <!-- macOS 托盘模板：透明底 + 纯黑字形，系统会按菜单栏明暗自动反色 -->
+  <text x="44" y="60"
+        font-family="Lato Black, Lato, system-ui, -apple-system, sans-serif"
+        font-size="37" font-weight="900"
+        fill="#000000" text-anchor="middle">Ly</text>
 </svg>
