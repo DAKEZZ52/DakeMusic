@@ -311,6 +311,24 @@ const ipcRequest = async (
         logger.error('API', 'Bad gateway (502)');
       }
     }
+
+    // 上游返回了可读提示时直接展示，避免把「无法升级奖励」这类业务原因
+    // 统一显示成看不懂的 "API Error: 502"
+    const body = response.body as {
+      error_msg?: unknown;
+      message?: unknown;
+      error?: unknown;
+    } | null;
+    const upstreamMessage = [body?.error_msg, body?.message, body?.error]
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .find((value) => value && value !== 'undefined');
+
+    if (upstreamMessage) {
+      const err = new Error(upstreamMessage);
+      (err as any).response = response;
+      throw err;
+    }
+
     const err = new Error(`API Error: ${response.status}`);
     (err as any).response = response;
     throw err;
