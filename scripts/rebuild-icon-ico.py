@@ -9,8 +9,8 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICONS = os.path.join(BASE, 'build', 'icons')
 SOURCE = os.path.join(ICONS, 'icon.png')
 
-LYRISE_BOX = (212, 320, 811, 536)   # 「Lyrise」整词区域（已测量）
-L_BOX = (212, 320, 313, 536)        # 首字母「L」（到横笔末端，不含 y）
+LYRISE_BOX = (218, 338, 817, 549)   # 「Lyrise」整词区域（新布局测量）
+L_BOX = (218, 338, 323, 549)        # 首字母「L」（到横笔末端，不含 y）
 
 src = Image.open(SOURCE).convert('RGBA')
 

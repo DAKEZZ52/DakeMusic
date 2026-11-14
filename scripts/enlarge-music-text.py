@@ -14,7 +14,7 @@ PAPER = (255, 255, 255, 255)
 
 # 原布局（已测量）：Music 在 y=675-723，x=389-627，高 49
 # 目标：高约 76（≈ Lyrise 216 的 35%，与旧版 Dake / MUSIC 的比例接近）
-TARGET_HEIGHT = 76
+TARGET_HEIGHT = 135
 CENTER_X = 512
 TARGET_TOP = 668
 
